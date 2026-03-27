@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0.5
+pyautogui.PAUSE = 0.1
 
 class MixProcessor:
     def __init__(self):
@@ -230,8 +230,8 @@ class MixProcessor:
                             maior_confianca = 0
                             melhor_estado = None
                             
-                            # 2. Match OpenCV com todas as etiquetas (Multi-Scale 0.8x a 1.2x)
-                            escalas = [1.0, 0.9, 0.8, 1.1, 1.2]
+                            # 2. Match OpenCV com todas as etiquetas (Multi-Scale 0.9x a 1.1x)
+                            escalas = [1.0, 0.9, 1.1]
                             for stat_name, lista_templates in templates_cv2.items():
                                 for tmplt in lista_templates:
                                     for sc in escalas:
@@ -267,16 +267,16 @@ class MixProcessor:
 
                     # 4. Caso contário, precisa agir mecanicamente
                     pyautogui.click(coord_loja) # Clica na loja
-                    time.sleep(0.5)
+                    time.sleep(0.1) # Reduzido de 0.5 para 0.1 devido ao PAUSE global
 
                     if status == "A":
                         # Ativar
-                        pyautogui.press('a', presses=2, interval=0.1)
+                        pyautogui.press('a', presses=2, interval=0.05)
                     else:
                         # Inativar
-                        pyautogui.press('i', presses=2, interval=0.1)
+                        pyautogui.press('i', presses=2, interval=0.05)
                         
-                    time.sleep(0.2)
+                    time.sleep(0.1)
 
                 # Finaliza edição do produto atual
                 pyautogui.press('f4')
