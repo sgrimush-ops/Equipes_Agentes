@@ -7,16 +7,12 @@ if __name__ == '__main__':
         pass
 import pandas as pd
 from pathlib import Path
-
-
+import sys
+import subprocess
 
 # O rpcompra.csv não é mais utilizado. O Pipeline agora se alimenta do query.parquet
 base_dir = Path(__file__).parent
-
-arquivo_entrada = Path('c:/Users/Alessandro.soares.BAKLIZI/Downloads/Equipes_Agentes/Aplicativos/import_querys/query.parquet')
-
-import sys
-import subprocess
+arquivo_entrada = Path(r'c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos\import_querys\query.parquet')
 
 if not arquivo_entrada.exists():
     print(f"Erro: O arquivo Parquet {arquivo_entrada} não foi encontrado!")
@@ -24,17 +20,16 @@ if not arquivo_entrada.exists():
 
 print("Parquet de rupturas localizado!")
 
-# Executar a dashboard logo em sequência
-print("Executando a geração do Dashboard...")
+# 1. Executar a dashboard de compradores
+print("Executando a geração do Dashboard de Compradores...")
 try:
     script_dashboard = base_dir / "gerar_dashboard_comprador.py"
     subprocess.run([sys.executable, str(script_dashboard)], check=True)
-    print("Dashboard gerado e atualizado.")
+    print("Dashboard de compradores gerado e atualizado.")
 except Exception as e:
-    print(f"Ocorreu um erro ao encadear o dashboard: {e}")
-<<<<<<< HEAD
+    print(f"Ocorreu um erro ao encadear o dashboard de compradores: {e}")
 
-# Executar a dashboard detalhada
+# 2. Executar a dashboard detalhada
 print("Executando a geração do Dashboard Detalhado...")
 try:
     script_detalhado = base_dir / "dashboard_detalhado.py"
@@ -42,5 +37,3 @@ try:
     print("Dashboard detalhado gerado e atualizado.")
 except Exception as e:
     print(f"Ocorreu um erro ao encadear o dashboard detalhado: {e}")
-=======
->>>>>>> c0d55e2759e64d63ae0ea39839df6f48aa226883
