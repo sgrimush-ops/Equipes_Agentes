@@ -72,4 +72,6 @@ Este módulo possui regras estruturais fixas para garantir a integridade das mé
 - **Interface e Visualização:**
     - O gráfico Plotly deve sempre iniciar com a barra **TOTAL GERAL** na primeira posição (extrema esquerda).
     - Botões de navegação: Manter obrigatoriamente os filtros "Totais Gerais" e "Só Compradores". O botão "Ver Todos" está permanentemente removido.
+    - **Performance No-Server**: O arquivo final deve ser mantido abaixo de 10MB, utilizando a estratégia de embutir os dados em JSON e processar filtros via JavaScript no cliente.
+- **Rastreabilidade (Snapshots):** Todo processamento de ruptura deve gerar e preservar um snapshot diário em `.parquet` na pasta `historico_ruptura/` para fins de auditoria e evolução temporal.
 - **Integridade de Merges:** No script `gerar_dashboard_comprador.py`, a base primordial do `df_resumo` deve ser o mix de produtos para evitar que compradores com base zerada em um dos canais desapareçam do relatório.
