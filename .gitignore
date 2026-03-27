@@ -1,0 +1,25 @@
+node_modules/
+.env
+*.log
+squads/*/output/
+_Equipes_agentes/_memory/company.md
+_Equipes_agentes/_memory/preferences.md
+_Equipes_agentes/_browser_profile/
+docs/
+
+# Regras do Projeto (rules.md)
+.venv/
+__pycache__/
+tmp/
+.motor/
+
+# Arquivos Pesados (>100MB)
+Aplicativos/BancoDadosSW/banco_de_dados_*.txt
+Aplicativos/cruzamento/guardar/banco_de_dados_*.txt
+Aplicativos/ruptura/dashboard_modelo.html
+large_files.csv
+
+# Ferramentas AI/IDE
+.antigravity/
+.claude/
+.vscode/
