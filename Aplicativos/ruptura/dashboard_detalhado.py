@@ -44,7 +44,6 @@ def principal():
     df['is_est_pend'] = (df['QUANTIDADE_DISPONIVEL'] > 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
 
     print("Agregando métricas por Produto e Empresa...")
-    # Agrupamos por Produto e Empresa para ter os dados de cada loja
     df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
         ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
         PEDIDOS=('QTD_PEND_PEDCOMPRA', 'sum'),
@@ -57,9 +56,7 @@ def principal():
     ).reset_index()
 
     print("Consolidando JSON por Produto...")
-    # Transformamos em uma lista onde cada produto tem seu dicionário de lojas
     produtos_dict = {}
-    
     for _, row in df_grouped.iterrows():
         key = (row['COMPRADOR'], row['CODIGO_PRODUTO'], row['DESCRICAO_PRODUTO'])
         if key not in produtos_dict:
@@ -95,7 +92,7 @@ def principal():
     dados_json = json.dumps(final_data)
 
     compradores = sorted([c for c in df['COMPRADOR'].dropna().unique()])
-    options_compradores = '<option value="">-- Selecione o Comprador --</option>'
+    options_compradores = '<option value="TODOS">-- TODOS OS COMPRADORES --</option>'
     for c in compradores:
         options_compradores += f'<option value="{c}">{c}</option>'
 
@@ -151,7 +148,7 @@ def principal():
                 </div>
             </div>
 
-            <div class="card" id="filtros-container" style="display: none;">
+            <div class="card" id="filtros-container">
                 <h5 class="mb-3">Selecione uma Visão:</h5>
                 <div>
                     <button class="btn btn-metric btn-rup-cd" id="btn_rup_cd" onclick="mudarVisao('RUPTURA_CD')">Ruptura CD</button>
@@ -163,7 +160,7 @@ def principal():
                 </div>
             </div>
             
-            <div class="card table-container" id="tabela-container" style="display: none;">
+            <div class="card table-container" id="tabela-container">
                 <table class="table table-striped table-hover align-middle">
                     <thead>
                         <tr>
@@ -180,10 +177,6 @@ def principal():
                     </tbody>
                 </table>
             </div>
-            
-            <div id="mensagem-inicial" class="text-center mt-5">
-                <h4 class="text-muted">Selecione um comprador acima para carregar o detalhamento.</h4>
-            </div>
         </div>
 
         <script>
@@ -195,17 +188,11 @@ def principal():
             const comprador = document.getElementById("FiltroComprador").value;
             const loja = document.getElementById("FiltroLoja").value;
             
-            if (!comprador) {
-                document.getElementById("tabela-container").style.display = "none";
-                document.getElementById("filtros-container").style.display = "none";
-                document.getElementById("mensagem-inicial").style.display = "block";
-                return;
+            if (comprador === "TODOS") {
+                dadosAtuais = masterData;
+            } else {
+                dadosAtuais = masterData.filter(d => d.COMPRADOR === comprador);
             }
-            
-            document.getElementById("mensagem-inicial").style.display = "none";
-            document.getElementById("filtros-container").style.display = "block";
-            
-            dadosAtuais = masterData.filter(d => d.COMPRADOR === comprador);
             
             // Atualizar headers da tabela
             document.getElementById("header-estoque").innerText = (loja === "TODAS") ? "Estoque TOTAL (Rede)" : "Estoque na Loja " + loja;
@@ -242,11 +229,9 @@ def principal():
 
             function match(prod) {
                 if (visaoAtual === 'RUPTURA_CD') return prod.RUPTURA_CD;
-                
                 const lojasMap = prod.LOJAS_MAP;
                 const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'ESTOQUE_PEND': 'e_p'};
                 const flag = flagMap[visaoAtual];
-
                 if (lojaSel === "TODAS") {
                     return Object.values(lojasMap).some(m => m[flag]);
                 } else {
@@ -258,8 +243,8 @@ def principal():
             dFinal.sort((a, b) => {
                 let vA = 0, vB = 0;
                 if (lojaSel === "TODAS") {
-                    vA = Object.values(a.LOJAS_MAP).reduce((s, m) => s + m.vda, 0);
-                    vB = Object.values(b.LOJAS_MAP).reduce((s, m) => s + m.vda, 0);
+                    vA = Object.values(a.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0);
+                    vB = Object.values(b.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0);
                 } else {
                     vA = a.LOJAS_MAP[lojaSel] ? a.LOJAS_MAP[lojaSel].vda : 0;
                     vB = b.LOJAS_MAP[lojaSel] ? b.LOJAS_MAP[lojaSel].vda : 0;
@@ -270,10 +255,12 @@ def principal():
             document.getElementById("contador-linhas").innerText = `Exibindo: ${dFinal.length} SKUs`;
 
             let tbody = '';
-            dFinal.forEach(row => {
+            // Limite de 2000 linhas para performance se for visão global
+            const exibe = dFinal.slice(0, 2000);
+
+            exibe.forEach(row => {
                 let est_loc = 0, ped_loc = 0, vda_loc = 0;
                 let lojas_list = "";
-
                 const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'ESTOQUE_PEND': 'e_p'};
                 const flag = flagMap[visaoAtual] || 'r_l';
 
@@ -296,7 +283,7 @@ def principal():
                 tbody += `<tr>
                     <td class="fw-bold">${row.CODIGO_PRODUTO}</td>
                     <td style="text-align: left;">${row.DESCRICAO_PRODUTO}</td>
-                    <td><span class="fw-bold text-muted">${lojas_list}</span></td>
+                    <td><span class="fw-bold text-muted" title="${lojas_list}">${lojas_list.length > 30 ? lojas_list.substring(0,27)+'...' : lojas_list}</span></td>
                     <td class="cd-column">${fmtNum(row.ESTOQUE_CD)}</td>
                     <td class="${est_loc < 0 ? 'text-danger fw-bold' : ''}">${fmtNum(est_loc)}</td>
                     <td>${fmtNum(ped_loc)}</td>
@@ -305,8 +292,11 @@ def principal():
             });
             
             document.getElementById("tabela-body").innerHTML = tbody;
-            document.getElementById("tabela-container").style.display = "block";
+            if (dFinal.length > 2000) {
+                document.getElementById("tabela-body").innerHTML += `<tr><td colspan="7" class="text-center text-muted p-3">Exibindo apenas os 2000 itens com maior venda para melhor performance. Refine o filtro para ver mais.</td></tr>`;
+            }
         }
+        window.onload = aplicarFiltros;
         </script>
     </body>
     </html>
