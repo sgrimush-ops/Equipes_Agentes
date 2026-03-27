@@ -93,10 +93,14 @@ def compile_view(view_name: str, df_view: pd.DataFrame) -> tuple:
     grafico_html = fig.to_html(full_html=False, include_plotlyjs=False)
     
     # Tabela HTML
+    df_resumo.columns.name = None
+    df_resumo.index.name = None
+    
     tabela_html = df_resumo.to_html(
-        classes='table table-striped table-hover',
+        classes='table table-striped table-hover align-middle',
         index=False,
         border=0,
+        justify='center',
         float_format=lambda x: f'{x:,.2f}'.replace('.', 'X').replace(',', '.').replace('X', ',') if isinstance(x, (float, int)) else x
     )
     
@@ -174,6 +178,11 @@ def principal():
             .table-striped tbody tr:nth-of-type(odd) {{ background-color: rgba(0,0,0,.02); }}
             .sub-view {{ animation: fadeIn 0.5s; }}
             @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+            
+            /* Alinhamento de Tabela */
+            .table th {{ text-align: center !important; font-weight: bold; background-color: #f1f3f5 !important; border-bottom: 2px solid #dee2e6; }}
+            .table td {{ text-align: center; vertical-align: middle; }}
+            .table th:first-child, .table td:first-child {{ text-align: left; padding-left: 15px; }}
         </style>
     </head>
     <body>
