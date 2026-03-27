@@ -62,13 +62,21 @@ class MixProcessor:
             df = pd.read_excel(input_file, dtype=str)
             
             # Garantir colunas necessárias
-            required_cols = ['Código Produto', 'Código Empresa', 'Status'] # Ortografia conforme user request
+            # Melhoria de Robustez: Buscar colunas que começam com o nome esperado (ignora sufixos como Código Empresa885)
+            col_empresa = next((c for c in df.columns if str(c).startswith('Código Empresa')), 'Código Empresa')
+            col_produto = next((c for c in df.columns if str(c).startswith('Código Produto')), 'Código Produto')
+            col_status = next((c for c in df.columns if str(c).startswith('Status')), 'Status')
+
+            required_cols = [col_produto, col_empresa, col_status]
             for col in required_cols:
                 if col not in df.columns:
-                    msg = f"A coluna '{col}' não foi encontrada em {input_file}."
+                    msg = f"A coluna '{col}' (ou similar) não foi encontrada em {input_file}. Colunas atuais: {df.columns.tolist()}"
                     if update_callback: update_callback({'error': msg})
                     else: print(msg)
                     return
+            
+            # Renomear para padrão do script para facilitar uso posterior
+            df = df.rename(columns={col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'})
 
             # Limpar e Padronizar código da loja no DF (não dar zfill em textos como 'CD')
             df['Código Empresa'] = df['Código Empresa'].apply(lambda x: str(x).strip().replace('.0', ''))
