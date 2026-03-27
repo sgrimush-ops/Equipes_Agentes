@@ -13,12 +13,12 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Funcionamento:** Reduz o escopo de planilhas CSV/Excel retirando o desnecessário.
 
 ## 3. GAM (Gerenciador de Automações e Macros)
-* **Propósito:** Aplicação de automação de interface com o usuário (RPA).
+* **Propósito:** Aplicação de automação de interface com o usuário (RPA) com alta performance.
 * **Principais Arquivos:** `main.py` (Interface Tkinter baseada em sequências JSON), e diversos scripts orientados à ação em `actions/*.py` e `core/*.py`.
-* **Funcionalidades:** Possui dezenas de automações, como:
+* **Funcionalidades:** Possui dezenas de automações otimizadas (ex: Supply e Mix) com:
+  - Baixa latência de execução e detecção robusta de colunas em inputs.
   - `acao_digitar_pedido_CD_016.py`
-  - `acao_bloquear_tela.py`, `acao_suspender_pc.py`
-  - Módulos de calibração de clique e ações no sistema Consinco.
+  - Módulos de calibração de clique e integração com Visão OpenCV.
 
 ## 4. Pendencias
 * **Propósito:** Consolidação de relatórios fragmentados gerados por loja.
@@ -43,7 +43,7 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 ## 8. ruptura
 * **Propósito:** Análise de rupturas e geração inteligente de Dashboards Dinâmicos baseados no Mix ativo das filiais.
 * **Principais Arquivos:** `rp.py` (Execução Principal), `gerar_dashboard_comprador.py`.
-* **Funcionamento:** Lê diretamente a volumosa tabela `query.parquet`. Classifica a "Culpa" da ruptura entre [Ruptura originada no CD] vs [Ruptura Operacional/Logística da Loja] conferindo o mix e os saldos do CD. Consolida essas métricas em um painel HTML único, interativo e sem servidor, gerando dezenas de instâncias gráficas Plotly em formato de abas (visão de cada filial) gerenciadas por um Select Dropdown em JavaScript, e contendo matrizes numéricas com hiperlinks para exibir listas detalhadas customizadas por situação e por comprador.
+* **Funcionamento:** Lê a tabela `query.parquet`. Classifica a "Culpa" da ruptura entre [CD] vs [Loja]. Consolida métricas em um painel HTML **No-Server (<10MB)**, interativo e autossuficiente (JSON embutido), com filtros dinâmicos via JavaScript (Loja e Comprador) e geração automática de **snapshots históricos** diários para rastreabilidade de performance.
 
 ## 9. export / temporario / trabalho
 * **Propósito:** Diretórios auxiliares para exportação final ou arquivos `tmp` (temporários).
