@@ -1,0 +1,9 @@
+﻿{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--config", "_Equipes_agentes/config/playwright.config.json"]
+    }
+  }
+}
+

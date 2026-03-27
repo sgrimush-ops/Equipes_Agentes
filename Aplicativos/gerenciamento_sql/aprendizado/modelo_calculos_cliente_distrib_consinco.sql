@@ -1,0 +1,145 @@
+-- =========================================================
+-- Exemplo de Pipeline de Relatório SGI - Análise ABC de Clientes / Distribuição
+-- =========================================================
+-- Arquivo gerado via engenharia reversa dos logs do Monitor SQL (Aplicação: frmAnlABCCliente)
+-- Tabela Destino Final: MBIX_TABCDISTRIB e MBI_TABCDISTRIB
+
+-- 1. Inserção Dinâmica Padrão SGI (EAV Params)
+-- Novamente, o sistema insere os parâmetros de filtros em MBIX_TABCATRIBCONSULTA para a SEQCONSULTA corrente.
+-- Parâmetros capturados:
+--  - SEGMENTOS: 1
+--  - CATEGORIAS: 2164
+--  - FILTROSTATUSCOMPRA: 'A'
+--  - TIPOAPURACAO: 'L'
+--  - OPERADORPRAZO: 'Todos'
+
+-- 2. Parametrização em Memória (GEX_DADOSTEMPORARIOS)
+-- Define chaves booleanas extensas para as Procedures (se descontará verba, frete, ST, etc)
+-- Ex: ':vsPDSubtraiSTOrigMarkUPDOWN' = 'N'
+--     ':frmAnlABCCliente.vsPDPercPropBaixaProdABC' = 'S'
+--     ':vsPDSubtraiDescForaNFdaVenda' = 'N'
+--     ':vsPdSomaIcmsAntCustoBr' = 'N'
+--     ':vsPDDesconsideraFreteVda' = 'N'
+
+-- 3. A estrutura magna final (MBI_TABCDISTRIB)
+-- O sistema gera um grid completo cruzando metadados de Cliente (Pessoa) com métricas de compra e lucratividade.
+
+SELECT
+    SEQLINHA, 
+    SEQPESSOA, 
+    NOMERAZAO, 
+    NROMATRICULA,
+    
+    -- Agrupadores / Detalhes (Pode variar conforme a quebra do grid do usuário)
+    NOMEDETALHE1, CODDETALHE1, SEQDETALHE1, 
+    NOMEDETALHE2, CODDETALHE2, SEQDETALHE2, 
+    NOMEDETALHE, 
+    
+    -- Metadados de Produtos se quebrado por produto
+    NIVELHIERARQUIA, ACTFAMILIA, SEQCATEGORIAPAI, 
+    QTDEMBALAGEM, EMBALAGEM, 
+    STATUSCOMPRA, STATUSVENDA, 
+    INDPOSICAOCATEG, 
+    LITROS, LITRAGEM, VOLUMEM3, 
+    PESOBRUTO, PESOLIQUIDO, 
+    
+    -- Métricas de Performance de Carteira e Volume
+    QUANTIDADE, 
+    QUANTIDADEUNIT, 
+    NRODOCTOS, 
+    NROITENS, 
+    NROCLIENTES, 
+    NROCLIENTESCAD, 
+    fC5_Divide( NROCLIENTES, NROCLIENTESCAD ) * 100 AS PERC_POSITIVACAO,
+    MEDQTDDOCTO, 
+    MEDQTDCLI, 
+    MEDVLRDOCTO, 
+    MEDVLRCLI, 
+    NRODIASPRAZOMEDIO,
+    
+    -- Métricas de Receita
+    VLRUNITARIO, 
+    VLRVENDA, 
+    VLRVENDALIQ, 
+    VLRVENDAPROMOC, 
+    (VLRVENDALIQ - VLRVENDAPROMOC) AS VLR_VENDA_NORMAL,
+    
+    -- Métricas de Desconto e Acordos
+    VLRDESCCOMERCIAL, 
+    VLRDESCONTO, 
+    PERCDESCONTO, 
+    VLRDESCMEDALHA, 
+    VLRDESCFORNEC, 
+    QTDDESCTOPROMOCPDV, 
+    
+    -- Custo, Lucratividade e Margens
+    VLRLUCRO, 
+    fc5_divide( VLRLUCRO, abs(QUANTIDADE) ) AS LUCRO_UNITARIO,
+    MARGEMLUCRO, 
+    MARGEMLUCROSVMI, 
+    VLRLUCROVERBAPDV, 
+    MARGEMLUCROVERBAPDV, 
+    MARGEMLUCROVERBAPDVSVMI, 
+    MARGEMCADASTRO, 
+    MARKUP, 
+    MARKDOWN, 
+    VLRGMROI, 
+    CTOBRUTOVDA, 
+    DECODE(QUANTIDADE, 0, 0, CTOBRUTOVDA/QUANTIDADE) AS CUSTO_BRUTO_UNITARIO,
+    CTOBRUTOMARKUPDOWN, 
+    VLRTOTLIQMARKUPDOWN, 
+    VLRVENDAMARKUPDOWN, 
+    VLRCTOLIQVDA, 
+    DECODE(QUANTIDADE, 0, 0, VLRCTOLIQVDA/QUANTIDADE) AS CUSTO_LIQUIDO_UNITARIO,
+    CTOBRUTOVDAPROD, 
+    VLRCTOLIQVDAPROD, 
+    VLRCUSTONFPRECOCAMP, 
+    VLRCUSTOEXTRA, 
+    
+    -- Despesas e Impostos
+    VLRDESPESAVDA, 
+    VLRCOMPROR, 
+    VLRCOMISSAOVDA, 
+    VLRTOTCOMISSAOTELE, 
+    VLRIMPOSTOVDA, 
+    VLRICMS, VLRICMSEFETIVO, 
+    VLRFCP, VLRIPI, VLRIPIPRECO, 
+    VLRPIS, VLRCOFINS, VLRISS, 
+    VLRIMPOSTOIBSMUN, VLRIMPOSTOREGULARIBSMUN, VLRDIFERIDOIBSMUN, VLRCCREDPRESIBSMUN, 
+    VLRIMPOSTOIBSUF, VLRIMPOSTOREGULARIBSUF, VLRIMPOSTOMONORETIBSUF, VLRDIFERIDOIBSUF, 
+    VLRIMPOSTOCBS, VLRIMPOSTOREGULARCBS, VLRIMPOSTOMONORETCBS, VLRDIFERIDOCBS, VLRIMPOSTOIS, 
+    
+    -- Verbas e Restituições
+    VLREMBDESCRESSARCST, 
+    VLRVENDARESSARCST, 
+    VLRDESCFORANF, 
+    NVL(VLRDESCVERBATRANSF, 0) AS VLRDESCVERBATRANSF, 
+    NVL(VLRDESCLUCROTRANSF,0) AS VLRDESCLUCROTRANSF, 
+    VLRFRETE, 
+    VLRVERBAVDA, 
+    VLRVERBASELLIN, 
+    VLRVERBAPDV, 
+    RECOMPOSICAOMARGEM,
+    
+    -- Margem de Contribuição, Fiscal e Margens Estendidas
+    VLRCONTRIB, 
+    MARGEMCONTRIB, 
+    MARGEMCONTRIBSVMI, 
+    VLRVENDAPORM3, 
+    CUSTOFISCALUNIT, CUSTOFISCALTOTAL, CUSTOFISCALTOTALVDA, 
+    VLRDESPFIXA, VLRDESCFIXO, 
+    
+    -- Campanhas Dinâmicas / DOTZ
+    QTDDOTZNORMAL, VLRVENDADOTZNORMAL, 
+    QTDDOTZEXTRA, VLRVENDADOTZEXTRA, 
+    QTDDOTZTOTAL, VLRVENDADOTZTOTAL, 
+    VLRDIFCAMPANHAPRECO, VLRDIFCAMPANHAPRECODEVOL, 
+    VLRTOTLIQMARGEM, 
+    
+    -- Conhecimento de Transporte
+    CTENRO, CTESERIE, VLRITEMRATEIOCTE, 
+    SEQLOTEESTOQUE
+    
+FROM MBIX_TABCDISTRIB 
+WHERE SEQCONSULTA = :SuaSequenciaConsulta
+ORDER BY NOMEDETALHE1 ASC, SEQDETALHE1, NIVELHIERARQUIA, NOMEDETALHE2 ASC;

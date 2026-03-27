@@ -1,0 +1,72 @@
+{
+  "MAP_PRODUTO": {
+    "descricao": "Dados principais de cadastro do produto.",
+    "chaves": ["SEQPRODUTO"],
+    "colunas_principais": ["DESCCOMPLETA", "NCM", "PESOLIQ", "PESOBRUTO"]
+  },
+  "MAP_FAMILIA": {
+    "descricao": "Nível de família do produto (hierarquia comercial e tributária base).",
+    "chaves": ["SEQFAMILIA"],
+    "colunas_principais": ["PESAVEL", "TIPOSTENTRADA", "TIPOETIQUETA"]
+  },
+  "MRL_PRODUTOEMPRESA": {
+    "descricao": "Configurações, precificação e estoques do produto específica por cada loja.",
+    "chaves": ["SEQPRODUTO", "NROEMPRESA"],
+    "colunas_principais": ["STATUSCOMPRA", "DTAULTVENDA", "CURVA", "PRCBASE", "ESTQLOJA", "ESTQDEPOSITO", "ESTQMINIMOLOJA", "ESTQMAXIMOLOJA", "QTDPENDPEDCOMPRA", "QTDRESERVADAVDA", "QTDRESERVADARECEB", "QTDVMD"]
+  },
+  "GE_PESSOA": {
+    "descricao": "Cadastro de Pessoas (Fornecedores e Clientes).",
+    "chaves": ["SEQPESSOA"],
+    "colunas_principais": ["NOMERAZAO", "FANTASIA", "NROCGCCPF"]
+  },
+  "MAP_FAMEMBALAGEM": {
+    "descricao": "Todas as multiplicidades de embalagem do Produto. Para a unitária oficial usar QTDEMBALAGEM = 1. Jamais tentar buscar embalagens direto na MAP_FAMILIA para evitar ORA-00904.",
+    "chaves": ["SEQFAMILIA", "QTDEMBALAGEM"],
+    "colunas_principais": ["EMBALAGEM", "QTDEMBALAGEM", "PESOBRUTO", "PESOLIQUIDO"]
+  },
+  "MAXV_ABCDISTRIBBASE": {
+    "descricao": "View agregadora base de itens de movimentação (vendas/dev). AVISO: Retorna Erro ORA-00942 (Inexistente) no SGI Client fora de sua procedure matriz. Evite seu uso em relatórios on-the-fly sem validação do schema.",
+    "chaves": ["NROEMPRESA", "SEQPRODUTO", "DTAVDA", "ROWIDDOCTO"],
+    "colunas_principais": ["QTDITEM", "QTDDEVOLITEM", "VLRITEM", "VLRDEVOLITEM"]
+  },
+  "MRL_CUSTODIA": {
+    "descricao": "Tabela de consolidação de custo diário por Produto e Empresa. Fundamental para cruzamento de lucratividade pelo Custo Médio do Dia.",
+    "chaves": ["NROEMPRESA", "SEQPRODUTO", "DTAENTRADASAIDA"],
+    "colunas_principais": ["CMDIAVLRNF", "CMDIAIPI", "CMDIAICMSST", "CMDIADESPNF", "CMDIACREDICMS", "CMDIACREDPIS"]
+  },
+  "MBI_TABCDISTRIB": {
+    "descricao": "Tabela de destino (BI) que armazena os dados sumarizados da Curva ABC. Excelente hack para extrair Vendas Físicas já processadas batendo SEQCONSULTA = MAX(SEQCONSULTA), pulando enorme esforço de transações brutas.",
+    "chaves": ["SEQCONSULTA"],
+    "colunas_principais": ["QUANTIDADE", "VLRVENDA", "VLRLUCRO", "CTOBRUTOVDA", "VLRCONTRIB"]
+  },
+  "MAP_CATEGORIA": {
+    "descricao": "Árvore Hierárquica de Categorias. O Nivel 1 (NIVELHIERARQUIA=1) define o Departamento principal (Ex: Bebidas). Use INNER JOIN cruzando MAP_FAMDIVCATEG para evitar duplicação de Setor Nível 2 e 3.",
+    "chaves": ["SEQCATEGORIA"],
+    "colunas_principais": ["CATEGORIA", "TIPCATEGORIA", "NIVELHIERARQUIA"]
+  },
+  "MAP_FAMDIVISAO": {
+    "descricao": "Configurações Comerciais baseadas na Divisão. Contém o Padrão numérico de Embalagem (Compra/Transferência), SEQCOMPRADOR (Ligação com MAX_COMPRADOR), e a coluna vital FINALIDADEFAMILIA (Filtre por 'R' para assegurar exclusividade de Mercadoria para Revenda).",
+    "chaves": ["SEQFAMILIA", "NRODIVISAO"],
+    "colunas_principais": ["FINALIDADEFAMILIA", "PADRAOEMBCOMPRA", "PADRAOEMBTRANSF", "SEQCOMPRADOR"]
+  },
+  "MAX_COMPRADOR": {
+    "descricao": "Cadastro de Gestores/Compradores de Carteira. Juntar pela coluna SEQCOMPRADOR vinda da MAP_FAMDIVISAO. A coluna exibida na UI é geralmente o APELIDO.",
+    "chaves": ["SEQCOMPRADOR"],
+    "colunas_principais": ["COMPRADOR", "APELIDO"]
+  },
+  "MAP_PRODCODIGO": {
+    "descricao": "Armazena os códigos de barra comerciais, fiscais e internos do produto. Filtre por TIPCODIGO IN ('E', 'D') para obter apenas EAN e DUN válidos.",
+    "chaves": ["SEQPRODUTO", "TIPCODIGO", "CODACESSO"],
+    "colunas_principais": ["CODACESSO", "TIPCODIGO", "QTDEMBALAGEM"]
+  },
+  "MRL_PRODEMPRESAWM": {
+    "descricao": "Métricas físicas logísticas a nível geral do ERP. Contém colunas PADRÃO fixas como PALETELASTROAPANHA. OBS: Em alguns CDs, a configuração logística força o uso da MAD_PRODESPENDERECO vinculada à MAD_ESPECIEENDERECO em vez desta tabela.",
+    "chaves": ["SEQPRODUTO", "NROEMPRESA"],
+    "colunas_principais": ["PALETELASTRO", "PALETEALTURA", "PALETELASTROAPANHA", "PALETEALTURAAPANHA", "PALETELASTROMIUD"]
+  },
+  "MAD_PRODESPENDERECO": {
+    "descricao": "Métricas físicas logísticas a nível de Espécie de Endereço (Utilizada na Manutenção Avançada). Ao invés de usar colunas fixas pra Pulmão e Apanha, cria-se registros dinâmicos pra cada perfil. Deve-se juntar com a MAD_ESPECIEENDERECO onde UPPER(DESCRICAO) LIKE '%PULM%' ou '%INVERSA%'.",
+    "chaves": ["SEQPRODUTO", "NROEMPRESA", "CODESPECENDERECO"],
+    "colunas_principais": ["PALETELASTRO", "PALETEALTURA", "QTDEMBALAGEM"]
+  }
+}

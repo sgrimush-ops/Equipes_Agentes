@@ -1,0 +1,22 @@
+[
+  {
+    "Código Empresa": 7.0,
+    "Empresa : Produto": "007-BAKLIZI : FARINHA TAPIOCA PINDUCA 500G",
+    "Código Produto": 2704.0,
+    "Embalagem Compra": "CX 20",
+    "Quantidade Disponível": 0.0,
+    "Qtd. Pend. Ped.Compra": 0.0,
+    "Quantidade Estoque Mínimo": 88.0,
+    "Quantidade  Estoque Máximo": 128.0
+  },
+  {
+    "Código Empresa": 15.0,
+    "Empresa : Produto": "015-CD : FARINHA TAPIOCA PINDUCA 500G",
+    "Código Produto": 2704.0,
+    "Embalagem Compra": "CX 20",
+    "Quantidade Disponível": 0.0,
+    "Qtd. Pend. Ped.Compra": 0.0,
+    "Quantidade Estoque Mínimo": 320.0,
+    "Quantidade  Estoque Máximo": 590.0
+  }
+]
