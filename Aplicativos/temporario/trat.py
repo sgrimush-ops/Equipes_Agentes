@@ -16,29 +16,33 @@ else:
         df = pd.read_csv(arquivo_txt, sep=';', encoding='utf-8', on_bad_lines='skip')
     except UnicodeDecodeError:
         df = pd.read_csv(arquivo_txt, sep=';', encoding='latin-1', on_bad_lines='skip')
+#filtrar caracteres especiais na descrição do produto, mater apenas codigo do produto e descrição do produto   
 
-    print("Aplicando filtros...")
-    
-    # Filtro 1: Departamento 'NAO ALIMENTO'
-    # Filtro 2: Grupo 'MATERIAL DE LIMPEZA'
-    # Usamos o operador OR (|) pois eles estão em ramos diferentes da árvore mercadológica
-    condicao = (df['DEPARTAMENTO'] == 'NAO ALIMENTO') | (df['GRUPO'] == 'MATERIAL DE LIMPEZA')
-    
-    df_filtrado = df[condicao].copy()
-    
-    initial_count = len(df_filtrado)
-    print(f"Itens após filtros: {initial_count}")
+    # 1. Identificação de produtos com caracteres especiais
+    # Usamos regex para encontrar qualquer coisa que NÃO seja Letra (A-Z), Número (0-9) ou Espaço (\s)
+    # Incluímos caracteres acentuados comuns (À-ÿ) como "normais"
+    if 'DESCRICAO' in df.columns:
+        print("Buscando caracteres especiais nas descrições...")
+        # Regex: identifica se contém algo fora do padrão alfanumérico + espaço + acentos
+        padrao_normal = r'^[a-zA-Z0-9\sÀ-ÿ]*$'
+        # df_com_problema = df[~df['DESCRICAO'].astype(str).str.match(padrao_normal, na=False)]
+        # Alternativa mais direta: encontrar onde tem algo fora do padrão
+        regex_especial = r'[^a-zA-Z0-9\sÀ-ÿ]'
+        df_ajustar = df[df['DESCRICAO'].astype(str).str.contains(regex_especial, regex=True, na=False)].copy()
+        
+        # 2. Selecionar colunas e remover duplicatas
+        colunas_finais = ['CODIGO_PRODUTO', 'DESCRICAO']
+        df_final = df_ajustar[[c for c in colunas_finais if c in df_ajustar.columns]].drop_duplicates(subset=['CODIGO_PRODUTO'])
+        
+        print(f"Total de itens com caracteres especiais encontrados: {len(df_final)}")
+        
+        arquivo_ajuste = base_dir / "produtos_para_ajustar.xlsx"
+        print(f"Salvando lista para ajuste em {arquivo_ajuste.name}...")
+        df_final.to_excel(arquivo_ajuste, index=False)
+        print("Relatório de ajustes gerado com sucesso!")
+    else:
+        print("Erro: Coluna 'DESCRICAO' não encontrada no arquivo.")
 
-    # Remover duplicatas de EAN ou DUN
-    # Consideramos a coluna EAN_DUN conforme visto no arquivo
-    if 'EAN_DUN' in df_filtrado.columns:
-        df_filtrado = df_filtrado.drop_duplicates(subset=['EAN_DUN'], keep='first')
-        final_count = len(df_filtrado)
-        print(f"Duplicatas removidas: {initial_count - final_count}")
-        print(f"Itens únicos finais: {final_count}")
-
-    print(f"Salvando como {arquivo_excel.name}...")
-    # Exportação para Excel
-    df_filtrado.to_excel(arquivo_excel, index=False)
-    
-    print("Processamento concluído com sucesso!")
+if __name__ == '__main__':
+    import os
+    os.chdir(Path(__file__).parent.resolve())
