@@ -120,10 +120,8 @@ class OrderProcessorSupply:
                 for _ in range(6): pyautogui.press('tab')
                 time.sleep(0.2)
                 pyautogui.write('S')
-                time.sleep(0.1)
+                time.sleep(1.0)
                 pyautogui.press('down')
-                time.sleep(0.1)
-                pyautogui.press('up') # Garante retorno para SUPPLY caso caia em WERTER
                 time.sleep(0.1)
                 
                 # agora teclar 5 tab para chegar em Tipo de pedido, 2 vezes "seta baixo"
