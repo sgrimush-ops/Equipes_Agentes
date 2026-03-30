@@ -1,48 +1,98 @@
 import pandas as pd
 from pathlib import Path
+import os
 
-# Configuração de caminhos
-base_dir = Path(__file__).parent
-arquivo_txt = base_dir / "ean_dun.txt"
-arquivo_excel = base_dir / "ean_dun_tratado.xlsx"
+def main():
+    base_dir = Path(__file__).parent.resolve()
+    os.chdir(base_dir)
 
-if not arquivo_txt.exists():
-    print(f"Erro: Arquivo {arquivo_txt} não encontrado.")
-else:
-    print(f"Lendo {arquivo_txt.name}...")
-    
-    # Leitura com separador ; 
-    try:
-        df = pd.read_csv(arquivo_txt, sep=';', encoding='utf-8', on_bad_lines='skip')
-    except UnicodeDecodeError:
-        df = pd.read_csv(arquivo_txt, sep=';', encoding='latin-1', on_bad_lines='skip')
-#filtrar caracteres especiais na descrição do produto, mater apenas codigo do produto e descrição do produto   
+    arquivo_excel = base_dir / "temp.xlsx"
 
-    # 1. Identificação de produtos com caracteres especiais
-    # Usamos regex para encontrar qualquer coisa que NÃO seja Letra (A-Z), Número (0-9) ou Espaço (\s)
-    # Incluímos caracteres acentuados comuns (À-ÿ) como "normais"
-    if 'DESCRICAO' in df.columns:
-        print("Buscando caracteres especiais nas descrições...")
-        # Regex: identifica se contém algo fora do padrão alfanumérico + espaço + acentos
-        padrao_normal = r'^[a-zA-Z0-9\sÀ-ÿ]*$'
-        # df_com_problema = df[~df['DESCRICAO'].astype(str).str.match(padrao_normal, na=False)]
-        # Alternativa mais direta: encontrar onde tem algo fora do padrão
-        regex_especial = r'[^a-zA-Z0-9\sÀ-ÿ]'
-        df_ajustar = df[df['DESCRICAO'].astype(str).str.contains(regex_especial, regex=True, na=False)].copy()
-        
-        # 2. Selecionar colunas e remover duplicatas
-        colunas_finais = ['CODIGO_PRODUTO', 'DESCRICAO']
-        df_final = df_ajustar[[c for c in colunas_finais if c in df_ajustar.columns]].drop_duplicates(subset=['CODIGO_PRODUTO'])
-        
-        print(f"Total de itens com caracteres especiais encontrados: {len(df_final)}")
-        
-        arquivo_ajuste = base_dir / "produtos_para_ajustar.xlsx"
-        print(f"Salvando lista para ajuste em {arquivo_ajuste.name}...")
-        df_final.to_excel(arquivo_ajuste, index=False)
-        print("Relatório de ajustes gerado com sucesso!")
-    else:
-        print("Erro: Coluna 'DESCRICAO' não encontrada no arquivo.")
+    if not arquivo_excel.exists():
+        print(f"Erro: Arquivo {arquivo_excel.name} não encontrado.")
+        return
+
+    print(f"Lendo {arquivo_excel.name}...")
+    df = pd.read_excel(arquivo_excel)
+
+    # Identificar nome exato das colunas
+    col_codigo = next((c for c in df.columns if 'cod' in str(c).lower()), 'Codigo')
+    col_mercadoria = next((c for c in df.columns if 'merc' in str(c).lower() or 'desc' in str(c).lower()), 'Mercadoria')
+
+    # Agrupamentos de lojas conforme a regra de negócio
+    lojas_pequenas = [4, 5, 7, 8, 14]
+    lojas_medias = [12, 13, 18]
+    lojas_grandes = [2, 3, 6, 11, 17]
+    todas_lojas = lojas_pequenas + lojas_medias + lojas_grandes
+
+    rows = []
+
+    for idx, row in df.iterrows():
+        codigo = row.get(col_codigo, '')
+        merc = str(row.get(col_mercadoria, '')).strip()
+
+        # Função auxiliar para verificar presença de 'A' (ou 'X' por robustez) na loja
+        def is_active(col):
+            val = row.get(col) if col in df.columns else row.get(str(col), '')
+            return str(val).strip().upper() in ['A', 'X']
+
+        # Loja 1 é tratada individualmente independente do agrupamento
+        val_loja_1 = 'A' if is_active(1) else 'I'
+        rows.append({
+            'Código Empresa': '1', 
+            'Empresa : Produto': merc,
+            'Código Produto': codigo,
+            'Status': val_loja_1
+        })
+
+        # Contagens de ativos por agrupamento
+        peq_a = sum(1 for c in lojas_pequenas if is_active(c))
+        med_a = sum(1 for c in lojas_medias if is_active(c))
+        gra_a = sum(1 for c in lojas_grandes if is_active(c))
+
+        # Teste das condicões macro definidas
+        is_TA = (peq_a == len(lojas_pequenas)) and (med_a == len(lojas_medias)) and (gra_a == len(lojas_grandes))
+        is_TIP = (peq_a == 0) and (med_a == len(lojas_medias)) and (gra_a == len(lojas_grandes))
+        is_TIM = (peq_a == 0) and (med_a == 0) and (gra_a == len(lojas_grandes))
+
+        if is_TA:
+            rows.append({
+                'Código Empresa': 'G', 
+                'Empresa : Produto': merc,
+                'Código Produto': codigo,
+                'Status': 'TA'
+            })
+        elif is_TIP:
+            rows.append({
+                'Código Empresa': 'P', 
+                'Empresa : Produto': merc,
+                'Código Produto': codigo,
+                'Status': 'TIP'
+            })
+        elif is_TIM:
+            rows.append({
+                'Código Empresa': 'M', 
+                'Empresa : Produto': merc,
+                'Código Produto': codigo,
+                'Status': 'TIM'
+            })
+        else:
+            # Sem agrupamento padrão claro -> registrar individualmente para cada filial do interior
+            for loc in todas_lojas:
+                st = 'A' if is_active(loc) else 'I'
+                rows.append({
+                    'Código Empresa': str(loc), 
+                    'Empresa : Produto': merc,
+                    'Código Produto': codigo,
+                    'Status': st
+                })
+
+    df_out = pd.DataFrame(rows)
+    arquivo_saida = base_dir / "mix_tratado_agrupado.xlsx"
+    print(f"\nTotal processado: {len(df_out)} registros.")
+    print(f"Salvando resultados em {arquivo_saida.name}...")
+    df_out.to_excel(arquivo_saida, index=False)
+    print("Sucesso! Planilha pronta para o robô ou avaliação.")
 
 if __name__ == '__main__':
-    import os
-    os.chdir(Path(__file__).parent.resolve())
+    main()

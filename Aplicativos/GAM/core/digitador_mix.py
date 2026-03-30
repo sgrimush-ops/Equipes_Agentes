@@ -206,19 +206,49 @@ class MixProcessor:
                     # Decidimos se vamos interagir com esta loja ou pular ela
                     status = None
                     
-                    # Verifica se há regra global TI, TA ou TC neste produto
+                    # Verifica regras de agrupamento dinâmico (inclusive os definidos por trat.py)
                     tem_ti = "TI" in status_map.values() or cd_status == "TI"
-                    tem_ta = "TA" in status_map.values() or cd_status == "TA"
                     tem_tc = "TC" in status_map.values() or cd_status == "TC"
+                    tem_ta = "TA" in status_map.values() or cd_status == "TA"
+                    tem_tip = "TIP" in status_map.values() 
+                    tem_tim = "TIM" in status_map.values()
                     
-                    if tem_ti:
+                    lojas_pequenas = ["004", "005", "007", "008", "014"]
+                    lojas_medias = ["012", "013", "018"]
+                    lojas_grandes = ["002", "003", "006", "011", "017"]
+
+                    # As marcações explícitas de planilha priorizam sobre os agrupamentos gerais TIM/TIP/TA/TI
+                    if loja_str in status_map and status_map[loja_str] in ["A", "I"]:
+                        status = status_map[loja_str]
+                    elif tem_ti:
                         status = "I"
                     elif tem_tc:
+                        # TC (Todos Centralizados): Apenas ativa no CD e desativa tudo.
                         status = "A" if (loja_str == "015" or (loja_str not in lojas_forcar_inativo and loja_str not in lista_cds)) else "I"
                     elif tem_ta:
-                        status = "A" if (loja_str != "001" and loja_str not in lojas_forcar_inativo and loja_str not in lista_cds) else "I"
-                    elif loja_str in status_map:
-                        status = "A" if status_map[loja_str] == "A" else "I"
+                        if loja_str in lista_cds:
+                            continue # Para não mexer nos CDs se não paramerizado explicitamente
+                        status = "A" if (loja_str != "001" and loja_str not in lojas_forcar_inativo) else "I"
+                    elif tem_tip:
+                        if loja_str in lojas_forcar_inativo:
+                            status = "I"
+                        elif loja_str in lista_cds:
+                            continue # Para não mexer nos CDs se não paramerizado
+                        elif loja_str in lojas_pequenas:
+                            status = "I"
+                        elif loja_str in lojas_medias or loja_str in lojas_grandes:
+                            status = "A"
+                        else:
+                            status = "I"
+                    elif tem_tim:
+                        if loja_str in lojas_forcar_inativo:
+                            status = "I"
+                        elif loja_str in lista_cds:
+                            continue # Para não mexer nos CDs se não paramerizado
+                        elif loja_str in lojas_grandes:
+                            status = "A"
+                        else:
+                            status = "I"
                     elif cd_status and loja_str in lista_cds:
                         status = "A" if cd_status == "A" else "I"
                     elif loja_str in lojas_forcar_inativo:

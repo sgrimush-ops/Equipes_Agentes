@@ -312,5 +312,78 @@ def principal():
     
     print(f"Dashboard Detalhado gerado com sucesso em: {output_path}")
 
+    # ===============================
+    # GERAÇÃO DE EXCELS POR COMPRADOR
+    # ===============================
+    print("Gerando planilhas de Excel individuais por comprador...")
+    pasta_excel = base_dir / "excel_comprador"
+    pasta_excel.mkdir(exist_ok=True)
+    
+    import datetime
+    import re
+    hoje_str = datetime.date.today().strftime('%d-%m-%Y')
+
+    # Agrupar itens finais por comprador
+    comprador_data = {}
+    for prod in final_data:
+        comp = str(prod['COMPRADOR']).strip()
+        if comp not in comprador_data:
+            comprador_data[comp] = []
+        comprador_data[comp].append(prod)
+        
+    for comp, produtos in comprador_data.items():
+        if not comp or comp.upper() == "NAN":
+            continue
+            
+        rows_excel = []
+        for p in produtos:
+            lojas_rup = [l for l, m in p['LOJAS_MAP'].items() if m['r_l']]
+            lojas_neg = [l for l, m in p['LOJAS_MAP'].items() if m['r_n']]
+            lojas_pend = [l for l, m in p['LOJAS_MAP'].items() if m['r_p']]
+            lojas_est_ped = [l for l, m in p['LOJAS_MAP'].items() if m['e_p']]
+            
+            est_loc = sum(m['est'] for m in p['LOJAS_MAP'].values())
+            ped_loc = sum(m['ped'] for m in p['LOJAS_MAP'].values())
+            vda_loc = sum(m['vda'] for m in p['LOJAS_MAP'].values())
+            
+            rows_excel.append({
+                'Cód. Produto': p['CODIGO_PRODUTO'],
+                'Descrição': p['DESCRICAO_PRODUTO'],
+                'Ruptura CD?': 'SIM' if p['RUPTURA_CD'] else 'NÃO',
+                'Estoque CD': p['ESTOQUE_CD'],
+                'Pedidos CD': p['PEDIDOS_CD'],
+                'Lojas c/ Ruptura': ", ".join(lojas_rup),
+                'Lojas c/ Est. Negativo': ", ".join(lojas_neg),
+                'Lojas c/ Rup. Pendente': ", ".join(lojas_pend),
+                'Lojas c/ Est e Pedido': ", ".join(lojas_est_ped),
+                'Estoque Local (Rede)': est_loc,
+                'Pedidos Local (Rede)': ped_loc,
+                'Venda 30D (Rede)': vda_loc
+            })
+            
+        df_comp = pd.DataFrame(rows_excel)
+        
+        # Filtrar apenas os produtos que possuem alguma classificação (reduzir lixo)
+        mask_tem_problema = (
+            (df_comp['Ruptura CD?'] == 'SIM') |
+            (df_comp['Lojas c/ Ruptura'] != "") |
+            (df_comp['Lojas c/ Est. Negativo'] != "") |
+            (df_comp['Lojas c/ Rup. Pendente'] != "") |
+            (df_comp['Lojas c/ Est e Pedido'] != "")
+        )
+        df_comp_filtrado = df_comp[mask_tem_problema]
+        
+        if not df_comp_filtrado.empty:
+            primeiro_nome = comp.split(' ')[0].upper()
+            primeiro_nome = re.sub(r'[\\/*?:"<>|]', "", primeiro_nome)
+            file_name = f"{primeiro_nome}_{hoje_str}.xlsx"
+            file_path = pasta_excel / file_name
+            
+            # Ordenar alfabeticamente pela Descrição do Produto, como solicitado
+            df_comp_filtrado = df_comp_filtrado.sort_values(by='Descrição', ascending=True)
+            df_comp_filtrado.to_excel(file_path, index=False)
+            
+    print(f"Todas as planilhas geradas em: {pasta_excel}")
+
 if __name__ == '__main__':
     principal()
