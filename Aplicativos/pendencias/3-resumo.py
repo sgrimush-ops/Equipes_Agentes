@@ -51,8 +51,8 @@ def gerar_dashboard():
         ],
         subplot_titles=(
             "", "",  # Titulos dos indicadores ficam vazios pois o texto é interno
-            "Pedidos Feitos por Dia", "Volume de Expedição por Dia",
-            "Pedidos Totais por Loja", "Volume Total por Loja"
+            "Pedidos Pendentes por Dia", "Volume de Expedição Pendente por Dia",
+            "Pedidos Pendentes por Loja", "Volume Pendente por Loja"
         ),
         vertical_spacing=0.12,
         horizontal_spacing=0.1
@@ -62,7 +62,7 @@ def gerar_dashboard():
     fig.add_trace(go.Indicator(
         mode="number",
         value=total_pedidos,
-        title={"text": "🛒 Pedidos Totais", "font": {"size": 24}},
+        title={"text": "🛒 Pedidos Pendentes", "font": {"size": 24}},
         number={"font": {"size": 50, "color": "#1f77b4"}}
     ), row=1, col=1)
 
@@ -70,7 +70,7 @@ def gerar_dashboard():
     fig.add_trace(go.Indicator(
         mode="number",
         value=volume_total,
-        title={"text": "📦 Volume de Mercadorias Total", "font": {"size": 24}},
+        title={"text": "📦 Volume Pendente Total", "font": {"size": 24}},
         number={"valueformat": ",.0f", "font": {"size": 50, "color": "#2ca02c"}}
     ), row=1, col=2)
 
@@ -81,7 +81,7 @@ def gerar_dashboard():
         mode='lines+markers',
         marker=dict(size=8, color="#1f77b4"),
         line=dict(width=3),
-        name='Pedidos/Dia'
+        name='Pendentes/Dia'
     ), row=2, col=1)
 
     # 4. Volume por Dia (Gráfico de Barras)
@@ -89,7 +89,7 @@ def gerar_dashboard():
         x=vol_por_dia['Data'],
         y=vol_por_dia['Qtde Expedir'],
         marker_color='#2ca02c',
-        name='Volume/Dia'
+        name='Vol Pendente/Dia'
     ), row=2, col=2)
 
     # 5. Pedidos por Loja (Gráfico de Barras)
@@ -99,7 +99,7 @@ def gerar_dashboard():
         x=pedidos_por_loja_sorted['Pedidos'],
         orientation='h',
         marker_color='#d62728',
-        name='Pedidos/Loja'
+        name='Pendentes/Loja'
     ), row=3, col=1)
 
     # 6. Volume por Loja (Gráfico de Barras Horizontais)
@@ -110,7 +110,7 @@ def gerar_dashboard():
         x=vol_por_loja_sorted['Qtde Expedir'],
         orientation='h',
         marker_color='#ff7f0e',
-        name='Volume/Loja'
+        name='Vol Pendente/Loja'
     ), row=3, col=2)
 
     # Customizar Layout geral do Dashboard
@@ -128,8 +128,7 @@ def gerar_dashboard():
     output_html = pasta_resultados / "dashboard_resumo.html"
     fig.write_html(str(output_html))
     
-    print(f"\n✨ SURPRESA! ✨")
-    print(f"Acabei de criar um Dashboard Interativo Profissional com {total_pedidos} pedidos e {volume_total:,.0f} volumes.")
+    print(f"Acabei de criar um Dashboard Interativo Profissional com {total_pedidos} pedidos pendentes e {volume_total:,.0f} volumes pendentes.")
     print(f"Abra o arquivo '{output_html}' no seu navegador (Chrome/Edge/Firefox) para ver os gráficos!")
     os.startfile(output_html)
 

@@ -100,8 +100,14 @@ class OrderProcessorSupply:
                 str_store = str(current_store).replace('.0', '')
                 if update_callback: update_callback({'status': f'Mapeando CD Abastecedor p/ Loja {str_store}'})
                 
+                # Usa pynput para sincronizar a escala exata da calibração e evitar desvio para Monitor 2
+                from pynput.mouse import Controller, Button
+                mouse_ctrl = Controller()
+
                 # 1º Mapeamento - Sequência do CD Abastecedor
-                pyautogui.click(pos_cd_abastecedor)
+                mouse_ctrl.position = (pos_cd_abastecedor[0], pos_cd_abastecedor[1])
+                time.sleep(0.1)
+                mouse_ctrl.click(Button.left, 1)
                 time.sleep(3.0)
                 pyautogui.write('015')
                 time.sleep(0.2)
@@ -116,7 +122,7 @@ class OrderProcessorSupply:
                 pyautogui.write('015')
                 time.sleep(0.2)
                 
-                # após mais 6 tab, selecionar o comprador "SUPPLY"
+                # após mais 6 tab, selecionar o comprador padrão (S + Seta Baixo)
                 for _ in range(6): pyautogui.press('tab')
                 time.sleep(0.2)
                 pyautogui.write('S')
@@ -133,7 +139,9 @@ class OrderProcessorSupply:
                 if stop_event and stop_event.is_set(): return
                 
                 # 2º Mapeamento de click sera para criar uma nova linha
-                pyautogui.click(pos_nova_linha)
+                mouse_ctrl.position = (pos_nova_linha[0], pos_nova_linha[1])
+                time.sleep(0.1)
+                mouse_ctrl.click(Button.left, 1)
                 time.sleep(1.0)
 
                 items_processed_store = 0
@@ -168,8 +176,9 @@ class OrderProcessorSupply:
                     if not codigo or str(codigo).lower() == 'nan':
                         continue
                         
+                    faltam = total_items - (items_processed + 1)
                     # Log de progresso
-                    msg = f"Item {items_processed+1}/{total_items}: Loja {loja_id}, Cod {codigo}, Qtd {qtd} - {descricao}"
+                    msg = f"Item {items_processed+1}/{total_items} (Faltam {faltam}): Loja {loja_id}, Cod {codigo}, Qtd {qtd} - {descricao}"
                     if update_callback:
                         update_callback({
                             'status': f'Processando Loja {loja_id}',
@@ -198,17 +207,9 @@ class OrderProcessorSupply:
                     pyautogui.press('tab')
                     time.sleep(0.2)
                     
-                    # Formatar loja se for apenas número e precisar (usualmente loja 15 pode precisar de zero à esquerda ou não,
-                    # mantemos o texto original se possível. O padrão de outras macros não colocava zfill se não fosse pedido.
-                    # A pedido anterior a 'loja_id' era digitada diretamente.)
-                    pyautogui.write(loja_id)
-                    time.sleep(0.8) # aguardar carregar box
-                    
-                    # quando aparecer no box selecionar a loja via seqüência de teclado
-                    pyautogui.press('down')
-                    time.sleep(0.1)
-                    pyautogui.press('up')
-                    time.sleep(0.1)
+                    # Otimização de tempo: digitar o sufixo diretamente ao invés de usar as setas
+                    pyautogui.write(f"{loja_id}-BAKLIZI")
+                    time.sleep(0.2)
                     
                     if items_processed_store + 1 == total_items_store:
                         pyautogui.press('tab')
@@ -229,6 +230,54 @@ class OrderProcessorSupply:
                     if stop_event and stop_event.is_set(): return
                     time.sleep(1)
                 
+                # ========= VERIFICAÇÃO FINAL APÓS SALVAR =========
+                # Limpar clipboard Windows sem abrir janela CMD
+                import subprocess
+                try:
+                    subprocess.run(['clip.exe'], input=b'', creationflags=subprocess.CREATE_NO_WINDOW)
+                except Exception:
+                    pass
+                
+                # Clica na coordenada calibrada (com Pynput) para focar e fugir da armadilha de DPI de monitores distantes
+                pos_comprador = self.coords.get("posicao_comprador")
+                if not pos_comprador: pos_comprador = [1920, 767]
+                
+                mouse_ctrl.position = (pos_comprador[0], pos_comprador[1])
+                time.sleep(0.1)
+                mouse_ctrl.click(Button.left, 1)
+                
+                time.sleep(0.5)
+                # Copia o comprador na posição clicada
+                pyautogui.hotkey('ctrl', 'c')
+                time.sleep(0.2)
+                
+                comprador_atual = ""
+                try:
+                    import tkinter as tk
+                    root = tk.Tk()
+                    root.withdraw()
+                    comprador_atual = root.clipboard_get().strip().upper()
+                    root.destroy()
+                except Exception:
+                    pass
+                
+                precisa_f4 = False
+                if "SUPPLY" in comprador_atual:
+                    pass  # Tudo certo
+                elif "WETER" in comprador_atual or "WERTER" in comprador_atual:
+                    pyautogui.press('up')
+                    precisa_f4 = True
+                elif "SANDRO" in comprador_atual:
+                    pyautogui.press('down')
+                    precisa_f4 = True
+                    
+                if precisa_f4:
+                    if update_callback: update_callback({'status': f'Salvando ajuste de comprador (F4)...'})
+                    time.sleep(1.0)
+                    pyautogui.press('f4')
+                    time.sleep(2.0)
+                # =================================================
+
                 # Limpar a tela para a próxima loja
                 pyautogui.press('f2')
                 time.sleep(1.0)
