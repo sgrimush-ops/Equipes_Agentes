@@ -48,7 +48,7 @@ class AcaoPrepararSuplay(BaseAction):
         col_pend = 'QTD_PEND_PEDCOMPRA'
         col_min  = 'QUANTIDADE_ESTOQUE_MINIMO'
         col_max  = 'QUANTIDADE_ESTOQUE_MAXIMO'
-        col_emb  = 'EMBL_COMPRA'
+        col_emb  = 'EMBL_TRANSFERENCIA'
         col_empresa = 'CODIGO_EMPRESA'
         col_produto = 'CODIGO_PRODUTO'
 

@@ -168,8 +168,9 @@ class OrderProcessor:
                     if not codigo or str(codigo).lower() == 'nan':
                         continue
                         
+                    faltam = total_items - (items_processed + 1)
                     # Log de progresso
-                    msg = f"Item {items_processed+1}/{total_items}: Loja {loja_id}, Cod {codigo}, Qtd {qtd} - {descricao}"
+                    msg = f"Item {items_processed+1}/{total_items} (Faltam {faltam}): Loja {loja_id}, Cod {codigo}, Qtd {qtd} - {descricao}"
                     if update_callback:
                         update_callback({
                             'status': f'Processando Loja {loja_id}',

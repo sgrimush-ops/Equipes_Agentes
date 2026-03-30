@@ -12,6 +12,7 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Principais Arquivos:** `main.py` (Interface Tkinter baseada em sequências JSON), e diversos scripts orientados à ação em `actions/*.py` e `core/*.py`.
 * **Funcionalidades:** Possui dezenas de automações otimizadas (ex: Supply e Mix) com:
   - Baixa latência de execução e detecção robusta de colunas em inputs.
+  - Logs de interface enriquecidos com descrições das planilhas e tracking visual em tempo real de itens faltantes.
   - `acao_digitar_pedido_CD_016.py`
   - Módulos de calibração de clique e integração com Visão OpenCV.
 

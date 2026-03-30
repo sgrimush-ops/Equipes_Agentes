@@ -36,7 +36,7 @@ class AcaoDigitarPedidoCD016(BaseAction):
         import tkinter as tk
         from tkinter import messagebox
         try:
-            from core.ap import CalibrationWindow
+            from core.calibrador import CalibrationWindow
             # Abre a janela de calibração antiga
             CalibrationWindow(parent_window)
         except Exception as e:

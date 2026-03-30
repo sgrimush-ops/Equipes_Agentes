@@ -66,6 +66,7 @@ class MixProcessor:
             col_empresa = next((c for c in df.columns if str(c).startswith('Código Empresa')), 'Código Empresa')
             col_produto = next((c for c in df.columns if str(c).startswith('Código Produto')), 'Código Produto')
             col_status = next((c for c in df.columns if str(c).startswith('Status')), 'Status')
+            col_descricao = next((c for c in df.columns if 'descri' in str(c).lower()), None)
 
             required_cols = [col_produto, col_empresa, col_status]
             for col in required_cols:
@@ -76,7 +77,11 @@ class MixProcessor:
                     return
             
             # Renomear para padrão do script para facilitar uso posterior
-            df = df.rename(columns={col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'})
+            rename_dict = {col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'}
+            if col_descricao:
+                rename_dict[col_descricao] = 'Descrição'
+                
+            df = df.rename(columns=rename_dict)
 
             # Limpar e Padronizar código da loja no DF (não dar zfill em textos como 'CD')
             df['Código Empresa'] = df['Código Empresa'].apply(lambda x: str(x).strip().replace('.0', ''))
@@ -137,13 +142,25 @@ class MixProcessor:
                 if not prod_str or prod_str.lower() == 'nan':
                     continue
 
+                # Filtrar o dataframe para pegar as configurações apenas desse produto
+                df_prod = df[df['Código Produto'] == produto]
+
+                # Obter a descrição do produto se existir
+                desc_str = ""
+                if 'Descrição' in df.columns and not df_prod.empty:
+                    desc_val = df_prod.iloc[0]['Descrição']
+                    if pd.notna(desc_val):
+                        desc_str = f" - {str(desc_val).strip()}"
+
+                faltam = total_produtos - (produtos_processados + 1)
+
                 if update_callback:
                     update_callback({
                         'status': f"Processando Produto {prod_str}",
                         'current_index': produtos_processados + 1,
                         'total': total_produtos,
                         'code': prod_str,
-                        'log': f"Item {produtos_processados+1}/{total_produtos}: Produto {prod_str}"
+                        'log': f"Item {produtos_processados+1}/{total_produtos} (Faltam {faltam}): Produto {prod_str}{desc_str}"
                     })
 
                 # Fluxo na tela do ERP
@@ -161,9 +178,6 @@ class MixProcessor:
                 pyautogui.click(pos_empresa)
                 time.sleep(1)
 
-                # Filtrar o dataframe para pegar as configurações apenas desse produto
-                df_prod = df[df['Código Produto'] == produto]
-                
                 # Criar um dicionário de loja -> Status para busca rápida
                 # Se houver duplicidade, mantém o último status para aquela loja naquele produto
                 status_map = dict()
