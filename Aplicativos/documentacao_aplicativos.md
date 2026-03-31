@@ -1,66 +1,137 @@
 # Guia de Aplicativos (Scripts Principais)
 
-Este guia reflete os aplicativos atuais contidos na pasta `Aplicativos`. Ele documenta a função de cada subdiretório e explica exatamente qual é a função do script Python `.py` principal que você encontra ao entrar.
+Este guia documenta os subdiretórios da pasta `Aplicativos`, explicando o propósito e o script principal de cada módulo.
+
+> **Última atualização:** 31/03/2026
 
 ---
 
-## 📁 Pasta: BancoDadosSW
-**Script Principal:** `convert_txt_to_excel.py`
-**O que ele faz:** 
-Lê um arquivo de texto bruto do sistema (ex: `banco_de_dados_10-02.txt`), filtra os dados (removendo linhas onde o tipo comercial é "I") e exporta os resultados particionados em um arquivo Excel (`bdsw.xlsx`). Como a base de dados pode ser gigante, ele divide os dados em blocos de 900.000 linhas por aba, evitando sobrecarga na memória e no Excel.
-
----
-
-## 📁 Pasta: GAM (Gerenciador de Automações e Macros)
+## 📁 GAM (Gerenciador de Automações e Macros)
 **Script Principal:** `main.py`
-**O que ele faz:**
-Ele abre a interface gráfica principal (janela Tkinter) do sistema de RPA (Robotic Process Automation). Ao abrir o programa, o usuário tem acesso a várias ações pré-programadas do lado esquerdo (como bloquear a tela, digitar pedidos, aprovar manuais, etc.), que podem ser enfileiradas do lado direito para criar "Macros" robóticas completas para automatizar tarefas de tela.
+
+Interface gráfica Tkinter de RPA (Robotic Process Automation). O usuário gerencia filas de ações pré-programadas (bloquear tela, digitar pedidos, aprovar manuais etc.) que são executadas sequencialmente como macros robóticas.
+
+**Submódulos importantes:**
+- `actions/acao_digitar_pedido_supply.py` — Digitação automatizada de pedidos Supply com **skip logic de comprador** (pula atribuição se já for "SUPPLY") e **verificação pós-F3** (confere e corrige comprador após salvar).
+- `actions/acao_digitar_pedido_CD_016.py` — Pedidos para o CD 016.
+- `core/vision_engine.py` — Detecção de elementos via OpenCV (multi-scale).
+- **Regra crítica:** Cliques calibrados usam `pynput.mouse.Controller` (nunca `pyautogui`) para evitar miss-clicks por DPI em multi-monitor.
 
 ---
 
-## 📁 Pasta: consumo
-**Script Principal:** `ap.py`
-**O que ele faz:**
-Lê um relatório em Excel normal chamado `consumo.xlsx`. Em seguida, faz um processo de saneamento na coluna `codigo` (transformando textos inválidos e espaços vazios em valores numéricos forçando a conversão real para formato de "inteiro puro"). Após limpar as sujas, ele compacta a tabela e a salva como `consumo.parquet` – arquivo de big data altamente otimizado para não travar cálculos pesados no futuro.
+## 📁 import_querys (Pipeline de Dados ERP)
+**Scripts Principais:** `barras.py`, `sync_google_sheet.py`, `data.py`
+
+Central de importação e exportação de dados do ERP Consinco para os sistemas da Squad.
+
+| Script | O que faz |
+|--------|-----------|
+| `barras.py` | Converte `ean_dun.txt` (4 colunas: `CODIGO_PRODUTO`, `EAN`, `DUN`, `UNIDADE_EMBALAGEM`) → `ean_dun.parquet`. Saneia EAN/DUN para string sem decimal. |
+| `sync_google_sheet.py` | Filtra produtos **ativos** do `query.parquet` e sobe ao Google Sheets com EAN/DUN no formato **TEXT** (preserva zeros à esquerda). |
+| `sync_appsheet.py` | Integração com AppSheet via REST API usando chaves do `.env`. |
+| `sync_projetobak.py` | Push automático do `query.parquet` para o repositório GitHub `ProjetoBak`. |
+| `data.py` | Utilitários de manipulação de data para os pipelines. |
+
+**Atenção:** O arquivo `ean_dun.txt` tem separador `;` e encoding `cp1252` (legado Consinco). O `query.parquet` vem do ERP via extração Oracle/Consinco.
 
 ---
 
-## 📁 Pasta: cruzamento
-**Script Principal:** `ap.py` (Módulo Visualizador de Parquet)
-**O que ele faz:**
-Este script é uma ferramenta para analisar bases otimizadas. Ele lista e lê todos os arquivos `.parquet` guardados na pasta `bd` e "descospe" no terminal as informações centrais de cada um deles: diz quantas colunas há no total, exibe os nomes de todas essas colunas, e mostra o cabeçalho e as três primeiras linhas da tabela, ajudando você a debugar a visualização dos dados consolidados em Parquet.
-
----
-
-## 📁 Pasta: lojas_colunas
-**Script Principal:** `ap.py`
-**O que ele faz:**
-Responsável por transformar dados verticais fracionados em colunas por Loja. Ele recebe dados logísticos globais listados num tabelão (`manual.xlsx`). Separa os dados de todas as Filiais, afastando o Centro de Distribuição (Empresa 15). Transforma a base (via Pivot Table), criando um espelho onde cada Loja tem sua própria coluna exclusivíssima (`Estoque L001`, `Pendencia L001`, `Estoque L002`... etc). Depois finaliza cruzando todos os dados da matriz horizontal ao lado do estoque do CD, salvando no arquivo `cd.xlsx`.
-
----
-
-## 📁 Pasta: mix
-**Script Principal:** `convert_to_parquet.py`
-**O que ele faz:**
-Ele lê o relatório fixo extraído (`con5cod.xlsx`), constrói ativamente a pasta de `resultado` (se ela for deletada) e garante a cópia da integridade original desse mix transmutando-o em arquivo binário veloz (`con5cod.parquet`), sem interferir nas colunas, servindo como motor de importação bruta na integração inter-projetos de "Mix".
-
----
-
-## 📁 Pasta: pendencias
-**Script Principal:** `consolidado.py`
-**O que ele faz:**
-Vasculha a subpasta interna chamada `bd_saida` procurando por arquivos com o padrão `Loja *.xlsx`. Ele lê ativamente as abas de todos os Excels picados achados na pasta, concatena (amontoa todas as filiais sob um mesmo cabeçalho verticalmente), processa ordenando os registros pelo campo número de Loja e finaliza cospe uma versão super-planilha, salvando em CSV separada por ponto-e-vírgula (`consolidado.csv`).
-
----
-
-## 📁 Pasta: ruptura
+## 📁 ruptura (Dashboard de Ruptura)
 **Script Principal:** `rp.py`
-**O que ele faz:**
-Recebe um relatório de Ruptura comercial (`rpcompra.csv`) onde algumas colunas vêm coladas de origem ("Comprador : Produto", tudo agrupado junto). O robô entra fatiando e particionando essa coluna ao meio (dividindo no caractere ":"), cria as colunas Comprador e Produto separadas. Além disso, elimina textos das Embalagens (`"CX 20"` virando valor limpo `20`). Salva o arquivo de cópia corrigido e logo finaliza dando o gatilho automático (`start`) no Painel Web Dashboard interativo que ele contém na mesma pasta.
+
+Gera o Dashboard de Ruptura Comercial — painel HTML interativo, autossuficiente e sem servidor (< 10MB).
+
+**Fluxo:**
+1. Lê `import_querys/query.parquet` como fonte de dados.
+2. Classifica a "culpa" da ruptura entre [CD] e [Loja].
+3. Gera `dashboard_ruptura_AAAA-MM-DD.html` com JSON embutido + filtros JavaScript.
+4. Salva snapshot diário em `historico_ruptura/` para rastreabilidade.
+
+**Regras arquiteturais:**
+- Denominadores globais (Base CD15) nunca são recalculados do filtro de loja.
+- Plotly: `active` do `updatemenus` é apenas cosmético; o range real vem do `update_layout`.
+- Botões obrigatórios: "Totais Gerais" e "Só Compradores".
 
 ---
 
-## 📁 Pasta: min_e_max
+## 📁 min_e_max (Estoque Mínimo e Máximo)
+**Script Principal:** `acao_preparar_manual_supply.py`
+
+Calcula e parametriza estoques mínimos e máximos para a rede de lojas.
+
+**Regra crítica:** `ESTQMINIMO` e `ESTQMAXIMO` no Consinco são em **CAIXAS** (unidade de embalagem), não em unidades avulsas. Sempre converter antes de comparar com o estoque disponível:
+
+```python
+min_unidades = ESTQMINIMO * EMBL_COMPRA
+estoque_disponivel = ESTQLOJA + ESTQDEPOSITO - QTDRESERVADAVDA - QTDRESERVADARECEB
+if estoque_disponivel < min_unidades: gerar_pedido()
+```
+
+---
+
+## 📁 integracao_google (APIs Google)
+**Script Principal:** `autenticacao_google.py`
+
+Gerencia autenticação OAuth persistente para Google Drive, Gmail e AppSheet.
+
+| Arquivo | Função |
+|---------|--------|
+| `autenticacao_google.py` | Token OAuth reutilizável (evita re-login) |
+| `modulo_drive.py` | Upload/download Google Drive |
+| `modulo_gmail.py` | Envio de e-mails via Gmail API |
+| `modulo_appsheet.py` | Chamadas REST ao AppSheet |
+
+**Regra:** EAN/DUN enviados ao Sheets como `TEXT` (API `numberFormat: {type: "TEXT"}`). Dados filtrados para produtosativos antes do upload (evita `exceeds grid limits`).
+
+---
+
+## 📁 memoria_squad (Memória Vetorial)
+**Script Principal:** `kernel.py`
+
+Camada de inteligência persistente usando ChromaDB. Armazena regras, lições aprendidas e conhecimentos da Squad para recuperação semântica. Garante que o ecossistema "aprenda" com o tempo e não repita erros.
+
+---
+
+## 📁 mcp_squad (Servidor MCP)
+**Script Principal:** `office_server.py`
+
+Servidor MCP local que provê interface padronizada para manipulação segura de arquivos Excel e CSV por agentes externos.
+
+---
+
+## 📁 gerenciamento_sql (Queries Oracle/Consinco)
 **Script Principal:** `ap.py`
-**O que ele faz:**
-Atualiza estoques mínimos e máximos da empresa via algoritmos matemáticos gerenciais. Ele lê `trabalho.xlsx`. Para cada filial, se a loja tem dados base, calcula que o "Novo Mínimo" necessite suportar no mínimo *5 dias* de Volume de Venda Média. O "Novo Máximo" é engordado + 30% em cima desse mínimo (mas de forma que encaixe no tamanho das Caixas/Embalagens). E depois ele processa as somas consolidadas desses abastecimentos individuais de Lojas para prever automaticamente o novo "Mínimo e Máximo" que deve ser exigido do Centro de Distribuição (Empresa 15). Devolve tudo documentado no `resultado.csv` pra integração.
+
+Ambiente assistido para geração de queries Oracle SQL para o ERP TOTVS Consinco. Usa a skill `gerar_consultas_consinco` e o dicionário local `dicionario_consinco.json`.
+
+---
+
+## 📁 consumo (Conversão de Dados)
+**Script Principal:** `ap.py`
+
+Lê `consumo.xlsx` e converte para `consumo.parquet` com saneamento de coluna `codigo` (inteiro puro). Motor de importação para análises de consumo.
+
+---
+
+## 📁 cruzamento (Conciliação Gerencial)
+**Script Principal:** `ap.py`
+
+Lê arquivos `.parquet` da pasta `bd/` e efetua conciliações gerenciais. Exibe estrutura, colunas e amostra de cada Parquet para debug rápido.
+
+---
+
+## 📁 pendencias (Consolidação de Relatórios)
+**Script Principal:** `consolidado.py`
+
+Varre `bd_saida/` buscando `Loja *.xlsx`, concatena todas as abas verticalmente e gera `consolidado.csv` separado por ponto-e-vírgula.
+
+---
+
+## 📁 mix_site (Mix de Produtos)
+**Script Principal:** `convert_to_parquet.py`
+
+Lê `con5cod.xlsx` e converte para `con5cod.parquet`. Motor de importação bruta do mix ativo de produtos da rede.
+
+---
+
+> **Nota:** Todos os módulos seguem o [Protocolo Mestre](./../.agents/rules.md) — Pandas, pathlib, openpyxl, try-excepts resilientes e isolamento em Parquet.
