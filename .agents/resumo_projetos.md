@@ -13,8 +13,11 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Funcionalidades:** Possui dezenas de automações otimizadas (ex: Supply e Mix) com:
   - Baixa latência de execução e detecção robusta de colunas em inputs.
   - Logs de interface enriquecidos com descrições das planilhas e tracking visual em tempo real de itens faltantes.
-  - `acao_digitar_pedido_CD_016.py`
+  - `acao_digitar_pedido_CD_016.py`, `acao_digitar_pedido_supply.py`
   - Módulos de calibração de clique e integração com Visão OpenCV.
+  - **Skip Logic (Buyer):** Antes de atribuir comprador, lê o campo atual via clipboard. Se já for "SUPPLY", pula a atribuição.
+  - **Verificação Pós-F3:** Após salvar, verifica comprador via clipboard e corrige se necessário antes de avançar lojas.
+  - **pynput obrigatório:** Todos os cliques calibrados usam `pynput.mouse.Controller` (nunca pyautogui) para evitar miss-clicks em ambientes multi-monitor.
 
 ## 3. Pendencias
 * **Propósito:** Consolidação de relatórios fragmentados gerados por loja.
@@ -41,33 +44,40 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Principais Arquivos:** `rp.py` (Execução Principal), `gerar_dashboard_comprador.py`.
 * **Funcionamento:** Lê a tabela `query.parquet`. Classifica a "Culpa" da ruptura entre [CD] vs [Loja]. Consolida métricas em um painel HTML **No-Server (<10MB)**, interativo e autossuficiente (JSON embutido), com filtros dinâmicos via JavaScript (Loja e Comprador) e geração automática de **snapshots históricos** diários para rastreabilidade de performance.
 
-## 8. export / temporario / trabalho
+## 8. barras (Pipeline EAN/DUN)
+* **Propósito:** Converter o arquivo `ean_dun.txt` (export Consinco) em formato Parquet estruturado para cruzamentos e sync com Google Sheets.
+* **Principais Arquivos:** `barras.py`.
+* **Funcionamento:** Lê o `ean_dun.txt` (4 colunas: `CODIGO_PRODUTO`, `EAN`, `DUN`, `UNIDADE_EMBALAGEM`), saneia EAN/DUN para inteiro puro, filtra produtos ativos (estoque > 0 OU venda recente) e salva em `ean_dun.parquet`. O sync com Google Sheets envia EAN/DUN formatados como **Texto** (não número) para preservar zeros à esquerda.
+
+## 9. export / temporario / trabalho
 * **Propósito:** Diretórios auxiliares para exportação final ou arquivos `tmp` (temporários).
 
-## 9. integracao_google
+## 10. integracao_google
 * **Propósito:** Orquestração de acessos à nuvem usando APIs oficiais REST.
-* **Principais Arquivos:** `ap.py`, `autenticacao_google.py`, `modulo_drive.py`, `modulo_gmail.py`, `modulo_appsheet.py`.
+* **Principais Arquivos:** `ap.py`, `autenticacao_google.py`, `modulo_drive.py`, `modulo_gmail.py`, `modulo_appsheet.py`, `sync_google_sheet.py`.
 * **Funcionamento:** Mantém a autenticação OAuth persistente de Google Drive e Gmail (via `token.json` e `credentials.json`) e executa endpoints do AppSheet (via App Id e Access Key em `.env`).
+* **Regra Sheets:** EAN/DUN são sempre enviados como formato `TEXT` para evitar truncagem de zeros à esquerda. O dataset é filtrado para produtos ativos antes do upload (evita erro `exceeds grid limits`).
 
-## 10. gerenciamento_sql
+## 11. gerenciamento_sql
 * **Propósito:** Ambiente assistido para estruturação e geração de queries (Oracle SQL) para o ERP TOTVS Consinco.
 * **Principais Arquivos:** `ap.py`, `dicionario_consinco.json` e a hierarquia da pasta `querys/`.
 * **Funcionamento:** O usuário aciona o agente neste diretório fornecendo filtros e tabelas. O agente utiliza a skill `gerar_consultas_consinco` e o dicionário de dados local para formatar queries de acordo com o padrão TOTVS SGI (Client) salvando-as de imediato prontas para uso.
 
-## 11. memoria_squad
+## 12. memoria_squad
 * **Propósito:** Camada de inteligência persistente da Squad usando Banco de Dados Vetorial.
 * **Principais Arquivos:** `kernel.py`, `seed_memory.py`.
 * **Funcionamento:** Armazena e recupera conhecimentos, regras e lições aprendidas via busca semântica (ChromaDB), garantindo que a Squad "aprenda" com o tempo.
 
-## 12. mcp_squad
+## 13. mcp_squad
 * **Propósito:** Conectividade oficial via Model Context Protocol (MCP).
 * **Principais Arquivos:** `office_server.py`.
 * **Funcionamento:** Provê interface padronizada para que agentes externos e scripts locais manipulem arquivos Excel e CSV de forma segura e estruturada.
 
-## 13. min_e_max
+## 14. min_e_max
 * **Propósito:** Cálculo e parametrização de estoques mínimos e máximos da rede.
-* **Principais Arquivos:** `acao_ajustar_estoque.py`.
+* **Principais Arquivos:** `acao_ajustar_estoque.py`, `acao_preparar_manual_supply.py`.
 * **Funcionamento:** Lógica para garantir a fluidez do abastecimento baseando-se em vendas e coberturas.
+* **Regra Crítica (Min/Max):** As colunas de Min/Max no Consinco são **baseadas em CAIXAS** (unidade de embalagem), não em unidades avulsas. Ao comparar estoque disponível (em unidades) com Min/Max, SEMPRE converta para a mesma unidade multiplicando Min/Max pelo fator da embalagem (`EMBL_COMPRA`). Nunca compare unidades vs caixas diretamente.
 
 ---
 > **Nota de Contexto:** Estes projetos seguem `rules.md` deste ecossistema (usam Pandas, pathlib, openpyxl, com try-excepts e isolamentos em Parquet e automação via GAM).

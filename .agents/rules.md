@@ -51,6 +51,12 @@ Este documento contém as regras obrigatórias para a criação e manutenção d
 - **Saneamento Logístico (Embalagens e Volumes):** O sistema legado (TOTVS ou similares) constantemente exporta unidades de medida com strings embarcadas na mesma coluna (Ex: "CX 20", "UN 1", "FD 12"). Sempre que operar com colunas que rejam agrupadores indivisíveis (como "Embalagem Compra", que sempre corresponde a um número inteiro), limpe-as obrigatoriamente logo na carga inicial com Extração via RegEx (`str.extract(r'(\d+)')`) e as converta para Inteiro Puro (Int64), viabilizando operações exatas.
 - **Saneamento de Códigos (Produto/EAN/DUN):** Não existem códigos de produto com vírgula decimal. Colunas destinadas a registrar identificadores como `Código Produto`, `EAN` ou `DUN` devem ser convertidas sumariamente para números inteiros (ou strings sem decimais). Caso a leitura de um CSV importe valores como `2704,0`, isso deve ser saneado forçando o casting para números inteiros puros antes de qualquer exportação ou cruzamento.
 
+## 7. Integração com Google Sheets / Google Drive
+
+- **EAN e DUN como Texto (anti zeros à esquerda):** Sempre que exportar colunas de EAN (13 dígitos) ou DUN (14 dígitos) para o Google Sheets via API, force o formato de célula como **Text** (`"numberFormat": {"type": "TEXT"}`). Nunca envie EANs como número puro — o Sheets trunca zeros à esquerda silenciosamente.
+- **Filtro Pré-Sync de Produtos Ativos:** Antes de sincronizar bases de EAN/produto para o Google Sheets (ou qualquer destino com limite de células), SEMPRE filtre para incluir apenas produtos "ativos" — definidos como aqueles que possuem estoque atual (`ESTOQUE > 0`) OU venda recente (ex: últimos 90 dias). Subir a base completa causa estouro de limite de células (`exceeds grid limits`).
+- **Estrutura ean_dun.txt (4 colunas):** O arquivo `ean_dun.txt` exportado pelo Consinco possui exatamente 4 colunas: `CODIGO_PRODUTO`, `EAN`, `DUN`, `UNIDADE_EMBALAGEM`. Ao processar esse arquivo, use `sep=';'`, `encoding='utf-8-sig'` e saneie EAN e DUN para inteiro puro sem casas decimais antes de qualquer cruzamento.
+
 ## 8. Ecossistema de IA e Automação (RPA)
 
 - **Memória Persistente:** Sempre que uma regra de negócio complexa ou um erro de sistema for resolvido, o agente deve considerar adicionar essa lição à memória vetorial via `memoria_squad/kernel.py` para evitar reincidência.
@@ -60,6 +66,9 @@ Este documento contém as regras obrigatórias para a criação e manutenção d
 - **Validação Tardia (Pós-Ação):** Ao operar em sistemas ERP em lote (ex: inserção de itens rápidos), valide estados inconsistentes de dropdowns ou caixas de seleção apenas no momento do Salvar (ex: F3 ou F4). Isso evita enroscos lentos no preenchimento de cabeçalho "cego" rápido e tira vantagem de correções com base no valor consolidado pelo sistema no final.
 - **Logs de Execução em Lote (RPA):** Quando iterar sobre listas longas de itens (ex: processos do GAM), inclua sempre no log de interface a descrição textual do item atual (resgatada do DF) e a contagem de itens faltantes `(Faltam X)`. Nunca deixe o usuário visualizando apenas códigos numéricos sem contexto.
 - **Protocolo MCP:** O uso de ferramentas de manipulação de arquivos deve, sempre que possível, ser mediado pelo servidor MCP local para garantir rastreabilidade e padronização.
+- **Skip Logic de Campo Já Correto (GAM):** Antes de QUALQUER operação de atribuição de campo em robô GAM (ex: atribuir Comprador, Filial, Condição de Pagamento), SEMPRE leia o valor atual do campo via clipboard (`Ctrl+A → Ctrl+C`). Se o valor já for o desejado, PULE a sequência de atribuição inteiramente. Isso evita escritas desnecessárias, distorções de auditoria e comportamentos inesperados em campos que o ERP consolida automaticamente ao salvar.
+- **Verificação de Comprador Pós-F3 (Supply):** No robô Supply, após salvar o pedido (`F3`), SEMPRE verifique o campo Comprador via clipboard **antes** de passar para a próxima loja. Se não for "SUPPLY", execute a correção com setas (`Up/Down`) + `F4`. A verificação deve usar coordenadas calibradas via `pynput.mouse.Listener` (nunca pyautogui) para evitar miss-clicks por DPI.
+- **Subprocess Sem Foco:** Em robôs, SEMPRE use `creationflags=subprocess.CREATE_NO_WINDOW` ao chamar subprocessos (ex: `clip.exe`). `shell=True` gera popups CMD que roubam foco e corrompem a automação.
 
 ## 9. Dashboard de Ruptura (Squad Varejo Insight)
 
