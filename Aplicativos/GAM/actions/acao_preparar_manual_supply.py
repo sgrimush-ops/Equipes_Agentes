@@ -72,11 +72,6 @@ class AcaoPrepararSuplay(BaseAction):
                     df[col] = df[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-        if col_min in df.columns:
-            df[col_min] = df[col_min] / df[col_emb]
-        if col_max in df.columns:
-            df[col_max] = df[col_max] / df[col_emb]
-                
         df['disp_calc'] = df[col_disp].apply(lambda x: x if x > 0 else 0)
 
         def calcular_pedir(row):
@@ -84,9 +79,10 @@ class AcaoPrepararSuplay(BaseAction):
             pend = row[col_pend]
             minimo = row[col_min]
             maximo = row[col_max]
+            emb = row[col_emb]
             
             if (disp + pend) < minimo:
-                valor = maximo - (disp + pend)
+                valor = (maximo - (disp + pend)) / emb
                 return valor if valor > 0 else 0
             else:
                 return 0
