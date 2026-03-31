@@ -7,8 +7,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 # Escopos que permitiremos o nosso aplicativo usar.
 # Se modificar esses escopos, delete o arquivo token.json.
 SCOPES = [
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/gmail.readonly'
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/spreadsheets'
 ]
 
 def get_google_credentials() -> Credentials:
