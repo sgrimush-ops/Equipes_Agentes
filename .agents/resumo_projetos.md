@@ -44,19 +44,22 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Principais Arquivos:** `rp.py` (Execução Principal), `gerar_dashboard_comprador.py`.
 * **Funcionamento:** Lê a tabela `query.parquet`. Classifica a "Culpa" da ruptura entre [CD] vs [Loja]. Consolida métricas em um painel HTML **No-Server (<10MB)**, interativo e autossuficiente (JSON embutido), com filtros dinâmicos via JavaScript (Loja e Comprador) e geração automática de **snapshots históricos** diários para rastreabilidade de performance.
 
-## 8. barras (Pipeline EAN/DUN)
-* **Propósito:** Converter o arquivo `ean_dun.txt` (export Consinco) em formato Parquet estruturado para cruzamentos e sync com Google Sheets.
-* **Principais Arquivos:** `barras.py`.
-* **Funcionamento:** Lê o `ean_dun.txt` (4 colunas: `CODIGO_PRODUTO`, `EAN`, `DUN`, `UNIDADE_EMBALAGEM`), saneia EAN/DUN para inteiro puro, filtra produtos ativos (estoque > 0 OU venda recente) e salva em `ean_dun.parquet`. O sync com Google Sheets envia EAN/DUN formatados como **Texto** (não número) para preservar zeros à esquerda.
+## 8. import_querys (Pipeline de Dados e Sincronização)
+* **Propósito:** Núcleo de ingestão e sincronização de dados mestres (EAN, DUN, Estoque, Venda) com Google Sheets e AppSheet.
+* **Principais Arquivos:** `barras.py`, `sync_google_sheet.py`, `sync_appsheet.py`, `sync_projetobak.py`.
+* **Funcionamento:** 
+  - **barras.py:** Lê `ean_dun.txt` (4 colunas), saneia EAN/DUN para inteiro puro, filtra produtos ativos e salva em `ean_dun.parquet`.
+  - **sync_google_sheet.py:** Envia dados filtrados para Google Sheets, forçando EAN/DUN como **Texto** (preserva zeros à esquerda).
+  - **sync_projetobak.py:** Automatiza o push de `query.parquet` para o repositório remoto ProjetoBak.
+* **Regra Crítica:** Dataset deve ser filtrado para produtos ativos (Estoque > 0 ou Venda Recente) antes do upload para evitar erro `exceeds grid limits`.
 
-## 9. export / temporario / trabalho
-* **Propósito:** Diretórios auxiliares para exportação final ou arquivos `tmp` (temporários).
+## 9. integracao_google
+* **Propósito:** Orquestração de autenticação OAuth2 para serviços Google.
+* **Principais Arquivos:** `autenticacao_google.py`, `modulo_drive.py`, `modulo_gmail.py`.
+* **Funcionamento:** Mantém a autenticação persistente via `token.json` e fornece wrappers para manipulação de arquivos e e-mails.
 
-## 10. integracao_google
-* **Propósito:** Orquestração de acessos à nuvem usando APIs oficiais REST.
-* **Principais Arquivos:** `ap.py`, `autenticacao_google.py`, `modulo_drive.py`, `modulo_gmail.py`, `modulo_appsheet.py`, `sync_google_sheet.py`.
-* **Funcionamento:** Mantém a autenticação OAuth persistente de Google Drive e Gmail (via `token.json` e `credentials.json`) e executa endpoints do AppSheet (via App Id e Access Key em `.env`).
-* **Regra Sheets:** EAN/DUN são sempre enviados como formato `TEXT` para evitar truncagem de zeros à esquerda. O dataset é filtrado para produtos ativos antes do upload (evita erro `exceeds grid limits`).
+## 10. export / temporario / trabalho
+* **Propósito:** Diretórios auxiliares para exportação final ou arquivos `tmp`.
 
 ## 11. gerenciamento_sql
 * **Propósito:** Ambiente assistido para estruturação e geração de queries (Oracle SQL) para o ERP TOTVS Consinco.

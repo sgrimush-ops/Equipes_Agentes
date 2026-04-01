@@ -59,7 +59,7 @@ Equipes_Agentes/
 
 ## 🏪 Squads Ativas
 
-### [Varejo Insight](doc/README-varejo-insight.md)
+### Squad Varejo Insight (Ativa)
 Otimização de abastecimento com foco no Centro de Distribuição (**Filial 15**) e análise de ruptura.
 
 **Componentes principais:**
@@ -109,5 +109,4 @@ cp .env.example .env
 
 - [Protocolo Mestre (.agents/rules.md)](.agents/rules.md)
 - [Mapa de Projetos (.agents/resumo_projetos.md)](.agents/resumo_projetos.md)
-- [Squad Varejo Insight](doc/README-varejo-insight.md)
 - [Documentação de Aplicativos](Aplicativos/documentacao_aplicativos.md)
