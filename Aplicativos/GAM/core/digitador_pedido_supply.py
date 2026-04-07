@@ -122,17 +122,41 @@ class OrderProcessorSupply:
                 pyautogui.write('015')
                 time.sleep(0.2)
                 
-                # após mais 6 tab, selecionar o comprador padrão (S + Seta Baixo)
+                # após mais 6 tab, selecionar o comprador padrão (SUPPLY)
                 for _ in range(6): pyautogui.press('tab')
-                time.sleep(0.2)
-                pyautogui.write('S')
-                time.sleep(1.0)
-                pyautogui.press('down')
-                time.sleep(0.1)
+                time.sleep(0.5)
                 
-                # agora teclar 5 tab para chegar em Tipo de pedido, 2 vezes "seta baixo"
-                for _ in range(5): pyautogui.press('tab')
-                time.sleep(0.2)
+                # Verificação inteligente: se já for SUPPLY, não mexe
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.1)
+                pyautogui.hotkey('ctrl', 'c')
+                time.sleep(0.3)
+                
+                import pyperclip
+                try:
+                    c_comprador = pyperclip.paste().strip().upper()
+                except:
+                    c_comprador = ""
+
+                if "SUPPLY" not in c_comprador:
+                    # Campo restrito no ERP (não aceita digitação letra a letra). Usando paste seguro com intervalos ampliados.
+                    import pyperclip
+                    pyperclip.copy("SUPPLY")
+                    time.sleep(0.2)
+                    pyautogui.press('backspace')
+                    time.sleep(0.1)
+                    pyautogui.hotkey('ctrl', 'v')
+                    time.sleep(1.0) # Mais tempo para o ERP validar o colar antes do TAB
+                    pyautogui.press('tab')
+                else:
+                    # Se já for SUPPLY, apenas um TAB para garantir o foco
+                    pyautogui.press('tab')
+                time.sleep(0.3)
+                
+                # agora teclar 4 tab para chegar em Tipo de pedido (ajustado pelo tab extra acima), 2 vezes "seta baixo"
+                for _ in range(4): 
+                    pyautogui.press('tab')
+                    time.sleep(0.15) # Evita o bipe de saturação de teclado
                 pyautogui.press('down', presses=2)
                 time.sleep(0.2)
 
@@ -231,10 +255,10 @@ class OrderProcessorSupply:
                     time.sleep(1)
                 
                 # ========= VERIFICAÇÃO FINAL APÓS SALVAR =========
-                # Limpar clipboard Windows sem abrir janela CMD
-                import subprocess
+                # Limpar clipboard com pyperclip (mais seguro que shell/subprocess)
+                import pyperclip
                 try:
-                    subprocess.run(['clip.exe'], input=b'', creationflags=subprocess.CREATE_NO_WINDOW)
+                    pyperclip.copy("")
                 except Exception:
                     pass
                 
@@ -243,26 +267,26 @@ class OrderProcessorSupply:
                 if not pos_comprador: pos_comprador = [1920, 767]
                 
                 mouse_ctrl.position = (pos_comprador[0], pos_comprador[1])
-                time.sleep(0.1)
+                time.sleep(0.2)
                 mouse_ctrl.click(Button.left, 1)
                 
                 time.sleep(0.5)
-                # Copia o comprador na posição clicada
+                # Garante seleção total do combo e cópia
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.1)
                 pyautogui.hotkey('ctrl', 'c')
-                time.sleep(0.2)
+                time.sleep(0.4)
                 
                 comprador_atual = ""
                 try:
-                    import tkinter as tk
-                    root = tk.Tk()
-                    root.withdraw()
-                    comprador_atual = root.clipboard_get().strip().upper()
-                    root.destroy()
+                    comprador_atual = pyperclip.paste().strip().upper()
                 except Exception:
                     pass
                 
                 precisa_f4 = False
-                if "SUPPLY" in comprador_atual:
+                if not comprador_atual:
+                    pass # Se ler falhou, não faz ajuste as cegas
+                elif "SUPPLY" in comprador_atual:
                     pass  # Tudo certo
                 elif "WETER" in comprador_atual or "WERTER" in comprador_atual:
                     pyautogui.press('up')
