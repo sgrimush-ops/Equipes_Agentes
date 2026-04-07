@@ -20,14 +20,23 @@ if not arquivo_entrada.exists():
 
 print("Parquet de rupturas localizado!")
 
-# 1. Executar a dashboard de compradores
+# 1A. Executar a dashboard de compradores
 print("Executando a geração do Dashboard de Compradores...")
 try:
-    script_dashboard = base_dir / "gerar_dashboard_comprador.py"
+    script_dashboard = base_dir / "dashboard_comprador.py"
     subprocess.run([sys.executable, str(script_dashboard)], check=True)
     print("Dashboard de compradores gerado e atualizado.")
 except Exception as e:
     print(f"Ocorreu um erro ao encadear o dashboard de compradores: {e}")
+
+# 1B. Executar o ranking de lojas
+print("Executando a geração do Ranking de Lojas...")
+try:
+    script_loja = base_dir / "dashboard_loja.py"
+    subprocess.run([sys.executable, str(script_loja)], check=True)
+    print("Ranking de lojas gerado e atualizado.")
+except Exception as e:
+    print(f"Ocorreu um erro ao encadear o ranking de lojas: {e}")
 
 # 2. Executar a dashboard detalhada
 print("Executando a geração do Dashboard Detalhado...")

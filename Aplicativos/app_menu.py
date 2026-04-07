@@ -18,7 +18,8 @@ PROJETOS = {
     "Cruzamento (Core)": "ap.py",
     "Mix de Produtos": "convert_to_parquet.py",
     "Ruptura (ETL CSV)": "rp.py",
-    "Ruptura (Dashboard HTML)": "gerar_dashboard_comprador.py",
+    "Ruptura (Dashboard HTML)": "dashboard_comprador.py",
+    "Ruptura (Ranking Lojas)": "dashboard_loja.py",
     "Integração Google": "ap.py"
 }
 
@@ -33,6 +34,7 @@ DIR_MAP = {
     "Mix de Produtos": "mix",
     "Ruptura (ETL CSV)": "ruptura",
     "Ruptura (Dashboard HTML)": "ruptura",
+    "Ruptura (Ranking Lojas)": "ruptura",
     "Integração Google": "integracao_google"
 }
 
