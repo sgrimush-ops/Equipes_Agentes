@@ -30,3 +30,10 @@ large_files.csv
 .antigravity/
 .claude/
 .vscode/
+
+# Ignorar pastas de carga bruta ou estática pesada
+Aplicativos/import_querys/arquivo_csv/
+Aplicativos/ruptura/historico_ruptura/
+Aplicativos/ruptura/comparativo_semana/
+Aplicativos/ruptura/excel_comprador/
+Aplicativos/pendencias/bd_saida/
