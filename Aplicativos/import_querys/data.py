@@ -14,7 +14,8 @@ arquivo_origem = os.path.join(base_dir, 'query.txt')
 df_query = pd.read_csv(arquivo_origem, sep=';')
 
 # 2. Sanitizar e Salvar o resultado
-# Força a conversão das colunas de texto (object) para string definitiva, evitando erro "Conversion failed with type object" no Parquet
+# REGRA ESTRUTURAL OBRIGATÓRIA: NUNCA alterar as vírgulas (,). O ponto (.) desconfigura planilhas Excel adjacentes que os visualizam, agindo localmente como milhar.
+# Força apenas a conversão genérica (object) para string definitiva (evitando falha do Parquet PyArrow em tipos mistos).
 for coluna in df_query.select_dtypes(include=['object']).columns:
     df_query[coluna] = df_query[coluna].astype(str)
 
