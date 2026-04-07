@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --primary: #3b82f6; --primary-dark: #1d4ed8; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; --gray: #6b7280; --bg: #f8fafc; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background-color: var(--bg); margin: 0; padding: 0 15px 50px; color: #1e293b; line-height: 1.5; min-height: 100vh; }
+    
+    #admin-banner { display:none; background:var(--danger); color:white; text-align:center; padding:8px; font-weight:bold; font-size:0.85rem; position: sticky; top: 0; z-index: 5000; }
+    #consultant-banner { display:none; background:var(--primary-dark); color:white; text-align:center; padding:8px; font-weight:bold; font-size:0.85rem; position: sticky; top: 0; z-index: 5000; }
+
+    .top-access-bar { max-width: 1000px; margin: 10px auto; display: flex; justify-content: flex-end; gap: 15px; font-size: 0.8rem; }
+    .top-access-link { color: #94a3b8; text-decoration: none; cursor: pointer; font-weight: 600; transition: 0.2s; padding: 5px 10px; border-radius: 6px; border: 1px solid transparent; }
+    .top-access-link:hover { color: var(--primary); border-color: #e2e8f0; background: white; }
+
+    .card { background: white; border-radius: 16px; padding: 30px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); max-width: 1000px; margin: auto; border: 1px solid #f1f5f9; min-height: 200px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; display: inline-flex; align-items: center; gap: 10px; font-size: 0.95rem; }
+    .btn:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); }
+    
+    .filter-bar { display: flex; gap: 10px; background: #94a3b8; padding: 6px; border-radius: 14px; margin-bottom: 25px; border: 1px solid #e2e8f0; }
+    .filter-btn { flex: 1; padding: 10px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #f8fafc; background: transparent; transition: 0.2s; }
+    .filter-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    
+    .topic-row { background: #ffffff; border: 1px solid #f1f5f9; border-radius: 14px; padding: 22px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    
+    .status { font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
+    .status-Sugerida { background: #fef3c7; color: #92400e; }
+    .status-Aberta { background: #dcfce7; color: #166534; }
+    .status-Concluida { background: #e0f2fe; color: #075985; opacity: 0.7; }
+
+    .priority-badge { font-size: 0.75rem; padding: 4px 12px; border-radius: 8px; font-weight: 800; margin-left: 8px; border: 1px solid transparent; }
+    .prio-1 { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+    .prio-2 { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }
+    .prio-3 { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+    .prio-4 { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
+    .prio-5 { background: #e2e8f0; color: #64748b; border-color: #cbd5e1; }
+    
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .modal-box { background: white; padding: 40px; border-radius: 24px; width: 90%; max-width: 400px; text-align: center; }
+    
+    label { display: block; margin-top: 18px; font-weight: 600; color: #475569; font-size: 0.9rem; text-align: left; }
+    input, select, textarea { display: block; width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-top: 6px; box-sizing: border-box; }
+    
+    .solution-card { margin-top:30px; border:2px solid var(--primary); padding:20px; border-radius:16px; background:#eff6ff; }
+
+    @media print { .no-print, .top-access-bar { display: none !important; } .card { box-shadow: none; border: none; } }
+  </style>
+</head>
+<body>
+  <div id="admin-banner" class="no-print">🛡️ ADMINISTRADOR LOGADO</div>
+  <div id="consultant-banner" class="no-print">🔧 CONSULTOR LOGADO</div>
+  
+  <div class="top-access-bar no-print">
+    <a class="top-access-link" onclick="openLoginModal()">🛡️ Área Moderador</a>
+    <a class="top-access-link" onclick="openLoginModal()">🔧 Área Consultor</a>
+    <a class="top-access-link" style="color:var(--danger)" onclick="logout()">🚪 Sair</a>
+  </div>
+
+  <div id="app" class="card">
+    <!-- Loader SPA -->
+  </div>
+
+  <!-- Modais -->
+  <div id="loginOverlay" class="modal-overlay">
+    <div class="modal-box">
+      <h2>Segurança Interna</h2>
+      <input type="password" id="modalPin" placeholder="PIN" style="font-size: 2rem; text-align: center; height: 60px;" onkeyup="if(event.key==='Enter') submitLogin()">
+      <div style="display:flex; gap:15px; margin-top:25px;">
+        <button class="btn" style="flex:1; background:var(--success);" onclick="submitLogin()">Acessar</button>
+        <button class="btn" style="flex:1; background:var(--gray);" onclick="closeLoginModal()">Voltar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="prioOverlay" class="modal-overlay">
+    <div class="modal-box">
+      <h2 style="color:var(--success)">Liberar Tópico</h2>
+      <p>Defina a urgência:</p>
+      <select id="selPrio">
+        <option value="1">🚨 1 - Urgente</option>
+        <option value="2">🔥 2 - Alta</option>
+        <option value="3" selected>📅 3 - Média</option>
+        <option value="4">☕ 4 - Baixa</option>
+      </select>
+      <div style="display:flex; gap:15px; margin-top:25px;">
+        <button class="btn" id="confirmPrioBtn" style="flex:1; background:var(--success);" onclick="confirmApprove()">Liberar</button>
+        <button class="btn" style="flex:1; background:var(--gray);" onclick="document.getElementById('prioOverlay').style.display='none'">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" id="raw_id" value="<?!= (typeof idTopicoUrl !== 'undefined') ? idTopicoUrl : '' ?>">
+
+  <script>
+    var allTopics = [];
+    var categories = [];
+    var responsaveis = [];
+    var filterMode = 'all';
+    var currentId = null;
+    var isAdmin = false;
+    var isConsultant = false;
+    var isLoaded = false;
+
+    function esc(s) { if(!s) return ""; return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+
+    function calcularDiasPendentes(dataStr, status) {
+      if (status === 'Concluida' || status === 'Sugerida' || !dataStr) return "";
+      var d;
+      var str = String(dataStr).trim();
+      if (str.indexOf('/') !== -1) {
+          var parts = str.split('/');
+          if (parts.length === 3) d = new Date(parts[2], parts[1] - 1, parts[0]);
+      }
+      if (!d || isNaN(d.getTime())) {
+          // Fallback para datas ISO ou serializadas pelo Google Apps Script
+          d = new Date(str);
+      }
+      if (isNaN(d.getTime())) return "";
+
+      var hoje = new Date();
+      var diffTime = hoje.getTime() - d.getTime();
+      var diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) diffDays = 0;
+      
+      var bg = "#f1f5f9";
+      var cor = "#64748b";
+      var border = "#cbd5e1";
+      var icone = "⏳";
+      
+      if (diffDays >= 5) {
+          bg = "#fee2e2";
+          cor = "#b91c1c";
+          border = "#fecaca";
+          icone = "🚨";
+      } else if (diffDays >= 1) {
+          bg = "#ffedd5";
+          cor = "#9a3412";
+          border = "#fed7aa";
+      }
+      
+      return '<span style="font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; font-weight: 800; background: '+bg+'; color: '+cor+'; border: 1px solid '+border+'; margin-left: 8px;">'+icone+' ' + diffDays + ' ' + (diffDays === 1 ? 'Dia' : 'Dias') + '</span>';
+    }
+
+    function showLoader(msg) {
+      document.getElementById('app').innerHTML = '<div style="text-align:center; padding:80px;">' +
+        '<div style="font-size:3rem; margin-bottom:20px;">💠</div>' +
+        '<b>Wiki Baklizi v2.0</b><br><span id="loader-msg">' + (msg || "Sincronizando...") + '</span></div>';
+    }
+
+    function initApp(isRefresh) {
+      showLoader();
+      var pin = localStorage.getItem('wiki_pin');
+      document.getElementById('admin-banner').style.display='none';
+      document.getElementById('consultant-banner').style.display='none';
+      isAdmin = false; isConsultant = false;
+
+      if (pin === "0104") { 
+        isAdmin = true; document.getElementById('admin-banner').style.display='block'; 
+      } else if (pin === "2512") {
+        isConsultant = true; document.getElementById('consultant-banner').style.display='block';
+      }
+
+      google.script.run.withSuccessHandler(function(res) {
+        if (!res) return;
+        isLoaded = true;
+        allTopics = res.topics || [];
+        categories = res.categories || ["Geral"];
+        responsaveis = res.responsaveis || ["Pendente"];
+        var target = document.getElementById('raw_id').value;
+        if (target && !isRefresh) renderDetail(target); else renderList(true);
+      }).getInitialData(document.getElementById('raw_id').value);
+    }
+
+    window.onload = function() { initApp(false); };
+
+    function submitLogin() {
+      var p = document.getElementById('modalPin').value;
+      if (p === "0104" || p === "2512") {
+        localStorage.setItem('wiki_pin', p);
+        closeLoginModal(); initApp(true);
+      } else { alert("PIN Incorreto!"); document.getElementById('modalPin').value = ''; }
+    }
+
+    function logout() { localStorage.removeItem('wiki_pin'); initApp(true); }
+
+    function renderList(skip) {
+      var html = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">' +
+                 '<h1 style="margin:0; font-size:2rem; color:#0f172a;">Wiki Baklizi</h1>' +
+                 '<div style="display:flex; gap:10px;">' +
+                 '<button class="btn" style="background:#475569;" onclick="imprimirPDF()">🖨️ PDF</button>' +
+                 '<button class="btn btn-new" style="background:var(--success);" onclick="renderNewTopic()">🚀 Nova</button></div></div>' +
+                 '<div class="filter-bar no-print">' +
+                 '<button class="filter-btn ' + (filterMode==='all'?'active':'') + '" onclick="setFilter(\'all\')">Todos</button>' +
+                 '<button class="filter-btn ' + (filterMode==='waiting'?'active':'') + '" onclick="setFilter(\'waiting\')">Aguardando</button>' +
+                 '<button class="filter-btn ' + (filterMode==='done'?'active':'') + '" onclick="setFilter(\'done\')">Atendidos</button>' +
+                 (isAdmin ? '<button class="filter-btn ' + (filterMode==='pending'?'active':'') + '" onclick="setFilter(\'pending\')">Moderação</button>' : '') +
+                 '</div><div id="list-container"></div>';
+      
+      document.getElementById('app').innerHTML = html;
+      var filtered = allTopics.filter(function(t) {
+        if (!isAdmin && t.status === "Sugerida") return false;
+        if (filterMode === "pending") return t.status === "Sugerida";
+        if (filterMode === "waiting") return t.status !== "Concluida" && t.status !== "Sugerida";
+        if (filterMode === "done") return t.status === "Concluida";
+        return t.status !== "Sugerida";
+      });
+      filtered.sort(function(a,b) { 
+        var pA = a.status === 'Concluida' ? 10 : (parseInt(a.prioridade) || 5);
+        var pB = b.status === 'Concluida' ? 10 : (parseInt(b.prioridade) || 5);
+        return pA - pB || b.id.localeCompare(a.id);
+      });
+
+      var listHtml = "";
+      categories.forEach(function(cat) {
+        var items = filtered.filter(function(t){ return t.categoria === cat; });
+        if (items.length === 0) return;
+        listHtml += '<h2 style="margin:30px 0 15px; font-size:1.1rem; color:#64748b;">📂 ' + esc(cat) + '</h2>';
+        items.forEach(function(t) {
+          var pVal = t.status === 'Concluida' ? '5' : (t.prioridade || "");
+          var pBadge = pVal ? '<span class="priority-badge prio-' + pVal + '">' + (pVal==='5'?'Atendido':pVal) + '</span>' : '';
+          var diasPend = calcularDiasPendentes(t.data, t.status);
+          listHtml += '<div class="topic-row"><div><b style="font-size:1.1rem;">' + esc(t.titulo) + '</b><br>' +
+            '<div style="margin-top:8px;"><span class="status status-' + t.status.replace(' ','') + '">' + t.status + '</span>' + pBadge + diasPend +
+            '<small style="margin-left:10px; color:#94a3b8;">ID: ' + t.id + ' | Resp: ' + esc(t.responsavel) + '</small></div></div>' +
+            '<button class="btn" onclick="renderDetail(\'' + t.id + '\')">Detalhes</button></div>';
+        });
+      });
+      document.getElementById('list-container').innerHTML = listHtml || '<p style="text-align:center; padding:30px; color:#94a3b8;">Vazio.</p>';
+    }
+
+    function setFilter(m) { filterMode = m; renderList(true); }
+
+    function renderDetail(id) {
+      showLoader("Buscando detalhes...");
+      google.script.run.withSuccessHandler(function(data) {
+        if(!data) { renderList(true); return; }
+        var t = data.detalhes;
+        currentId = t.id;
+        var pVal = t.status === 'Concluida' ? '5' : (t.prioridade || "");
+        var pBadge = pVal ? '<span class="priority-badge prio-' + pVal + '">' + (pVal==='5'?'Atendido':pVal) + '</span>' : '';
+        var diasPend = calcularDiasPendentes(t.data, t.status);
+        var html = '<div style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">' +
+                   '<button class="btn" style="background:#64748b;" onclick="renderList(true)">← Voltar</button><div>' +
+                   (isAdmin && t.status === "Sugerida" ? '<button class="btn" style="background:var(--success); margin-right:10px;" onclick="document.getElementById(\'prioOverlay\').style.display=\'flex\'">✅ Aprovar</button>' +
+                   '<button class="btn" style="background:var(--danger);" onclick="confirmReject(\''+t.id+'\')">❌ Excluir</button>' : '') +
+                   '</div></div>' +
+                   '<div style="margin-bottom:5px;"><span class="status status-' + t.status.replace(' ','') + '">' + t.status + '</span>' + pBadge + diasPend + 
+                   '<span style="margin-left:15px; color:#64748b; font-size:0.85rem; font-weight:600;">Resp: ' + esc(t.responsavel) + '</span></div>' +
+                   '<h1 style="font-size:2.3rem; margin:10px 0 10px;">' + esc(t.titulo) + '</h1>' +
+                   '<div style="background:#f1f5f9; padding:25px; border-radius:18px; margin-bottom:20px;"><p style="white-space:pre-wrap; margin:0;">' + esc(t.descricao) + '</p></div>';
+        
+        if(t.img) html += '<div style="padding:15px; border:2px dashed #ccc; border-radius:12px; cursor:pointer; text-align:center; background:white;" onclick="window.open(\''+t.img+'\',\'_blank\')">📎 Clique para baixar o anexo principal</div>';
+        
+        // Espaço para Resolução e Histórico de Solução
+        if (t.status === 'Concluida' && t.solucao) {
+           html += '<div style="margin-top:30px; border:2px solid var(--success); padding:20px; border-radius:16px; background:#f0fdf4;">' +
+                   '<h3 style="margin-top:0; color:var(--success);">🏗️ Solução Técnica Aplicada</h3>' +
+                   '<p>'+esc(t.solucao)+'</p></div>';
+        } else if (isConsultant && t.status !== 'Concluida') {
+           html += '<div id="consultant-panel" class="solution-card">' +
+                   '<h3 style="margin-top:0; color:var(--primary-dark);">🛠️ Área de Resolução Técnica</h3>' +
+                   '<p style="font-size:0.9rem; color:#475569;">Registrar a solução oficial da demanda:</p>' +
+                   '<textarea id="c_sol" style="height:120px;" placeholder="Explique o que foi feito para resolver..."></textarea>' +
+                   '<label>Anexo de Evidência Técnica (Opcional):</label><input type="file" id="c_file">' +
+                   '<button class="btn" id="c_btn" style="width:100%; margin-top:20px; background:var(--primary-dark);" onclick="saveConsultantFinal(\''+t.id+'\')">✅ Finalizar Chamado</button></div>';
+        }
+
+        html += '<hr style="margin:40px 0; border:0; border-top:1px solid #e2e8f0;"><h3>💬 Comentários</h3><div id="com-list">';
+        data.comentarios.forEach(function(c){ html += '<div style="margin-bottom:12px; background:#f8fafc; padding:12px; border-radius:8px;"><b>'+esc(c.usuario)+'</b>: '+esc(c.texto)+'</div>'; });
+        html += '</div>';
+        document.getElementById('app').innerHTML = html;
+      }).getTopicData(id);
+    }
+
+    function saveConsultantFinal(id) {
+       var sol = document.getElementById('c_sol').value;
+       if (!sol) { alert("Por favor, descreva a solução aplicada."); return; }
+       var btn = document.getElementById('c_btn'); btn.disabled = true; btn.innerText = "⌛ Salvando...";
+       var f = document.getElementById('c_file');
+       var cb = function(res) { if(res.success) { alert("✅ Solução registrada com sucesso!"); initApp(true); } else { alert("Erro: " + res.error); btn.disabled = false; btn.innerText = "Finalizar Chamado"; } };
+
+       if (f.files.length > 0) {
+         var fr = new FileReader(); fr.readAsDataURL(f.files[0]);
+         fr.onload = function() { google.script.run.withSuccessHandler(cb).saveConsultantResponse(id, sol, fr.result, f.files[0].name, f.files[0].type); };
+       } else {
+         google.script.run.withSuccessHandler(cb).saveConsultantResponse(id, sol, null, "", "");
+       }
+    }
+
+    function confirmApprove() {
+      var p = document.getElementById('selPrio').value;
+      var btn = document.getElementById('confirmPrioBtn');
+      btn.disabled = true; btn.innerText = "Aguarde...";
+      google.script.run.withSuccessHandler(function(){ document.getElementById('prioOverlay').style.display='none'; initApp(true); }).approveTopic(currentId, p);
+    }
+    function confirmReject(id) { if (confirm("⚠️ Confirmar exclusão permanente?")) { initApp(true); google.script.run.withSuccessHandler(function(){ initApp(true); }).deleteTopic(id); } }
+
+    function renderNewTopic() {
+      var optCat = categories.map(function(c){ return '<option>'+esc(c)+'</option>'; }).join('');
+      var optRes = responsaveis.map(function(r){ return '<option>'+esc(r)+'</option>'; }).join('');
+      document.getElementById('app').innerHTML = '<button class="btn" style="background:#64748b;" onclick="renderList(true)">← Voltar</button>' +
+        '<h2>🚀 Sugerir Demanda</h2><label>Título:</label><input id="nt">' +
+        '<label>Categoria:</label><select id="nc">' + optCat + '</select>' +
+        '<label>Solicitante:</label><input id="nr" placeholder="Seu nome">' +
+        '<label>Responsável Presumido:</label><select id="nre">' + optRes + '</select>' +
+        '<label>Descrição:</label><textarea id="nd"></textarea>' +
+        '<label>Anexo:</label><input type="file" id="nf">' +
+        '<button id="saveBtn" class="btn" style="width:100%; margin-top:20px; background:var(--success);" onclick="saveNew()">🚀 Enviar Sugestão</button>';
+    }
+
+    function saveNew() {
+      var t=document.getElementById('nt').value; var d=document.getElementById('nd').value; var r=document.getElementById('nr').value;
+      if(!t||!d||!r) { alert("Preencha Título, Descrição e Nome."); return; }
+      var btn=document.getElementById('saveBtn'); btn.disabled=true; btn.innerText="Enviando...";
+      var f=document.getElementById('nf');
+      var cb = function() { alert("✅ Sugestão enviada!"); initApp(true); };
+      if(f.files.length>0) {
+        var fr=new FileReader(); fr.readAsDataURL(f.files[0]);
+        fr.onload=function(){ google.script.run.withSuccessHandler(cb).addTopic(t,document.getElementById('nc').value,d,fr.result,f.files[0].name,f.files[0].type,r,document.getElementById('nre').value); };
+      } else { google.script.run.withSuccessHandler(cb).addTopic(t,document.getElementById('nc').value,d,null,"","",r,document.getElementById('nre').value); }
+    }
+
+    function imprimirPDF() { var t=document.title; document.title="Wiki_Baklizi"; window.print(); setTimeout(function(){document.title=t;},1000); }
+    function openLoginModal() { document.getElementById('loginOverlay').style.display='flex'; setTimeout(function(){ document.getElementById('modalPin').focus(); }, 100); }
+    function closeLoginModal() { document.getElementById('loginOverlay').style.display='none'; document.getElementById('modalPin').value = ''; }
+  </script>
+</body>
+</html>

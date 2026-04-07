@@ -14,8 +14,12 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
   - Baixa latência de execução e detecção robusta de colunas em inputs.
   - Logs de interface enriquecidos com descrições das planilhas e tracking visual em tempo real de itens faltantes.
   - `acao_digitar_pedido_CD_016.py`, `acao_digitar_pedido_supply.py`
-  - Módulos de calibração de clique e integração com Visão OpenCV.
-  - **Skip Logic (Buyer):** Antes de atribuir comprador, lê o campo atual via clipboard. Se já for "SUPPLY", pula a atribuição.
+  - **Módulos de calibração de clique e integração com Visão OpenCV.**
+  - **Mapeamento de Lojas Inteligente:** Imunidade à formatação do Excel (zeros à esquerda).
+  - **Matriz de Regras Estratégicas:** Suporte a grupos dinâmicos (**G, M, P**) via siglas na planilha para manutenção em massa.
+  - **Exclusividade CD 15:** Inteligência de faturamento que bloqueia automaticamente os CDs 16 e 50 caso o 15 esteja selecionado como ativo.
+  - **Hierarquia de Inativação:** Distinção entre **TI Global** (varejo) e **TI Total** (varejo + CDs).
+  - **Detecção de Colunas Flexível:** Busca automática por sinônimos em cabeçalhos (Ex: 'Produto' ou 'Nome').
   - **Verificação Pós-F3:** Após salvar, verifica comprador via clipboard e corrige se necessário antes de avançar lojas.
   - **pynput obrigatório:** Todos os cliques calibrados usam `pynput.mouse.Controller` (nunca pyautogui) para evitar miss-clicks em ambientes multi-monitor.
 
@@ -81,6 +85,18 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Principais Arquivos:** `acao_ajustar_estoque.py`, `acao_preparar_manual_supply.py`.
 * **Funcionamento:** Lógica para garantir a fluidez do abastecimento baseando-se em vendas e coberturas.
 * **Regra Crítica (Min/Max):** As colunas de Min/Max no Consinco são **baseadas em CAIXAS** (unidade de embalagem), não em unidades avulsas. Ao comparar estoque disponível (em unidades) com Min/Max, SEMPRE converta para a mesma unidade multiplicando Min/Max pelo fator da embalagem (`EMBL_COMPRA`). Nunca compare unidades vs caixas diretamente.
+
+## 15. wiki_interna (v2.0 - Estabilizada)
+* **Propósito:** Wiki corporativa para centralização de documentação técnica, processos e gestão de melhorias da rede Baklizi.
+* **Principais Arquivos:** `wiki_comentarios.gs` (Backend), `index.html` (Frontend), Google Sheets (Database).
+* **Funcionamento:** Sistema de chamados e FAQ dinâmico com:
+  - **Arquitetura SPA (Single Page):** Navegação entre telas e login sem `location.reload()`, prevenindo "telas brancas" e garantindo fluidez em ambientes restritos.
+  - **Estrutura Rígida de 12 Colunas:** Mapeamento fixo (A-L) que garante a integridade total dos dados (ID, Categoria, Título, Descrição, Status, Data, Imagem, Repórter, Responsável, Solução, Img Solução, Prioridade).
+  - **RBAC Avançado (PIN):** 
+    - **Moderador (0104):** Banner Vermelho. Aprovação com definição de prioridade (1-4) e exclusão física de registros reprovados.
+    - **Consultor (2512):** Banner Azul. Acesso exclusivo à Área de Resolução Técnica para registro de solução oficial com anexo de evidência.
+  - **Gestão de Evidências:** Fluxo assíncrono de upload de imagens (Base64 -> Google Drive) com geração automática de links públicos.
+  - **Blindagem Técnica:** Todas as diretrizes de manutenção estão fixadas no manual em `.agents/best-practices/wiki_baklizi_best_practices.md`.
 
 ---
 > **Nota de Contexto:** Estes projetos seguem `rules.md` deste ecossistema (usam Pandas, pathlib, openpyxl, com try-excepts e isolamentos em Parquet e automação via GAM).

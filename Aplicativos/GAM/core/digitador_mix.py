@@ -5,9 +5,10 @@ import os
 import json
 import cv2
 import numpy as np
+from pynput import keyboard
 
 pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0.1
+pyautogui.PAUSE = 0.02 # Reduzido para velocidade turbo
 
 class MixProcessor:
     def __init__(self):
@@ -27,358 +28,281 @@ class MixProcessor:
 
     def run(self, update_callback=None, stop_event=None, pause_event=None):
         if not self.coords:
-            msg = "Arquivo 'coords/coords.json' não encontrado. Calibre primeiro as posições do Mix."
+            msg = "Arquivo 'coords/coords.json' não encontrado. Calibre primeiro."
             if update_callback: update_callback({'error': msg})
-            else: print(msg)
             return
 
-        # Validar as coordenadas mínimas
-        if 'empresa_mix' not in self.coords or not self.coords['empresa_mix']:
-            msg = "Coordenada 'Empresa' não foi mapeada. Faça a calibração do Mix."
-            if update_callback: update_callback({'error': msg})
-            else: print(msg)
-            return
-
-        pos_empresa = self.coords['empresa_mix']
+        # --- Início do ESC Listener (Emergência) ---
+        def on_press(key):
+            if key == keyboard.Key.esc:
+                if stop_event: stop_event.set()
+                return False # Para o listener
         
-        # Validar se temos as lojas mapeadas
-        missing_stores = [st for st in self.store_list if f"loja_{st}" not in self.coords or not self.coords[f"loja_{st}"]]
-        if missing_stores:
-            msg = f"As seguintes lojas não foram mapeadas na calibração: {', '.join(missing_stores)}.\nPor favor, calibre todas as 26 lojas."
+        esc_listener = keyboard.Listener(on_press=on_press)
+        esc_listener.start()
+        # --- Fim do ESC Listener ---
+
+        pos_empresa = self.coords.get('empresa_mix')
+        if not pos_empresa:
+            msg = "Coordenada 'empresa_mix' não encontrada. Calibre o Mix."
             if update_callback: update_callback({'error': msg})
-            else: print(msg)
             return
 
         input_file = 'bd_entrada/mix.xlsx'
-        
         if not os.path.exists(input_file):
             msg = f"Arquivo '{input_file}' não encontrado."
             if update_callback: update_callback({'error': msg})
-            else: print(msg)
             return
 
         try:
-            if update_callback: update_callback({'status': f"Lendo dados de {input_file}..."})
+            if update_callback: update_callback({'status': "Lendo planilha..."})
             df = pd.read_excel(input_file, dtype=str)
             
-            # Garantir colunas necessárias
-            # Melhoria de Robustez: Buscar colunas que começam com o nome esperado (ignora sufixos como Código Empresa885)
+            # Mapeamento robusto de colunas
             col_empresa = next((c for c in df.columns if str(c).startswith('Código Empresa')), 'Código Empresa')
             col_produto = next((c for c in df.columns if str(c).startswith('Código Produto')), 'Código Produto')
             col_status = next((c for c in df.columns if str(c).startswith('Status')), 'Status')
-            col_descricao = next((c for c in df.columns if 'descri' in str(c).lower()), None)
+            col_descricao = next((c for c in df.columns if any(x in str(c).lower() for x in ['descri', 'produto', 'nome'])), None)
 
-            required_cols = [col_produto, col_empresa, col_status]
-            for col in required_cols:
-                if col not in df.columns:
-                    msg = f"A coluna '{col}' (ou similar) não foi encontrada em {input_file}. Colunas atuais: {df.columns.tolist()}"
-                    if update_callback: update_callback({'error': msg})
-                    else: print(msg)
-                    return
+            df = df.rename(columns={col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'})
+            if col_descricao: df = df.rename(columns={col_descricao: 'Descrição'})
             
-            # Renomear para padrão do script para facilitar uso posterior
-            rename_dict = {col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'}
-            if col_descricao:
-                rename_dict[col_descricao] = 'Descrição'
-                
-            df = df.rename(columns=rename_dict)
-
-            # Limpar e Padronizar código da loja no DF (não dar zfill em textos como 'CD')
             df['Código Empresa'] = df['Código Empresa'].apply(lambda x: str(x).strip().replace('.0', ''))
+            df['Código Empresa'] = df['Código Empresa'].apply(lambda s: s.zfill(3) if s.isdigit() else s)
             
-            # Agrupar por produto
             produtos = df['Código Produto'].unique()
             total_produtos = len(produtos)
 
-            if total_produtos == 0:
-                msg = "Nenhum produto encontrado na planilha."
-                if update_callback: update_callback({'error': msg})
-                else: print(msg)
-                return
-
-            if update_callback:
-                update_callback({'status': 'Iniciando Manutenção...', 'total': total_produtos})
-                
-            # Pré-carregamento dos templates (se existirem) na memória 1 única vez para performance letal
+            # Pré-carregamento dos templates visual (Otimizado)
             import glob
             templates_cv2 = {'ativo': [], 'inativo': []}
             for stat_name in ['ativo', 'inativo']:
-                # Puxa qualquer arquivo que comece com status_ativo... ou status_inativo...
                 arquivos = glob.glob(f'captura_tela/status_{stat_name}*.png')
                 for path_img in arquivos:
                     tmplt = cv2.imread(path_img)
-                    if tmplt is not None:
-                        templates_cv2[stat_name].append(tmplt)
+                    if tmplt is not None: templates_cv2[stat_name].append(tmplt)
             
             tem_algum_template = len(templates_cv2['ativo']) > 0 or len(templates_cv2['inativo']) > 0
             
-            if not tem_algum_template and update_callback:
-                update_callback({'log': 'DICA: Adicione "status_ativo.png" e "status_inativo.png" na pasta "captura_tela" para pular lojas já processadas e dobrar a velocidade do robô!'})
+            # Calcular Bounding Box das lojas para o Batch Screenshot
+            store_coords = []
+            for st in self.store_list:
+                c = self.coords.get(f"loja_{st}")
+                if c: store_coords.append(c)
             
-            if not update_callback: 
-                print("Iniciando em 5 segundos... Mude para o navegador/sistema!")
-                time.sleep(5)
+            if store_coords:
+                min_y = min(c[1] for c in store_coords) - 30
+                max_y = max(c[1] for c in store_coords) + 30
+                h_region = max_y - min_y
+                w_screen, _ = pyautogui.size()
             else:
-                time.sleep(2)
+                tem_algum_template = False # Sem coordenadas de loja, desativa visão
+
+            if update_callback:
+                update_callback({'status': 'Turbo Iniciado', 'total': total_produtos})
             
-            if stop_event and stop_event.is_set(): return
-
-            produtos_processados = 0
-
-            for produto in produtos:
-                if stop_event and stop_event.is_set():
-                    if update_callback:
-                        update_callback({'status': 'Parado pelo usuário.', 'finished': True})
-                    return
-
+            time.sleep(2) # Espera reduzida de 5s para 2s
+            
+            # --- Loop Principal de Produtos ---
+            for i, produto in enumerate(produtos):
+                if stop_event and stop_event.is_set(): break
+                
+                # Check Pausa
                 if pause_event and pause_event.is_set():
-                    if update_callback: update_callback({'status': 'PAUSADO'})
-                    while pause_event.is_set():
-                        if stop_event and stop_event.is_set(): return
-                        time.sleep(0.5)
-                    if update_callback: update_callback({'status': 'Processando'})
+                    while pause_event.is_set() and not stop_event.is_set(): time.sleep(0.5)
 
                 prod_str = str(produto).strip().replace('.0','')
-                if not prod_str or prod_str.lower() == 'nan':
-                    continue
+                if not prod_str or prod_str.lower() == 'nan': continue
 
-                # Filtrar o dataframe para pegar as configurações apenas desse produto
                 df_prod = df[df['Código Produto'] == produto]
-
-                # Obter a descrição do produto se existir
-                desc_str = ""
-                if 'Descrição' in df.columns and not df_prod.empty:
-                    desc_val = df_prod.iloc[0]['Descrição']
-                    if pd.notna(desc_val):
-                        desc_str = f" - {str(desc_val).strip()}"
-
-                faltam = total_produtos - (produtos_processados + 1)
+                desc_str = str(df_prod.iloc[0].get('Descrição', "")) if 'Descrição' in df_prod.columns else ""
 
                 if update_callback:
+                    faltam = total_produtos - (i + 1)
                     update_callback({
-                        'status': f"Processando Produto {prod_str}",
-                        'current_index': produtos_processados + 1,
+                        'status': f"Proc. {prod_str}",
+                        'current_index': i + 1,
                         'total': total_produtos,
                         'code': prod_str,
-                        'log': f"Item {produtos_processados+1}/{total_produtos} (Faltam {faltam}): Produto {prod_str}{desc_str}"
+                        'log': f"[{i+1}/{total_produtos} | Faltam: {faltam}] {prod_str} - {desc_str}"
                     })
 
-                # Fluxo na tela do ERP
-                time.sleep(5) # "na tela ativa após uma contagem de 5 segundos..."
+                # Fluxo ERP Otimizado
                 pyautogui.press('f2')
-                time.sleep(1)
-                
+                time.sleep(0.5) # Reduzido de 1s
                 pyautogui.write(prod_str)
-                time.sleep(0.5)
-                
+                time.sleep(0.2) # Reduzido de 0.5s
                 pyautogui.press('f8')
-                time.sleep(2) # Respiro para a busca carregar
-
-                # Clicar em Empresa
+                time.sleep(1.2) # Reduzido de 2s para o F8
                 pyautogui.click(pos_empresa)
-                time.sleep(1)
+                time.sleep(0.5) # Reduzido de 1s
 
-                # Criar um dicionário de loja -> Status para busca rápida
-                # Se houver duplicidade, mantém o último status para aquela loja naquele produto
-                status_map = dict()
-                cd_status = None # Para registrar se existe alguma instrução genérica "CD"
+                # Mapa de Lojas
+                status_map = {str(rb['Código Empresa']).strip().upper().replace('.0', ''): str(rb.get('Status', 'I')).strip().upper() for _, rb in df_prod.iterrows()}
+                cd_status = status_map.get("CD")
                 
-                for _, rb in df_prod.iterrows():
-                    empresa_val = str(rb['Código Empresa']).strip().upper().replace('.0', '')
-                    status_val = str(rb.get('Status', 'I')).strip().upper()
-                    
-                    if empresa_val == "CD":
-                        cd_status = status_val
-                    else:
-                        st_code = empresa_val.zfill(3)
-                        status_map[st_code] = status_val
-
-                # Lista de lojas que DEVEM ser inativadas sempre, mesmo se não estiverem na planilha
+                # Regras de Agrupamento
+                ti_total = status_map.get("CD") == "TI"
+                ti_lojas_only = status_map.get("") == "TI"
+                
+                tem_tc = "TC" in status_map.values() or cd_status == "TC"
+                tem_ta = "TA" in status_map.values() or cd_status == "TA"
+                
+                # Detecção Dinâmica de Grupos G, M, P baseada na Coluna Loja + Status
+                group_status_map = {}
+                for code, action in status_map.items():
+                    code_up = str(code).upper()
+                    if 'G' in code_up: group_status_map['G'] = action
+                    if 'M' in code_up: group_status_map['M'] = action
+                    if 'P' in code_up: group_status_map['P'] = action
+                
                 lojas_forcar_inativo = ["009", "010", "020", "021", "022", "023","050", "900", "901", "902"]
-                
-                # Lista de CDs
                 lista_cds = ["015", "016", "050"]
+                lojas_grandes = ["002", "003", "006", "011", "012", "017", "018"]
+                lojas_medias = ["013", "014"]
+                lojas_pequenas = ["004", "005", "007", "008"]
 
-                # Loop nas lojas
-                for loja_str in self.store_list:
-                    if stop_event and stop_event.is_set(): return
-                    
-                    # Decidimos se vamos interagir com esta loja ou pular ela
-                    status = None
-                    
-                    # Verifica regras de agrupamento dinâmico (inclusive os definidos por trat.py)
-                    tem_ti = "TI" in status_map.values() or cd_status == "TI"
-                    tem_tc = "TC" in status_map.values() or cd_status == "TC"
-                    tem_ta = "TA" in status_map.values() or cd_status == "TA"
-                    tem_tip = "TIP" in status_map.values() 
-                    tem_tim = "TIM" in status_map.values()
-                    
-                    lojas_pequenas = ["004", "005", "007", "008", "014"]
-                    lojas_medias = ["012", "013", "018"]
-                    lojas_grandes = ["002", "003", "006", "011", "017"]
-
-                    # As marcações explícitas de planilha priorizam sobre os agrupamentos gerais TIM/TIP/TA/TI
-                    if loja_str in status_map and status_map[loja_str] in ["A", "I"]:
-                        status = status_map[loja_str]
-                    elif tem_ti:
-                        status = "I"
-                    elif tem_tc:
-                        # TC (Todos Centralizados): Apenas ativa no CD e desativa tudo.
-                        status = "A" if (loja_str == "015" or (loja_str not in lojas_forcar_inativo and loja_str not in lista_cds)) else "I"
-                    elif tem_ta:
-                        if loja_str in lista_cds:
-                            continue # Para não mexer nos CDs se não paramerizado explicitamente
-                        status = "A" if (loja_str != "001" and loja_str not in lojas_forcar_inativo) else "I"
-                    elif tem_tip:
-                        if loja_str in lojas_forcar_inativo:
-                            status = "I"
-                        elif loja_str in lista_cds:
-                            continue # Para não mexer nos CDs se não paramerizado
-                        elif loja_str in lojas_pequenas:
-                            status = "I"
-                        elif loja_str in lojas_medias or loja_str in lojas_grandes:
-                            status = "A"
-                        else:
-                            status = "I"
-                    elif tem_tim:
-                        if loja_str in lojas_forcar_inativo:
-                            status = "I"
-                        elif loja_str in lista_cds:
-                            continue # Para não mexer nos CDs se não paramerizado
-                        elif loja_str in lojas_grandes:
-                            status = "A"
-                        else:
-                            status = "I"
-                    elif cd_status and loja_str in lista_cds:
-                        status = "A" if cd_status == "A" else "I"
-                    elif loja_str in lojas_forcar_inativo:
-                        status = "I"
-                    else:
-                        # Se não está na planilha, não é CD (com regra ativa) e não é grupo forçado, pula.
-                        continue
-                    
-                    coord_loja = self.coords[f"loja_{loja_str}"]
-                    x_loja, y_loja = coord_loja
-                    
-                    # CÉREBRO VISUAL: Leitura inteligente da "fatia" horizontal da tela no Eixo Y
-                    estado_tela = None
-                    if 'tem_algum_template' in locals() and tem_algum_template:
-                        try:
-                            # 1. Encontra a maior altura entre todas as fotos da pasta para evitar crash do OpenCV 
-                            # (caso a imagem do usuário seja maior que a fatia delimitada)
-                            max_h = 20
-                            for _, lista in templates_cv2.items():
-                                for t in lista:
-                                    if t is not None and t.shape[0] > max_h:
-                                        max_h = t.shape[0]
-                                        
-                            w_screen, _ = pyautogui.size()
-                            slice_h = max_h + 10 # Dá uma margem de folga 
-                            f_y = max(0, int(y_loja - (slice_h / 2)))
-                            
-                            tela_pil = pyautogui.screenshot(region=(0, f_y, w_screen, slice_h))
-                            tela_bgr = cv2.cvtColor(np.array(tela_pil), cv2.COLOR_RGB2BGR)
-                            
-                            maior_confianca = 0
-                            melhor_estado = None
-                            
-                            # 2. Match OpenCV com todas as etiquetas (Multi-Scale 0.9x a 1.1x)
-                            escalas = [1.0, 0.9, 1.1]
-                            for stat_name, lista_templates in templates_cv2.items():
-                                for tmplt in lista_templates:
-                                    for sc in escalas:
-                                        # Redimensiona o template para bater com o DPI/Resolução da tela do usuário
-                                        w_t = int(tmplt.shape[1] * sc)
-                                        h_t = int(tmplt.shape[0] * sc)
-                                        
-                                        if w_t > tela_bgr.shape[1] or h_t > tela_bgr.shape[0]:
-                                            continue
-                                            
-                                        tmplt_res = cv2.resize(tmplt, (w_t, h_t), interpolation=cv2.INTER_AREA)
-                                        res = cv2.matchTemplate(tela_bgr, tmplt_res, cv2.TM_CCOEFF_NORMED)
-                                        _, max_val, _, _ = cv2.minMaxLoc(res)
-                                        
-                                        if max_val > maior_confianca:
-                                            maior_confianca = max_val
-                                            melhor_estado = stat_name
-                                        
-                            if maior_confianca >= 0.70: # 70% segura variações fortes do ClearType das fontes
-                                estado_tela = "A" if melhor_estado == "ativo" else "I"
-                            else:
-                                if update_callback: update_callback({'log': f"[Visão] Loja {loja_str}: Baixa confiança de leitura ({maior_confianca*100:.1f}%). Executando por segurança."})
-                        except Exception as e:
-                            if update_callback: update_callback({'log': f"[CRÍTICO] A Visão falhou as texturas. Erro OpenCV: {e}"})
-                            pass
-                            
-                    # 3. Pula se a tela já estiver exatamente como o GAM ia digitar
-                    if estado_tela == status:
-                        if update_callback: 
-                            status_print = "Ativo" if status == "A" else "Inativo"
-                            update_callback({'log': f"Loja {loja_str}: Já estava {status_print} visualmente. Economizou! Pulando..."})
-                        continue
-
-                    # 4. Caso contário, precisa agir mecanicamente
-                    pyautogui.click(coord_loja) # Clica na loja
-                    time.sleep(0.1) # Reduzido de 0.5 para 0.1 devido ao PAUSE global
-
-                    if status == "A":
-                        # Ativar
-                        pyautogui.press('a', presses=2, interval=0.05)
-                    else:
-                        # Inativar
-                        pyautogui.press('i', presses=2, interval=0.05)
-                        
-                    time.sleep(0.1)
-
-                # Finaliza edição do produto atual
-                pyautogui.press('f4')
-                time.sleep(0.8) # Tempo curto para o popup aparecer, se houver
+                # --- BATCH SCREENSHOT (O SEGREDO DA VELOCIDADE) ---
+                tela_bgr = None
+                if tem_algum_template:
+                    try:
+                        tela_pil = pyautogui.screenshot(region=(0, min_y, w_screen, h_region))
+                        tela_bgr = cv2.cvtColor(np.array(tela_pil), cv2.COLOR_RGB2BGR)
+                    except: pass
                 
-                # Lidar com possível popup "Atenção" (Caracteres Especiais) acionado pelo F4
+                # Verificador de Exclusividade CD 15
+                cd15_status = next((v for k, v in status_map.items() if k.lstrip('0') == '15'), None)
+                cd15_ativo = (cd15_status == "A")
+
+                # --- Loop de Lojas ---
+                for loja_str in self.store_list:
+                    if stop_event and stop_event.is_set(): break
+                    
+                    status = None
+                    # Busca inteligente de status (independente de zeros à esquerda)
+                    loja_num = loja_str.lstrip('0')
+                    # Localiza na planilha o status da loja, independente da formatação original (ex: '15' vs '015')
+                    st_planilha = next((v for k, v in status_map.items() if k.lstrip('0') == loja_num), None)
+                    
+                    if st_planilha and st_planilha in ["A", "I"]:
+                        status = st_planilha
+                    
+                    # REGRA DE OURO: Se CD 15 Ativo, forçar Inativo nos CDs 16 e 50
+                    if cd15_ativo and (loja_str == "016" or loja_str == "050"):
+                        status = "I"
+                    
+                    # Regra de Grupos G, M, P (Prioridade caso não haja status direto na loja)
+                    if status is None:
+                        if loja_str in lojas_grandes and 'G' in group_status_map:
+                            status = group_status_map['G']
+                        elif loja_str in lojas_medias and 'M' in group_status_map:
+                            status = group_status_map['M']
+                        elif loja_str in lojas_pequenas and 'P' in group_status_map:
+                            status = group_status_map['P']
+                    
+                    if status is not None:
+                        if status not in ["A", "I"]: continue # Ignora status que não sejam A ou I
+                    elif ti_total:
+                        status = "I"
+                    elif ti_lojas_only:
+                        if loja_str in lista_cds: continue
+                        status = "I"
+                    elif tem_tc: status = "A" if (loja_str == "015" or (loja_str not in lojas_forcar_inativo and loja_str not in lista_cds)) else "I"
+                    elif tem_ta:
+                        if loja_str in lista_cds: continue
+                        status = "A" if (loja_str != "001" and loja_str not in lojas_forcar_inativo) else "I"
+                    elif cd_status and loja_str in lista_cds: status = "A" if cd_status == "A" else "I"
+                    elif loja_str in lojas_forcar_inativo: status = "I"
+                    else: continue
+
+                    # Visão Turbo em Memória
+                    if tela_bgr is not None:
+                        try:
+                            coord_loja = self.coords[f"loja_{loja_str}"]
+                            local_y = coord_loja[1] - min_y
+                            slice_y1 = max(0, local_y - 15)
+                            slice_y2 = min(h_region, local_y + 15)
+                            fatia = tela_bgr[slice_y1:slice_y2, :]
+                            
+                            maior_c = 0; mel_est = None
+                            for st_n, t_list in templates_cv2.items():
+                                for t in t_list:
+                                    res = cv2.matchTemplate(fatia, t, cv2.TM_CCOEFF_NORMED)
+                                    _, mx, _, _ = cv2.minMaxLoc(res)
+                                    if mx > maior_c: maior_c = mx; mel_est = "A" if st_n == "ativo" else "I"
+                            
+                            if maior_c >= 0.75 and mel_est == status: 
+                                continue # PULA! Já está correto.
+                        except: pass
+                    
+                    # Mecânica de Clique (Fallback)
+                    pyautogui.click(self.coords[f"loja_{loja_str}"])
+                    time.sleep(0.01)
+                    pyautogui.press('a' if status == "A" else 'i', presses=2, interval=0.01)
+
+                # --- Registro Visual para Trava de Imagem (Anti-Aba Fantasma) ---
+                tela_valida_gray = None
+                sw, sh = pyautogui.size()
+                try:
+                    # Captura o topo da tela onde nascem abas e botões diferentes
+                    tela_base = pyautogui.screenshot(region=(0, 0, sw, int(sh * 0.65)))
+                    tela_valida_gray = cv2.cvtColor(np.array(tela_base), cv2.COLOR_RGB2GRAY)
+                except:
+                    pass
+
+                # Salvar Produto
+                pyautogui.press('f4')
+                time.sleep(0.8)
+                
+                # Lidar com popup de Atenção
+                teve_popup = False
                 try:
                     import pygetwindow as gw
-                    active_window = gw.getActiveWindow()
-                    if active_window and "Atenção" in active_window.title:
-                        pyautogui.press('s') # Sim
-                        time.sleep(0.5)
-                except Exception:
-                    pass
+                    atn = [w for w in gw.getWindowsWithTitle("Atenção") if w.visible]
+                    if atn: 
+                        teve_popup = True
+                        pyautogui.press('s')
+                        time.sleep(1.2)  # Tempo maior para garantir que as novas abas caguem a tela, se existirem
+                except: pass
                 
-                time.sleep(1) # Tempo final pra salvar e liberar F2 novamente
-                produtos_processados += 1
+                # --- TRAVA DE SEGURANÇA BASEADA EM DIFERENÇA DE IMAGEM ---
+                # Agimos APENAS se houve o Popup, que é o gatilho da nova tela indesejada
+                try:
+                    if teve_popup and tela_valida_gray is not None:
+                        tela_apos = pyautogui.screenshot(region=(0, 0, sw, int(sh * 0.65)))
+                        tela_apos_gray = cv2.cvtColor(np.array(tela_apos), cv2.COLOR_RGB2GRAY)
+                        
+                        # Calculo de Diferença Estrutural
+                        diff = cv2.absdiff(tela_valida_gray, tela_apos_gray)
+                        mudanca_visual = np.mean(diff)
+                        
+                        # Limiar calibrado: Mudanças no Consinco (fundo e grid para Abas brutas) causam > 8 de variância 
+                        if mudanca_visual > 8.0:
+                            msg_trava = f"🚨 TRAVA VISUAL DE SEGURANÇA: As abas e a estrutura da tela mudaram fortemente (Delta={mudanca_visual:.1f}). Operação ABORTADA para evitar danos!"
+                            if update_callback: update_callback({'error': msg_trava})
+                            else: print(msg_trava)
+                            
+                            # Aciona parada de emergência
+                            if stop_event: stop_event.set()
+                            break # Encerra o laço de produtos principal
+                except Exception as e:
+                    print("Aviso: Falha na trava visual:", e)
+                
+                time.sleep(0.5)
 
-            # Finalizou todos
-            time.sleep(1)
             pyautogui.press('f10')
-            
-            final_msg = "Manutenção de Mix finalizada para todos os itens."
-            if update_callback:
-                update_callback({'status': 'Concluído', 'finished': True, 'log': final_msg})
-            else:
-                print(f"\n=== {final_msg} ===")
-                pyautogui.alert(final_msg)
+            if update_callback: update_callback({'status': 'Concluído', 'finished': True})
 
         except Exception as e:
-            err = f"Erro inesperado no Mix: {e}"
-            if update_callback: update_callback({'error': err})
-            else: print(err)
+            if update_callback: update_callback({'error': str(e)})
+        finally:
+            esc_listener.stop()
 
 def main():
     processor = MixProcessor()
-    
-    print("=== Robô de Mix Ativo ===")
-    if not processor.coords:
-        print("Calibre as posições primeiro.")
-        return
-
-    confirm = input("Digite 's' para iniciar ou 'n' para sair: ")
-    if confirm.lower() != 's':
-        return
-
-    try:
+    confirm = input("Mix Turbo - Pressione 's' para iniciar (ESC para parar): ")
+    if confirm.lower() == 's':
         processor.run()
-    finally:
-         input("\nPressione Enter para fechar...")
 
 if __name__ == "__main__":
     main()
