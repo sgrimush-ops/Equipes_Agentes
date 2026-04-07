@@ -29,8 +29,7 @@ def principal():
     
     for col in cols_saneamento:
         if col in df.columns:
-            if df[col].dtype == object:
-                df[col] = df[col].str.replace(',', '.', regex=False)
+            df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
     if 'QTD_VENDIDA_30D' not in df.columns:
