@@ -377,3 +377,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = MacroAutomationApp(root)
     root.mainloop()
+    # limpar tela
+    os.system("cls")
