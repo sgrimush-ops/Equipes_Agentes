@@ -96,3 +96,7 @@ def rodar_analise():
 
 if __name__ == "__main__":
     rodar_analise()
+
+# limpar tela com cls e depois msg de finalizado
+os.system('cls')
+print("[OK] Processo concluído!")
