@@ -87,3 +87,6 @@ def analisar_dados():
 
 if __name__ == '__main__':
     analisar_dados()
+# limpar tela com cls e depois msg de finalizado
+os.system('cls')
+print("[OK] Processo concluído!")

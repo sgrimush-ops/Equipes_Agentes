@@ -68,7 +68,8 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 ## 11. gerenciamento_sql
 * **Propósito:** Ambiente assistido para estruturação e geração de queries (Oracle SQL) para o ERP TOTVS Consinco.
 * **Principais Arquivos:** `ap.py`, `dicionario_consinco.json` e a hierarquia da pasta `querys/`.
-* **Funcionamento:** O usuário aciona o agente neste diretório fornecendo filtros e tabelas. O agente utiliza a skill `gerar_consultas_consinco` e o dicionário de dados local para formatar queries de acordo com o padrão TOTVS SGI (Client) salvando-as de imediato prontas para uso.
+* **Funcionamento:** O usuário aciona o agente neste diretório fornecendo filtros e lógicas. O agente utiliza a skill `gerar_consultas_consinco` e o dicionário de dados local para formatar queries de acordo com o padrão TOTVS Consinco.
+  - **Sucesso (V4.3):** Validado o template `abc_vendas_subgrupo.sql` com agregação de rede (14 lojas) e exclusão blindada via `NOT EXISTS`.
 
 ## 12. memoria_squad
 * **Propósito:** Camada de inteligência persistente da Squad usando Banco de Dados Vetorial.

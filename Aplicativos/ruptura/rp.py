@@ -46,3 +46,7 @@ try:
     print("Dashboard detalhado gerado e atualizado.")
 except Exception as e:
     print(f"Ocorreu um erro ao encadear o dashboard detalhado: {e}")
+
+# limpar tela com cls e depois msg de finalizado
+os.system('cls')
+print("[OK] Processo concluído!")

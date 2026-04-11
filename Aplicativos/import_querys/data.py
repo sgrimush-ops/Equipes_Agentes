@@ -42,6 +42,27 @@ linhas_pq, cols_pq = df_check_parquet.shape
 linhas_csv, cols_csv = df_check_csv.shape
 
 if (linhas_pq == linhas_csv) and (cols_pq == cols_csv):
-    print(f"✅ SUCESSO: COMPARAÇÃO OK! Ambos os arquivos contêm {linhas_pq} linhas e {cols_pq} colunas intactas.")
+    print(f"[OK] SUCESSO: COMPARACAO OK! Ambos os arquivos contêm {linhas_pq} linhas e {cols_pq} colunas intactas.")
 else:
-    print(f"❌ ALERTA! Divergência detectada. Parquet ({linhas_pq}x{cols_pq}) vs CSV ({linhas_csv}x{cols_csv}).")
+    print(f"[ALERTA] Divergência detectada. Parquet ({linhas_pq}x{cols_pq}) vs CSV ({linhas_csv}x{cols_csv}).")
+# Executa a preparação do CSV de supply via a action do GAM
+import sys
+_gam_path = os.path.join(os.path.dirname(base_dir), 'GAM')
+if _gam_path not in sys.path:
+    sys.path.insert(0, _gam_path)
+
+try:
+    from actions.acao_preparar_manual_supply import get_action
+    action = get_action()
+    # Muda temporariamente o CWD para o diretório do GAM, onde bd_saida/ existe
+    _original_cwd = os.getcwd()
+    os.chdir(_gam_path)
+    action.execute(update_callback=lambda d: print(d.get('log') or d.get('status') or d.get('error', '')))
+    os.chdir(_original_cwd)
+    print("[OK] Preparacao do supply concluida!")
+except Exception as e:
+    print(f"⚠️ Aviso: Não foi possível executar a preparação do supply: {e}")
+
+# limpar tela com cls e depois msg de finalizado
+os.system('cls')
+print("[OK] Processo concluído!")   

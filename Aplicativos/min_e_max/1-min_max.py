@@ -190,4 +190,7 @@ if __name__ == "__main__":
     else:
         converter_para_parquet()
 
+# limpar tela com cls e depois msg de finalizado
+os.system('cls')
+print("[OK] Processo concluído!")
 

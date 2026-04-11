@@ -24,3 +24,7 @@ df = df[df['Estq_CD_cx'] >= 2]
 
 #salvar arquivo csv na pasta bd_saida
 df.to_csv('digitar.csv', index=False, sep=';', encoding='utf-8-sig', decimal=',')
+
+# limpar tela com cls e depois msg de finalizado
+os.system('cls')
+print("[OK] Processo concluído!")

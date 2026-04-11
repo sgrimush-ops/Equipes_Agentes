@@ -1,4 +1,5 @@
 {
+  "REGRA_EXCLUSAO_GLOBAL": "Sempre excluir Departamentos (MAP_CATEGORIA Nivel 1) com os nomes: 'A CLASSIFICAR', 'ALMOXARIFADO', 'INATIVAR', 'SERVICOS'. São categorias internas ou sujas.",
   "MAP_PRODUTO": {
     "descricao": "Dados principais de cadastro do produto.",
     "chaves": ["SEQPRODUTO"],
@@ -12,7 +13,11 @@
   "MRL_PRODUTOEMPRESA": {
     "descricao": "Configurações, precificação e estoques do produto específica por cada loja.",
     "chaves": ["SEQPRODUTO", "NROEMPRESA"],
-    "colunas_principais": ["STATUSCOMPRA", "DTAULTVENDA", "CURVA", "PRCBASE", "ESTQLOJA", "ESTQDEPOSITO", "ESTQMINIMOLOJA", "ESTQMAXIMOLOJA", "QTDPENDPEDCOMPRA", "QTDRESERVADAVDA", "QTDRESERVADARECEB", "QTDVMD"]
+    "colunas_principais": ["STATUSCOMPRA", "DTAULTVENDA", "CURVA", "PRCBASE", "ESTQLOJA", "ESTQDEPOSITO", "ESTQMINIMOLOJA", "ESTQMAXIMOLOJA", "QTDPENDPEDCOMPRA", "QTDRESERVADAVDA", "QTDRESERVADARECEB", "QTDRESERVADAFIXA", "QTDVMD", "DTAHORAAULTENTRADA", "DTAULTCOMPRA", "QTDULTCOMPRA", "CMULTVLRNF", "CMULTIPI", "CMULTCREDICMS", "CMULTICMSST", "CMULTDESPNF", "CMULTDESPFORANF", "CMULTDCTOFORANF", "CMULTCREDPIS", "CMULTCREDCOFINS", "CMULTVLRVERBA"],
+    "nota_custo_liquido": "Custo líquido da loja = CMULTVLRNF + CMULTIPI - CMULTCREDICMS + CMULTICMSST + CMULTDESPNF + CMULTDESPFORANF - CMULTDCTOFORANF - CMULTCREDPIS - CMULTCREDCOFINS - NVL(CMULTVLRVERBA,0). Usar direto da MRL_PRODUTOEMPRESA, sem precisar da MRL_CUSTODIA.",
+    "nota_estoque": "Estoque disponível correto: ESTQLOJA + ESTQDEPOSITO - QTDRESERVADAVDA - QTDRESERVADARECEB - QTDRESERVADAFIXA (incluir QTDRESERVADAFIXA que antes era ignorada).",
+    "nota_colunas_inexistentes": "As colunas CURVA e PRCOBJ NAO existem nesta versão do Consinco. Não usar.",
+    "nota_colunas_date_confirmadas": "Colunas DATE confirmadas em produção: DTAULTENTRADA (data última entrada NF), DTAHORAULTENTRADA (com hora), DTAULTCOMPRA, DTAULTCOMPRACUSTO, DTAULTENTRCUSTO, DTAULTMOVENTRADA, DTAULTMOVSAIDA, DTAULTMOVTACAO, DTAULTVENDA, DTAULTVENDAEFETIVA, DTAPRIMVDA, DTAPRIMVDAEXCPROMOC. ATENCAO: coluna correta é DTAHORAULTENTRADA (sem segundo A) — DTAHORAAULTENTRADA é grafia incorreta."
   },
   "GE_PESSOA": {
     "descricao": "Cadastro de Pessoas (Fornecedores e Clientes).",
@@ -68,5 +73,20 @@
     "descricao": "Métricas físicas logísticas a nível de Espécie de Endereço (Utilizada na Manutenção Avançada). Ao invés de usar colunas fixas pra Pulmão e Apanha, cria-se registros dinâmicos pra cada perfil. Deve-se juntar com a MAD_ESPECIEENDERECO onde UPPER(DESCRICAO) LIKE '%PULM%' ou '%INVERSA%'.",
     "chaves": ["SEQPRODUTO", "NROEMPRESA", "CODESPECENDERECO"],
     "colunas_principais": ["PALETELASTRO", "PALETEALTURA", "QTDEMBALAGEM"]
+  },
+  "MRL_PRODVENDADIA": {
+    "descricao": "Tabela de vendas diárias por produto e empresa. Use para somar QTDVDA por período usando DTAVDA BETWEEN. Muito mais eficiente que MRL_CUSTODIA para calcular quantidade vendida em intervalos.",
+    "chaves": ["SEQPRODUTO", "NROEMPRESA", "DTAVDA"],
+    "colunas_principais": ["QTDVDA", "DTAVDA"]
+  },
+  "MAD_FAMSEGMENTO": {
+    "descricao": "Embalagem padrão de VENDA por segmento. Join via SEQFAMILIA + NROSEGMENTO (vindo de MAX_EMPRESA.NROSEGMENTOPRINC). Coluna PADRAOEMBVENDA indica a embalagem de venda padrão do segmento.",
+    "chaves": ["SEQFAMILIA", "NROSEGMENTO"],
+    "colunas_principais": ["PADRAOEMBVENDA", "NROSEGMENTO"]
+  },
+  "MRL_PRODEMPSEG": {
+    "descricao": "Preços por produto, empresa e segmento. Join obrigatório: SEQPRODUTO + NROEMPRESA + NROSEGMENTO (de MAX_EMPRESA.NROSEGMENTOPRINC) + QTDEMBALAGEM (de MAD_FAMSEGMENTO.PADRAOEMBVENDA). Filtro: STATUSVENDA = 'A'. Preço real = NVL(NULLIF(PRECOVALIDPROMOC,0), PRECOVALIDNORMAL).",
+    "chaves": ["SEQPRODUTO", "NROEMPRESA", "NROSEGMENTO", "QTDEMBALAGEM"],
+    "colunas_principais": ["PRECOVALIDNORMAL", "PRECOVALIDPROMOC", "STATUSVENDA", "QTDEMBALAGEM", "NROSEGMENTO"]
   }
 }
