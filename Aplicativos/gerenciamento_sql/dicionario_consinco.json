@@ -30,7 +30,7 @@
     "colunas_principais": ["EMBALAGEM", "QTDEMBALAGEM", "PESOBRUTO", "PESOLIQUIDO"]
   },
   "MAXV_ABCDISTRIBBASE": {
-    "descricao": "View agregadora base de itens de movimentação (vendas/dev). AVISO: Retorna Erro ORA-00942 (Inexistente) no SGI Client fora de sua procedure matriz. Evite seu uso em relatórios on-the-fly sem validação do schema.",
+    "descricao": "View agregadora base de itens de movimentacao (vendas/dev). AVISO: Retorna Erro ORA-00942 (Inexistente) no Consinco fora de sua procedure matriz. Evite seu uso em relatorios on-the-fly sem validacao do schema.",
     "chaves": ["NROEMPRESA", "SEQPRODUTO", "DTAVDA", "ROWIDDOCTO"],
     "colunas_principais": ["QTDITEM", "QTDDEVOLITEM", "VLRITEM", "VLRDEVOLITEM"]
   },

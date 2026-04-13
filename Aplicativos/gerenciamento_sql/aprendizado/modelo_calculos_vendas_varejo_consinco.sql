@@ -1,10 +1,10 @@
 -- =========================================================
--- Exemplo de Pipeline de Relatório SGI - Análise ABC de Vendas (Varejo)
+-- Exemplo de Pipeline de Relatório Consinco - Análise ABC de Vendas (Varejo)
 -- =========================================================
 -- Arquivo gerado via engenharia reversa dos logs do Monitor SQL (Aplicação: frmAnlABCVda)
 -- Tabela Destino Final: MBIX_TABCVAREJO e MBI_TABCVAREJO
 
--- 1. Inserção Dinâmica Padrão SGI (EAV Params)
+-- 1. Inserção Dinâmica Padrão Consinco (EAV Params)
 -- O sistema insere os parâmetros de filtros em MBIX_TABCATRIBCONSULTA para a SEQCONSULTA corrente.
 -- Parâmetros como PERIODO (ex: 'Inicio do Mês até hoje'), DATAINICIAL, DATAFINAL, TIPCATEGORIA ('M') etc.
 
