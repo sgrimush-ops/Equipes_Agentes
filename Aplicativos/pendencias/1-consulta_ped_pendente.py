@@ -1,6 +1,8 @@
 import pandas as pd
 from pathlib import Path
 import os
+import subprocess
+import sys
 from datetime import datetime
 
 def processar_pedidos_pendentes():
@@ -39,14 +41,21 @@ def processar_pedidos_pendentes():
         print(f"✅ SUCESSO! Arquivo processado e formatado isolado com sucesso.")
         print(f"Salvo em: {arquivo_csv_saida}")
         print(f"Total de Linhas Processadas: {len(df)}")
+        return True
         
     except FileNotFoundError:
         print(f"❌ ERRO: O arquivo central não foi encontrado em \n{arquivo_origem}")
         print("💡 Verifique se a query SQL foi devidamente extraída/puxada com o nome 'ped_pendentes.txt'.")
+        return False
     except Exception as e:
         print(f"❌ ERRO CRÍTICO no processamento: {str(e)}")
+        return False
 
 if __name__ == '__main__':
     # Trava o ambiente de execução da VENV no local do diretório pai para importações dinâmicas Python
     os.chdir(Path(__file__).parent.resolve())
-    processar_pedidos_pendentes()
+    sucesso = processar_pedidos_pendentes()
+    if sucesso:
+        script_dashboard = Path(__file__).parent / '2-dashboard_pendencias.py'
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Executando dashboard: {script_dashboard.name}")
+        subprocess.run([sys.executable, str(script_dashboard)], check=True)

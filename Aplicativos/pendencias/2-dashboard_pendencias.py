@@ -162,6 +162,10 @@ def gerar_dashboard():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Lendo fonte base: {Path(arquivo_recente).name}")
     
     df = pd.read_csv(arquivo_recente, sep=';', encoding='utf-8-sig', dtype=str)
+
+    # Remove CD 16 do relatorio conforme regra operacional atual
+    if 'CODIGO_EMPRESA' in df.columns:
+        df = df[df['CODIGO_EMPRESA'].astype(str).str.strip() != '16'].copy()
     
     # --- A. Saneamento e Matemática Intocável ---
     cols_numericas = ['QUANTIDADE_A_EXPEDIR', 'EMBALAGEM', 'ESTOQUE_DISPONIVEL_CD']
@@ -175,14 +179,14 @@ def gerar_dashboard():
     
     # --- B. Regras de Negócio e SLAs ---
     hoje = datetime.now()
-    data_fim_referencia = hoje - timedelta(days=2) # "data final sendo 2 dias atras"
-    data_inicio_referencia = data_fim_referencia - timedelta(days=15) # "15 dias que antecedem as ultimas 48 hs"
+    data_fim_referencia = hoje - timedelta(days=2) # data final: hoje menos 2 dias
+    data_inicio_referencia = hoje - timedelta(days=31) # data inicial: hoje menos 31 dias
     
-    # Filtro rígido do range de 15 dias de interesse:
+    # Filtro rígido do range de 30 dias de interesse:
     df = df[(df['DATA'] >= data_inicio_referencia) & (df['DATA'] <= data_fim_referencia)].copy()
     
     if len(df) == 0:
-        print("⚠️ Nenhum registro classificado no critério de SLA (15 dias antes das últimas 48h).")
+        print("⚠️ Nenhum registro classificado no critério de SLA (30 dias antes das últimas 48h).")
         return
     
     # Cálculos das colunas alvo
@@ -225,8 +229,8 @@ def gerar_dashboard():
     <body>
         <div class="header">
             <div>
-                <h1>📦 Radar de Pendências Ocultas | SLA Cítico</h1>
-                <span style="color:#7F8C8D; font-size:14px;">Análise Cohort: 15 dias cortando o target D-2</span>
+                <h1>📦 Radar de Pendências Ocultas | SLA Critico</h1>
+                <span style="color:#7F8C8D; font-size:14px;">Analise Cohort: 30 dias cortando o target D-2</span>
             </div>
             <select id="FiltroMestre" onchange="trocarVisao()">
                 {opcoes_select}
