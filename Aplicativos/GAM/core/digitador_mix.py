@@ -290,7 +290,7 @@ class MixProcessor:
                 
                 time.sleep(0.5)
 
-            pyautogui.press('f10')
+            pyautogui.press('f2')
             if update_callback: update_callback({'status': 'Concluído', 'finished': True})
 
         except Exception as e:
