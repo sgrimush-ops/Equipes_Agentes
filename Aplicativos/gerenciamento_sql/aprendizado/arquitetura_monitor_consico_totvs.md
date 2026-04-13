@@ -1,7 +1,7 @@
 # Arquitetura de Geração de Relatórios MBI (Análise ABC de Estoque e Vendas) no Totvs Consinco
 **Origens:** Logs do Monitor SQL capturados pelo usuário em tela (`frmAnlABCEstq` e `frmAnlABCVda`).
 
-Descobrimos como o Totvs SGI compila os famosos grids dinâmicos (como as Análises ABC de Estoque e de Vendas PDV) por debaixo dos panos. É um padrão baseado em Tabelas de Trabalho (Temporárias/Sessão) e Procedures Dinâmicas.
+Descobrimos como o Totvs Consinco compila os famosos grids dinamicos (como as Analises ABC de Estoque e de Vendas PDV) por debaixo dos panos. E um padrao baseado em Tabelas de Trabalho (Temporarias/Sessao) e Procedures Dinamicas.
 
 ## O Passo a Passo Dinâmico:
 
@@ -30,7 +30,7 @@ SP_MBI_COLDINAMICAABCESTQCUST( frmAnlABCEstq.dfnSeqConsultaTmp, pnProcesso, vsVa
 ```
 
 ### 5. Customizações Client (Colunas Extras)
-Para dar chance a campos client-side (ClnCustom1... ClsCustom12), ele tenta ler colunas customizadas configuradas via XML ou banco para as telas SGI (ex: `MAX0005` ou grid visual) usando a `MBI_TABCCUSTOM` ou `GE_COLUNASCUSTOMIZADAS`.
+Para dar chance a campos client-side (ClnCustom1... ClsCustom12), ele tenta ler colunas customizadas configuradas via XML ou banco para as telas Consinco (ex: `MAX0005` ou grid visual) usando a `MBI_TABCCUSTOM` ou `GE_COLUNASCUSTOMIZADAS`.
 
 ### 6. Popular o Grid Final e Renderizar
 A base de colunas inteira da tela já povoada por um grande INSERT SELECT no background é gravada na tabela "mãe" dos resultados finais.
@@ -46,4 +46,4 @@ SELECT ... FROM MBIX_TABCVAREJO WHERE SEQCONSULTA = X ORDER BY ...
 Para exibir na interface sem gargalos, depois executa um `DELETE` para limpar a tabela após exibição ao usuário!
 
 ## Importância para nós:
-Sempre que o usuário informar um relatório complexo do BI SGI do Consinco Totvs pedindo para exportá-lo, sabemos que as tabelas de domínio direto se cruzam com o sufixo "TABC" (Ex: `MBI_TABCVAREJO` para relatórios de vendas, `MBI_TABCESTOQUE` para estoques, e `MBI_TABCDISTRIB` para performance de clientes). Se precisarmos recuperar as expressões brutas dos cálculos nativos, elas estão mascaradas nessas integrações dinâmicas de procedures como `SP_MBI_COLDINAMICAABCESTQCUST`.
+Sempre que o usuario informar um relatorio complexo do BI Consinco Totvs pedindo para exporta-lo, sabemos que as tabelas de dominio direto se cruzam com o sufixo "TABC" (Ex: `MBI_TABCVAREJO` para relatorios de vendas, `MBI_TABCESTOQUE` para estoques, e `MBI_TABCDISTRIB` para performance de clientes). Se precisarmos recuperar as expressoes brutas dos calculos nativos, elas estao mascaradas nessas integracoes dinamicas de procedures como `SP_MBI_COLDINAMICAABCESTQCUST`.

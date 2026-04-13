@@ -13,7 +13,7 @@ Este documento registra as lições aprendidas durante a criação de consultas 
 
 ## 2. Erro ORA-01722 (Invalid Number)
 *   **Sintoma:** Ocorre erro ao tentar concatenar campos ou no processamento dos JOINs.
-*   **Causa:** Conversão implícita do Oracle entre `NUMBER` e `VARCHAR2` que falha em ambientes Client (SGI) ao processar valores NULL ou tabelas com tipos mistos.
+*   **Causa:** Conversao implicita do Oracle entre `NUMBER` e `VARCHAR2` que falha em ambientes Client do Consinco ao processar valores NULL ou tabelas com tipos mistos.
 *   **Solução:**
     *   Evitar concatenações complexas como `TABELA.DSC || ' ' || TABELA.QTD`.
     *   Se necessário, usar `TO_CHAR(CAMPO_NUMERICO)` explicitamente.

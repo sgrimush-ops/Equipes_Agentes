@@ -1,10 +1,10 @@
 -- =========================================================
--- Exemplo de Pipeline de Relatório SGI - Análise ABC de Clientes / Distribuição
+-- Exemplo de Pipeline de Relatório Consinco - Análise ABC de Clientes / Distribuição
 -- =========================================================
 -- Arquivo gerado via engenharia reversa dos logs do Monitor SQL (Aplicação: frmAnlABCCliente)
 -- Tabela Destino Final: MBIX_TABCDISTRIB e MBI_TABCDISTRIB
 
--- 1. Inserção Dinâmica Padrão SGI (EAV Params)
+-- 1. Inserção Dinâmica Padrão Consinco (EAV Params)
 -- Novamente, o sistema insere os parâmetros de filtros em MBIX_TABCATRIBCONSULTA para a SEQCONSULTA corrente.
 -- Parâmetros capturados:
 --  - SEGMENTOS: 1
