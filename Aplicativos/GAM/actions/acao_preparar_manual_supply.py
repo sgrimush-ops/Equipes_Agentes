@@ -1,11 +1,54 @@
 import pandas as pd
-import os
 import math
 import time
 from pathlib import Path
 from actions.base_action import BaseAction
 
+
 class AcaoPrepararSuplay(BaseAction):
+    @staticmethod
+    def _parse_numeric_value(value, default=0.0):
+        if pd.isna(value):
+            return default
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value).strip()
+        if not text or text.lower() in {'nan', 'none'}:
+            return default
+
+        text = text.replace(' ', '')
+        negative = text.startswith('-')
+        if negative:
+            text = text[1:]
+
+        if ',' in text and '.' in text:
+            if text.rfind(',') > text.rfind('.'):
+                text = text.replace('.', '').replace(',', '.')
+            else:
+                text = text.replace(',', '')
+        elif ',' in text:
+            text = text.replace(',', '.')
+        elif text.count('.') > 1:
+            integer_part, decimal_part = text.rsplit('.', 1)
+            text = integer_part.replace('.', '') + '.' + decimal_part
+
+        try:
+            number = float(text)
+        except ValueError:
+            return default
+
+        return -number if negative else number
+
+    @classmethod
+    def _parse_numeric_series(cls, series, default=0.0):
+        if pd.api.types.is_numeric_dtype(series):
+            return series.fillna(default)
+        return series.apply(
+            lambda value: cls._parse_numeric_value(value, default=default)
+        )
+
     @property
     def name(self) -> str:
         return "Preparar CSV Pedido Supply"
@@ -54,22 +97,18 @@ class AcaoPrepararSuplay(BaseAction):
         df['Pedir'] = 0
 
         if col_emb in df.columns:
-            df[col_emb] = df[col_emb].astype(str).str.replace(r'\D', '', regex=True)
-            df.loc[df[col_emb] == '', col_emb] = '1'
-            df[col_emb] = pd.to_numeric(df[col_emb], errors='coerce').fillna(1)
+            df[col_emb] = self._parse_numeric_series(df[col_emb], default=1)
             df[col_emb] = df[col_emb].apply(lambda x: 1 if x == 0 else x)
         else:
             df[col_emb] = 1
 
         if col_empresa in df.columns:
             df = df.dropna(subset=[col_empresa])
-            df[col_empresa] = pd.to_numeric(df[col_empresa], errors='coerce')
+            df[col_empresa] = self._parse_numeric_series(df[col_empresa], default=0)
         
         for col in [col_disp, col_pend, col_min, col_max]:
             if col in df.columns:
-                if df[col].dtype == object:
-                    df[col] = df[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                df[col] = self._parse_numeric_series(df[col], default=0)
 
         df['disp_calc'] = df[col_disp].apply(lambda x: x if x > 0 else 0)
 
