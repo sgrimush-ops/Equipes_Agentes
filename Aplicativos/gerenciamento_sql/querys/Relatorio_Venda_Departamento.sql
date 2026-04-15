@@ -1,0 +1,130 @@
+SELECT
+    X.DEPARTAMENTO,
+    'R$ ' || TO_CHAR(
+        X.VALOR_TOTAL_VENDIDO,
+        'FM999G999G999G990D00',
+        'NLS_NUMERIC_CHARACTERS = '',.'''
+    ) AS VALOR_TOTAL_VENDIDO
+FROM (
+    SELECT
+        BASE.DEPARTAMENTO,
+        BASE.VALOR_TOTAL_VENDIDO,
+        1 AS ORDEM
+    FROM (
+        SELECT
+            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO') AS DEPARTAMENTO,
+            ROUND(SUM(VF.VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO
+        FROM (
+            SELECT
+                P.SEQFAMILIA,
+                SUM(NVL(I.VLRITEM, 0)) AS VALOR_TOTAL_VENDIDO
+            FROM MLFV_BASENFE N
+            INNER JOIN MFLV_BASEDFITEM I
+                ON I.NROEMPRESA = N.NROEMPRESA
+               AND I.SEQNF = N.SEQNF
+               AND I.TIPNOTAFISCAL = N.TIPNOTAFISCAL
+               AND I.SERIEDF = N.SERIENF
+               AND I.NUMERODF = N.NUMERONF
+               AND I.SEQPESSOA = N.SEQPESSOA
+            INNER JOIN MAP_PRODUTO P
+                ON P.SEQPRODUTO = I.SEQPRODUTO
+            INNER JOIN MAP_FAMDIVISAO FD
+                ON FD.SEQFAMILIA = P.SEQFAMILIA
+               AND FD.NRODIVISAO = 1
+            WHERE N.TIPNOTAFISCAL = 'S'
+              AND N.CODGERALOPER = 800
+              AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
+              AND N.DTAEMISSAO >= TRUNC(:DT1)
+              AND N.DTAEMISSAO < TRUNC(:DT2) + 1
+              AND FD.FINALIDADEFAMILIA = 'R'
+              AND NOT (
+                    (N.NROEMPRESA = 3 AND N.NUMERONF = 10068 AND N.SERIENF = 703)
+                    OR (N.NROEMPRESA = 4 AND N.NUMERONF = 18130 AND N.SERIENF = 710)
+              )
+            GROUP BY
+                P.SEQFAMILIA
+        ) VF
+        LEFT JOIN (
+            SELECT
+                X.SEQFAMILIA,
+                MAX(Y.CATEGORIA) AS DEPARTAMENTO
+            FROM MAP_FAMDIVCATEG X
+            INNER JOIN MAP_CATEGORIA Y
+                ON Y.SEQCATEGORIA = X.SEQCATEGORIA
+               AND Y.NRODIVISAO = X.NRODIVISAO
+            WHERE X.NRODIVISAO = 1
+              AND Y.NIVELHIERARQUIA = 1
+              AND Y.TIPCATEGORIA = 'M'
+              AND UPPER(Y.CATEGORIA) NOT IN ('A CLASSIFICAR', 'ALMOXARIFADO', 'INATIVAR', 'SERVICOS')
+            GROUP BY
+                X.SEQFAMILIA
+        ) D
+            ON D.SEQFAMILIA = VF.SEQFAMILIA
+        GROUP BY
+            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO')
+    ) BASE
+
+    UNION ALL
+
+    SELECT
+        'TOTAL_PERIODO' AS DEPARTAMENTO,
+        ROUND(SUM(BASE.VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO,
+        2 AS ORDEM
+    FROM (
+        SELECT
+            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO') AS DEPARTAMENTO,
+            ROUND(SUM(VF.VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO
+        FROM (
+            SELECT
+                P.SEQFAMILIA,
+                SUM(NVL(I.VLRITEM, 0)) AS VALOR_TOTAL_VENDIDO
+            FROM MLFV_BASENFE N
+            INNER JOIN MFLV_BASEDFITEM I
+                ON I.NROEMPRESA = N.NROEMPRESA
+               AND I.SEQNF = N.SEQNF
+               AND I.TIPNOTAFISCAL = N.TIPNOTAFISCAL
+               AND I.SERIEDF = N.SERIENF
+               AND I.NUMERODF = N.NUMERONF
+               AND I.SEQPESSOA = N.SEQPESSOA
+            INNER JOIN MAP_PRODUTO P
+                ON P.SEQPRODUTO = I.SEQPRODUTO
+            INNER JOIN MAP_FAMDIVISAO FD
+                ON FD.SEQFAMILIA = P.SEQFAMILIA
+               AND FD.NRODIVISAO = 1
+            WHERE N.TIPNOTAFISCAL = 'S'
+              AND N.CODGERALOPER = 800
+              AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
+              AND N.DTAEMISSAO >= TRUNC(:DT1)
+              AND N.DTAEMISSAO < TRUNC(:DT2) + 1
+              AND FD.FINALIDADEFAMILIA = 'R'
+              AND NOT (
+                    (N.NROEMPRESA = 3 AND N.NUMERONF = 10068 AND N.SERIENF = 703)
+                    OR (N.NROEMPRESA = 4 AND N.NUMERONF = 18130 AND N.SERIENF = 710)
+              )
+            GROUP BY
+                P.SEQFAMILIA
+        ) VF
+        LEFT JOIN (
+            SELECT
+                X.SEQFAMILIA,
+                MAX(Y.CATEGORIA) AS DEPARTAMENTO
+            FROM MAP_FAMDIVCATEG X
+            INNER JOIN MAP_CATEGORIA Y
+                ON Y.SEQCATEGORIA = X.SEQCATEGORIA
+               AND Y.NRODIVISAO = X.NRODIVISAO
+            WHERE X.NRODIVISAO = 1
+              AND Y.NIVELHIERARQUIA = 1
+              AND Y.TIPCATEGORIA = 'M'
+              AND UPPER(Y.CATEGORIA) NOT IN ('A CLASSIFICAR', 'ALMOXARIFADO', 'INATIVAR', 'SERVICOS')
+            GROUP BY
+                X.SEQFAMILIA
+        ) D
+            ON D.SEQFAMILIA = VF.SEQFAMILIA
+        GROUP BY
+            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO')
+    ) BASE
+) X
+ORDER BY
+    X.ORDEM,
+    X.VALOR_TOTAL_VENDIDO DESC,
+    X.DEPARTAMENTO
