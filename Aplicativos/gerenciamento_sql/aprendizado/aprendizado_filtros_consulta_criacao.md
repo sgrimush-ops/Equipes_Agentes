@@ -88,3 +88,7 @@ WHERE B.NROEMPRESA IN (#LT1)
 - A lista `LSx` foi testada dentro da tela da propria variavel.
 - O usuario recebeu o passo a passo de cadastro, nao apenas o SQL.
 - Se houver filtros amplos como `TODOS`, revisar se a query corta massa cedo o suficiente para nao travar.
+
+## Regra de ouro homologada para comprador
+- Em filtro por comprador no Consinco, adotar como padrao fixo a lista textual no formato `codigo - apelido`, retornando um texto unico, e extrair apenas o codigo dentro do SQL principal para comparar com `MAP_FAMDIVISAO.SEQCOMPRADOR`.
+- Nao substituir esse padrao por digitacao manual do nome, lista apenas numerica, ou comparacao textual direta por nome/apelido quando o requisito for filtro de comprador.
