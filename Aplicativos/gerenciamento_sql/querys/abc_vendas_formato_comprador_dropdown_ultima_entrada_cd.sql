@@ -42,14 +42,16 @@ SELECT
     SUM(NVL(Y.ESTQMAXIMOLOJA, 0)) AS ESTOQUE_MAXIMO,
     SUM(NVL(Y.ESTQLOJA, 0)) AS ESTOQUE_LOJA,
     MAX(NVL(CD.ESTOQUE_CD, 0)) AS ESTOQUE_DEPOSITO,
-    MAX(NVL(CD.QTD_PENDENTE_EXPEDIR_CD, 0)) AS PENDENTE_EXPEDIR_CD
+    MAX(NVL(CD.QTD_PENDENTE_EXPEDIR_CD, 0)) AS PENDENTE_EXPEDIR_CD,
+    TO_CHAR(MAX(CD.DATA_ULTIMA_COMPRA_CD), 'DD/MM/YYYY') AS DATA_ULTIMA_COMPRA_CD,
+    MAX(NVL(CD.QTD_ULTIMA_COMPRA_CD, 0)) AS QTD_ULTIMA_COMPRA_CD
 FROM MAP_PRODUTO A
 INNER JOIN MRL_PRODUTOEMPRESA Y ON A.SEQPRODUTO = Y.SEQPRODUTO
 LEFT JOIN MAP_FAMDIVISAO FD ON A.SEQFAMILIA = FD.SEQFAMILIA AND FD.NRODIVISAO = 1
 LEFT JOIN MAX_COMPRADOR COMP ON COMP.SEQCOMPRADOR = FD.SEQCOMPRADOR
 LEFT JOIN (
     SELECT F.SEQFAMILIA,
-        MAX(F.SEQFORNECEDOR) AS CODIGO_FORNECEDOR,
+           MAX(F.SEQFORNECEDOR) AS CODIGO_FORNECEDOR,
            MAX(P.NOMERAZAO) AS FORNECEDOR_PRINCIPAL
     FROM MAP_FAMFORNEC F
     INNER JOIN GE_PESSOA P ON P.SEQPESSOA = F.SEQFORNECEDOR
@@ -83,60 +85,60 @@ LEFT JOIN (
     SELECT X.SEQPRODUTO,
            X.MARGEM_OBJETIVA
     FROM (
-                SELECT E.SEQDETALHE2 AS SEQPRODUTO,
-                             NVL(E.MARGEMCADASTRO, 0) AS MARGEM_OBJETIVA,
-                             1 AS ORDEM_FONTE,
+        SELECT E.SEQDETALHE2 AS SEQPRODUTO,
+               NVL(E.MARGEMCADASTRO, 0) AS MARGEM_OBJETIVA,
+               1 AS ORDEM_FONTE,
                ROW_NUMBER() OVER (
                    PARTITION BY E.SEQDETALHE2
                    ORDER BY E.SEQCONSULTA DESC
                ) AS RN
-                FROM MBI_TABCDISTRIB E
-                WHERE E.SEQDETALHE2 IS NOT NULL
-                    AND NVL(E.MARGEMCADASTRO, 0) > 0
+        FROM MBI_TABCDISTRIB E
+        WHERE E.SEQDETALHE2 IS NOT NULL
+          AND NVL(E.MARGEMCADASTRO, 0) > 0
 
-                UNION ALL
+        UNION ALL
 
-                SELECT E.SEQDETALHE2 AS SEQPRODUTO,
-                             NVL(E.MARGEMCADASTRO, 0) AS MARGEM_OBJETIVA,
-                             2 AS ORDEM_FONTE,
-                             ROW_NUMBER() OVER (
-                                     PARTITION BY E.SEQDETALHE2
-                                     ORDER BY E.SEQCONSULTA DESC
-                             ) AS RN
+        SELECT E.SEQDETALHE2 AS SEQPRODUTO,
+               NVL(E.MARGEMCADASTRO, 0) AS MARGEM_OBJETIVA,
+               2 AS ORDEM_FONTE,
+               ROW_NUMBER() OVER (
+                   PARTITION BY E.SEQDETALHE2
+                   ORDER BY E.SEQCONSULTA DESC
+               ) AS RN
         FROM MBI_TABCESTOQUE E
         WHERE E.SEQDETALHE2 IS NOT NULL
           AND NVL(E.MARGEMCADASTRO, 0) > 0
     ) X
-        WHERE X.RN = 1
-            AND NOT EXISTS (
-                    SELECT 1
-                    FROM (
-                            SELECT D.SEQDETALHE2 AS SEQPRODUTO,
-                                         1 AS ORDEM_FONTE,
-                                         ROW_NUMBER() OVER (
-                                                 PARTITION BY D.SEQDETALHE2
-                                                 ORDER BY D.SEQCONSULTA DESC
-                                         ) AS RN
-                            FROM MBI_TABCDISTRIB D
-                            WHERE D.SEQDETALHE2 IS NOT NULL
-                                AND NVL(D.MARGEMCADASTRO, 0) > 0
+    WHERE X.RN = 1
+      AND NOT EXISTS (
+          SELECT 1
+          FROM (
+              SELECT D.SEQDETALHE2 AS SEQPRODUTO,
+                     1 AS ORDEM_FONTE,
+                     ROW_NUMBER() OVER (
+                         PARTITION BY D.SEQDETALHE2
+                         ORDER BY D.SEQCONSULTA DESC
+                     ) AS RN
+              FROM MBI_TABCDISTRIB D
+              WHERE D.SEQDETALHE2 IS NOT NULL
+                AND NVL(D.MARGEMCADASTRO, 0) > 0
 
-                            UNION ALL
+              UNION ALL
 
-                            SELECT E2.SEQDETALHE2 AS SEQPRODUTO,
-                                         2 AS ORDEM_FONTE,
-                                         ROW_NUMBER() OVER (
-                                                 PARTITION BY E2.SEQDETALHE2
-                                                 ORDER BY E2.SEQCONSULTA DESC
-                                         ) AS RN
-                            FROM MBI_TABCESTOQUE E2
-                            WHERE E2.SEQDETALHE2 IS NOT NULL
-                                AND NVL(E2.MARGEMCADASTRO, 0) > 0
-                    ) Y
-                    WHERE Y.SEQPRODUTO = X.SEQPRODUTO
-                        AND Y.RN = 1
-                        AND Y.ORDEM_FONTE < X.ORDEM_FONTE
-            )
+              SELECT E2.SEQDETALHE2 AS SEQPRODUTO,
+                     2 AS ORDEM_FONTE,
+                     ROW_NUMBER() OVER (
+                         PARTITION BY E2.SEQDETALHE2
+                         ORDER BY E2.SEQCONSULTA DESC
+                     ) AS RN
+              FROM MBI_TABCESTOQUE E2
+              WHERE E2.SEQDETALHE2 IS NOT NULL
+                AND NVL(E2.MARGEMCADASTRO, 0) > 0
+          ) Y
+          WHERE Y.SEQPRODUTO = X.SEQPRODUTO
+            AND Y.RN = 1
+            AND Y.ORDEM_FONTE < X.ORDEM_FONTE
+      )
 ) MOBJ ON MOBJ.SEQPRODUTO = A.SEQPRODUTO
 LEFT JOIN (
     SELECT SEQPRODUTO, NROEMPRESA, SUM(QTDVDA) AS QTD_VENDIDA
@@ -154,21 +156,23 @@ INNER JOIN (
     HAVING SUM(QTDVDA) > :NR1
 ) VF ON VF.SEQPRODUTO = A.SEQPRODUTO
 LEFT JOIN (
-    SELECT SEQPRODUTO, 
+    SELECT SEQPRODUTO,
            SUM(NVL(ESTQLOJA, 0) + NVL(ESTQDEPOSITO, 0) - (NVL(QTDRESERVADAVDA, 0) + NVL(QTDRESERVADARECEB, 0) + NVL(QTDRESERVADAFIXA, 0))) AS ESTOQUE_CD,
-           SUM(NVL(QTDPENDPEDEXPED, 0)) AS QTD_PENDENTE_EXPEDIR_CD
+           SUM(NVL(QTDPENDPEDEXPED, 0)) AS QTD_PENDENTE_EXPEDIR_CD,
+            MAX(DTAULTCOMPRA) AS DATA_ULTIMA_COMPRA_CD,
+            MAX(NVL(QTDULTCOMPRA, 0)) AS QTD_ULTIMA_COMPRA_CD
     FROM MRL_PRODUTOEMPRESA
     WHERE NROEMPRESA IN (15, 16, 50)
     GROUP BY SEQPRODUTO
 ) CD ON CD.SEQPRODUTO = A.SEQPRODUTO
 WHERE Y.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 17, 18)
-    AND (NVL(TRIM(:LT2), '0') = '0' OR TO_CHAR(NVL(FP.CODIGO_FORNECEDOR, 0)) = TRIM(:LT2))
-    AND (NVL(TRIM(:LT3), 'TODOS') = 'TODOS' OR UPPER(NVL(COMP.COMPRADOR, 'SEM GESTOR')) = UPPER(TRIM(:LT3)))
+  AND (NVL(TRIM(:LT2), '0') = '0' OR TO_CHAR(NVL(FP.CODIGO_FORNECEDOR, 0)) = TRIM(:LT2))
+  AND (UPPER(#LS2) = 'TODOS' OR UPPER(NVL(COMP.COMPRADOR, 'SEM GESTOR')) = UPPER(#LS2))
   AND NOT EXISTS (
-      SELECT 1 
+      SELECT 1
       FROM MAP_FAMDIVCATEG XF
       INNER JOIN MAP_CATEGORIA YF ON XF.SEQCATEGORIA = YF.SEQCATEGORIA
-      WHERE XF.SEQFAMILIA = A.SEQFAMILIA 
+      WHERE XF.SEQFAMILIA = A.SEQFAMILIA
         AND YF.NIVELHIERARQUIA = 1
         AND (
             UPPER(YF.CATEGORIA) IN ('A CLASSIFICAR', 'ALMOXARIFADO', 'INATIVAR')

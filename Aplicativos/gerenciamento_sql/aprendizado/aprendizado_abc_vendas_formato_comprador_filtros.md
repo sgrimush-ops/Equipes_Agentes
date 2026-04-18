@@ -89,3 +89,28 @@ WHERE COMPRADOR IS NOT NULL
 ## Regra especifica consolidada
 - Se a lista `LSx` alimentar `#LSx` em comparacao textual direta no `WHERE`, a lista deve devolver o valor final com aspas simples.
 - Se o valor textual puder conter aspas, escapar com `REPLACE(valor, '''', '''''')` antes de encapsular.
+
+## Regra de ouro para filtro por comprador
+- A partir desta homologacao, o filtro por comprador nas queries do Consinco deve seguir somente este padrao quando precisar selecao em lista: dropdown textual exibindo `codigo - apelido`, com a query principal extraindo apenas o codigo e filtrando `MAP_FAMDIVISAO.SEQCOMPRADOR`.
+- Padrao aprovado de consumo no SQL principal:
+
+```sql
+AND (
+  #LS3 = '0 - TODOS'
+  OR NVL(FD.SEQCOMPRADOR, 0) = TO_NUMBER(SUBSTR(#LS3, 1, INSTR(#LS3, ' - ') - 1))
+)
+```
+
+- Padrao aprovado da lista:
+
+```sql
+SELECT '''0 - TODOS''' AS COMPRADOR
+FROM DUAL
+UNION
+SELECT DISTINCT
+     '''' || TO_CHAR(C.SEQCOMPRADOR) || ' - ' || REPLACE(NVL(C.APELIDO, C.COMPRADOR), '''', '''''') || '''' AS COMPRADOR
+FROM MAX_COMPRADOR C
+WHERE C.SEQCOMPRADOR IS NOT NULL
+```
+
+- Nao tentar novamente para comprador: `LT3` com digitacao manual, lista retornando apenas codigo, ou lista textual por nome completo/apelido comparada diretamente no `WHERE`.
