@@ -36,7 +36,9 @@ Aplicativos/import_querys/arquivo_csv/
 Aplicativos/ruptura/historico_ruptura/
 Aplicativos/ruptura/comparativo_semana/
 Aplicativos/ruptura/excel_comprador/
-Aplicativos/pendencias/bd_saida/
-Aplicativos/GAM/bd_entrada/mix.xlsx
-Aplicativos/GAM/bd_saida/digitar.csv
+Aplicativos/pendencias/bd_resultados/
+Aplicativos/GAM/bd_entrada/*.xlsx
+Aplicativos/GAM/bd_saida/*.csv
 Aplicativos/import_querys/ped_pendentes.txt
+Aplicativos/zcontratos
+

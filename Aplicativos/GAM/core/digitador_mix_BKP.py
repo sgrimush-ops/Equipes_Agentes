@@ -213,8 +213,8 @@ class MixProcessor:
                     tem_tip = "TIP" in status_map.values() 
                     tem_tim = "TIM" in status_map.values()
                     
-                    lojas_pequenas = ["004", "005", "007", "008", "014"]
-                    lojas_medias = ["012", "013", "018"]
+                    lojas_pequenas = ["004", "005", "007", "014"]
+                    lojas_medias = ["008", "012", "013", "018"]
                     lojas_grandes = ["002", "003", "006", "011", "017"]
 
                     # As marcações explícitas de planilha priorizam sobre os agrupamentos gerais TIM/TIP/TA/TI

@@ -159,8 +159,8 @@ class MixProcessor:
                 lojas_forcar_inativo = ["009", "010", "020", "021", "022", "023","050", "900", "901", "902"]
                 lista_cds = ["015", "016", "050"]
                 lojas_grandes = ["002", "003", "006", "011", "012", "017", "018"]
-                lojas_medias = ["013", "014"]
-                lojas_pequenas = ["004", "005", "007", "008"]
+                lojas_medias = ["008", "013", "014"]
+                lojas_pequenas = ["004", "005", "007"]
 
                 # --- BATCH SCREENSHOT (O SEGREDO DA VELOCIDADE) ---
                 tela_bgr = None

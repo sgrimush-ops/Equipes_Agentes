@@ -49,7 +49,7 @@ def rodar_analise():
         df_ativos = df_validos.copy()
         
     df_ativos[col_emp] = df_ativos[col_emp].astype(str).str.replace('.0', '').str.zfill(3)
-    lojas_pequenas = {'004', '005', '007', '008'}
+    lojas_pequenas = {'004', '005', '007'}
     
     # Agrupar por produto e compilar a lista de lojas ativas
     grupo = df_ativos.groupby([col_prod, col_desc] if col_desc else [col_prod])[col_emp].apply(list).reset_index()
@@ -68,8 +68,8 @@ def rodar_analise():
         # Filtro 1: Ativos em EXATAMENTE 3 lojas da rede
         cond1 = (qtd_total == 3)
         
-        # Filtro 2: Ativos em lojas pequenas, mas não em todas (0 < qtd < 4)
-        cond2 = (0 < qtd_pequenas < 4)
+        # Filtro 2: Ativos em lojas pequenas, mas não em todas (0 < qtd < 3)
+        cond2 = (0 < qtd_pequenas < 3)
         
         if cond1 or cond2:
             produtos_alvo.append({

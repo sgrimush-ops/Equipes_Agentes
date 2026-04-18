@@ -174,7 +174,10 @@ def gerar_dashboard():
             # Substituição puramente em memória para viabilizar cálculos em Python (Regra Anti-Ponto Global respeitada)
             df[c] = pd.to_numeric(df[c].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
             
-    df['DATA'] = pd.to_datetime(df['DATA'].str[:10], format='%Y-%m-%d', errors='coerce')
+    data_texto = df['DATA'].astype(str).str[:10].str.strip()
+    data_iso = pd.to_datetime(data_texto, format='%Y-%m-%d', errors='coerce')
+    data_br = pd.to_datetime(data_texto, format='%d/%m/%Y', errors='coerce')
+    df['DATA'] = data_iso.fillna(data_br)
     df = df.dropna(subset=['DATA'])
     
     # --- B. Regras de Negócio e SLAs ---
@@ -255,7 +258,9 @@ def gerar_dashboard():
 
     # --- D. Salvar Arquivo Resultante ---
     data_hoje = hoje.strftime('%d_%m_%Y')
-    arquivo_saida_html = base_dir / f'Painel_Pendencias_SLA_{data_hoje}.html'
+    pasta_resultado = base_dir / 'bd_resultados'
+    pasta_resultado.mkdir(parents=True, exist_ok=True)
+    arquivo_saida_html = pasta_resultado / f'Painel_Pendencias_SLA_{data_hoje}.html'
     
     with open(arquivo_saida_html, 'w', encoding='utf-8') as f:
         f.write(pagina_html)
@@ -267,3 +272,5 @@ def gerar_dashboard():
 if __name__ == '__main__':
     os.chdir(Path(__file__).parent.resolve())
     gerar_dashboard()
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print("✅ Dashboard gerado com sucesso!")
