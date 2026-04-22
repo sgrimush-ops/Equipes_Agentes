@@ -102,6 +102,11 @@ def principal():
     final_df['% Rup. Loja Pend.'] = (final_df['Rup_Loja_Pend'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Est. c/ Ped.'] = (final_df['Est_Pend'] / (final_df['Base_CD'] + final_df['Base_Loja']).replace(0, np.nan) * 100).fillna(0)
 
+    # TOTAL GERAL: % Ruptura Loja deve ser a média das lojas, não o ratio global
+    mask_total = final_df['COMPRADOR'] == 'TOTAL GERAL'
+    avg_rup_loja = final_df[~mask_total].groupby('LOJA')['% Ruptura Loja'].mean()
+    final_df.loc[mask_total, '% Ruptura Loja'] = final_df.loc[mask_total, 'LOJA'].map(avg_rup_loja)
+
     # Exportar para JSON (Estratégia No-Server < 10MB)
     dados_json = json.dumps(final_df.to_dict(orient='records'))
 
