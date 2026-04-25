@@ -147,7 +147,7 @@ class AcaoPrepararSuplay(BaseAction):
             est_15 = estoque_loja15.get(produto, 0)
             
             if est_15 > 0:
-                return pedir_atual
+                return max(pedir_atual, 1)
             else:
                 return 0
 
@@ -156,13 +156,9 @@ class AcaoPrepararSuplay(BaseAction):
         def arredondar_customizado(valor):
             if pd.isna(valor):
                 return 0
-            parte_inteira = math.floor(valor)
-            parte_decimal = valor - parte_inteira
-            
-            if parte_decimal < 0.4:
-                return int(parte_inteira)
-            else:
-                return int(parte_inteira + 1)
+            if valor <= 0:
+                return 0
+            return int(math.ceil(valor))
 
         df['Pedir'] = df['Pedir'].apply(arredondar_customizado)
         
