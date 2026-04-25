@@ -2,6 +2,7 @@ import pandas as pd
 import math
 import os
 from pathlib import Path
+from datetime import datetime
 
 # --- TRAVA DE CONTEXTO ---
 if __name__ == '__main__':
@@ -10,7 +11,7 @@ if __name__ == '__main__':
     except NameError:
         pass
 
-def calcular_min_max(row):
+def calcular_min_max(row, dias_relatorio):
     """
     Função dedicada a calcular as novas propriedades de Estoque Mínimo e Máximo.
     """
@@ -22,41 +23,62 @@ def calcular_min_max(row):
         embalagem = 1
         
     try:
-        venda_30d = float(row['QTD_VENDIDA_NUM'])
+        venda_periodo = float(row['QTD_VENDIDA_NUM'])
     except:
-        venda_30d = 0.0
-        
-    venda_media = venda_30d / 30.0
-    
-    # Regra 1: Mínimo = Venda média de 4 dias arredondado p/ múltiplo da embalagem
+        venda_periodo = 0.0
+
+    venda_media = venda_periodo / dias_relatorio
+
+    # Regra 1: Mínimo = venda média de 4 dias em unidades inteiras.
     minimo_dias = 4 * venda_media
-    minimo_calc = math.ceil(minimo_dias / embalagem) * embalagem
-    minimo_calc = max(minimo_calc, embalagem)  # Pelo menos obrigatório 1 caixa de transfer
-    
-    # Regra 2 e Regra 3 (limites base de 6 unidades)
-    if minimo_calc < 6:
-        min_novo = math.ceil(6 / embalagem) * embalagem
+
+    if embalagem == 1:
+        # Produto unitário mantém a regra mínima de 6 unidades.
+        min_novo = max(math.ceil(minimo_dias), 6)
+        regra_minimo = 'UNITARIO_PISO_6'
     else:
-        min_novo = minimo_calc
-        
-    # Calculo do Máximo (Regra 3 para lentos vs Regra 1 Geral)
+        # Para caixas fechadas, o mínimo não pode ficar abaixo de 60% da embalagem.
+        piso_minimo = math.ceil(embalagem * 0.6)
+        min_novo = max(math.ceil(minimo_dias), piso_minimo)
+        if min_novo == piso_minimo:
+            regra_minimo = 'PISO_60_EMBALAGEM'
+        else:
+            regra_minimo = 'VENDA_4_DIAS'
+
+    # Cálculo do Máximo: baixo volume recebe 1 caixa acima do mínimo.
+    # Alto volume recebe 35% acima do mínimo, com a diferença arredondada
+    # para caixas fechadas.
     if embalagem == 1 and min_novo == 6 and minimo_dias <= 6:
         # Produto de emb=1 girando devagar. Fixo estrito de regra 3
         max_novo = 10
+        regra_maximo = 'UNITARIO_LENTO_FIXO_10'
     else:
-        # Regra 1: Maximo é Mínimo + 30% ou 40% (sempre encerra na embalagem exata, mínimo +1 caixa)
-        aumento_caixas = math.ceil((min_novo * 0.3) / embalagem)
-        aumento_caixas = max(aumento_caixas, 1) # Sempre soma ao menos 1 caixa limpa
-        max_novo = min_novo + (aumento_caixas * embalagem)
-        
-    return pd.Series([round(venda_media, 2), int(min_novo), int(max_novo)])
+        embalagens_minimo = min_novo / embalagem
 
-def converter_para_parquet():
+        if embalagem > 1 and embalagens_minimo >= 3:
+            aumento_caixas = math.ceil((min_novo * 0.35) / embalagem)
+            regra_maximo = 'ALTO_VOLUME_35'
+        else:
+            aumento_caixas = 1
+            regra_maximo = 'UMA_CAIXA_ACIMA'
+
+        aumento_caixas = max(aumento_caixas, 1)
+        max_novo = min_novo + (aumento_caixas * embalagem)
+
+    return pd.Series([
+        round(venda_media, 2),
+        int(min_novo),
+        int(max_novo),
+        regra_minimo,
+        regra_maximo,
+    ])
+
+def converter_para_parquet(arquivo_csv='resultado.csv'):
     """
     Lê o resultado.csv e gera o resultado.parquet para o GAM.
     Incorporado de reajuste_digitar.py.
     """
-    arquivo_csv = Path('resultado.csv')
+    arquivo_csv = Path(arquivo_csv)
     if not arquivo_csv.exists():
         print(f"ERRO: O arquivo '{arquivo_csv.name}' não foi encontrado.")
         return
@@ -103,10 +125,47 @@ def processar_calculos():
     print("Saneando extração de embalagens e ajustando preenchimentos...")
     df['EMBL_TRANSFERENCIA_NUM'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
     df['QTD_VENDIDA_NUM'] = pd.to_numeric(df['QTD_VENDIDA_30D'], errors='coerce').fillna(0.0)
+
+    print("\n" + "="*50)
+    print("          BASE DO RELATORIO DE VENDAS")
+    print("="*50)
+    print("Informe quantos dias de venda o relatorio traz.")
+    print("Exemplos: 30 para venda de 30 dias, 60 para venda de 60 dias.")
+    print("="*50)
+
+    while True:
+        entrada_dias = input("-> Digite a quantidade de dias do relatorio: ").strip()
+        try:
+            dias_relatorio = int(entrada_dias)
+        except ValueError:
+            print("x Valor invalido. Digite um numero inteiro maior que zero.")
+            continue
+
+        if dias_relatorio <= 0:
+            print("x Valor invalido. Digite um numero inteiro maior que zero.")
+            continue
+
+        break
+
+    print(
+        f"Venda media sera calculada como quantidade vendida / {dias_relatorio} dias."
+    )
+    df['DIAS_RELATORIO_VENDA'] = dias_relatorio
     
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
-    df[['VENDA_MEDIA', 'NOVO_MINIMO', 'NOVO_MAXIMO']] = df.apply(calcular_min_max, axis=1)
+    df[
+        [
+            'VENDA_MEDIA',
+            'NOVO_MINIMO',
+            'NOVO_MAXIMO',
+            'REGRA_MINIMO',
+            'REGRA_MAXIMO',
+        ]
+    ] = df.apply(
+        lambda row: calcular_min_max(row, dias_relatorio),
+        axis=1,
+    )
     
     # 3. Regra de Negócio que preserva Loja 15 recebe a soma das outras filiais do CD
     print("Projetando equivalências para o Centro de Distribuição (Loja 15)...")
@@ -155,18 +214,43 @@ def processar_calculos():
     colunas_finais = [
         'DESCRICAO_PRODUTO', 'CODIGO_PRODUTO', 'CODIGO_EMPRESA',
         'EMBL_TRANSFERENCIA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
-        'VENDA_MEDIA', 'NOVO_MINIMO', 'NOVO_MAXIMO'
+        'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
+        'REGRA_MINIMO', 'REGRA_MAXIMO'
     ]
     
     cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
     df_export = df_resultado[cols_existentes]
     
     print("Exportando os resultados para 'resultado.csv' para conferência humana...")
-    df_export.to_csv('resultado.csv', sep=';', encoding='utf-8-sig', index=False, decimal=',')
+    arquivo_saida = Path('resultado.csv')
+
+    try:
+        df_export.to_csv(
+            arquivo_saida,
+            sep=';',
+            encoding='utf-8-sig',
+            index=False,
+            decimal=',',
+        )
+    except PermissionError:
+        arquivo_saida = Path(
+            f"resultado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        )
+        print(
+            "Aviso: 'resultado.csv' está em uso. "
+            f"Exportando em '{arquivo_saida.name}'."
+        )
+        df_export.to_csv(
+            arquivo_saida,
+            sep=';',
+            encoding='utf-8-sig',
+            index=False,
+            decimal=',',
+        )
     
     # 6. Chama a conversão direta (Antigo reajuste_digitar.py)
     print("\nInvocando pipeline de conversão para Parquet...")
-    converter_para_parquet()
+    converter_para_parquet(arquivo_saida)
         
     print("\n[✓] Trabalho finalizado de ponta a ponta com sucesso!")
 
