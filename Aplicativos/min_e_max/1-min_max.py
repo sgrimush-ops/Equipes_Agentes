@@ -105,7 +105,32 @@ def converter_para_parquet(arquivo_csv='resultado.csv'):
         except Exception as err:
             print(f"Erro catastrófico ao gerar parquet: {err}")
 
+
+def solicitar_dias_relatorio():
+    print("\n" + "=" * 50)
+    print("          BASE DO RELATORIO DE VENDAS")
+    print("=" * 50)
+    print("Informe quantos dias de venda o relatorio traz.")
+    print("Exemplos: 30 para venda de 30 dias, 60 para venda de 60 dias.")
+    print("=" * 50)
+
+    while True:
+        entrada_dias = input("-> Digite a quantidade de dias do relatorio: ").strip()
+        try:
+            dias_relatorio = int(entrada_dias)
+        except ValueError:
+            print("x Valor invalido. Digite um numero inteiro maior que zero.")
+            continue
+
+        if dias_relatorio <= 0:
+            print("x Valor invalido. Digite um numero inteiro maior que zero.")
+            continue
+
+        return dias_relatorio
+
 def processar_calculos():
+    dias_relatorio = solicitar_dias_relatorio()
+
     # Caminho corporativo centralizado
     arquivo_query = Path(__file__).parent.parent / 'import_querys' / 'query.parquet'
     
@@ -124,31 +149,40 @@ def processar_calculos():
     # 1. Aplicando Regra Global nº 6 (Saneamento de Inteiros)
     print("Saneando extração de embalagens e ajustando preenchimentos...")
     df['EMBL_TRANSFERENCIA_NUM'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
-    df['QTD_VENDIDA_NUM'] = pd.to_numeric(df['QTD_VENDIDA_30D'], errors='coerce').fillna(0.0)
 
-    print("\n" + "="*50)
-    print("          BASE DO RELATORIO DE VENDAS")
-    print("="*50)
-    print("Informe quantos dias de venda o relatorio traz.")
-    print("Exemplos: 30 para venda de 30 dias, 60 para venda de 60 dias.")
-    print("="*50)
+    colunas_venda_possiveis = [
+        'QTD_VENDIDA_PERIODO',
+        'QTD_VENDIDA_30D',
+        'QTD_VENDIDA',
+    ]
+    coluna_venda = next((c for c in colunas_venda_possiveis if c in df.columns), None)
 
-    while True:
-        entrada_dias = input("-> Digite a quantidade de dias do relatorio: ").strip()
-        try:
-            dias_relatorio = int(entrada_dias)
-        except ValueError:
-            print("x Valor invalido. Digite um numero inteiro maior que zero.")
-            continue
+    if not coluna_venda:
+        print(
+            'Erro: coluna de venda nao encontrada. '
+            'Esperado uma entre: QTD_VENDIDA_PERIODO, QTD_VENDIDA_30D, QTD_VENDIDA.'
+        )
+        return
 
-        if dias_relatorio <= 0:
-            print("x Valor invalido. Digite um numero inteiro maior que zero.")
-            continue
-
-        break
+    if pd.api.types.is_numeric_dtype(df[coluna_venda]):
+        df['QTD_VENDIDA_NUM'] = pd.to_numeric(
+            df[coluna_venda],
+            errors='coerce',
+        ).fillna(0.0)
+    else:
+        venda_txt = (
+            df[coluna_venda]
+            .astype(str)
+            .str.strip()
+            .str.replace(',', '.', regex=False)
+        )
+        df['QTD_VENDIDA_NUM'] = pd.to_numeric(
+            venda_txt,
+            errors='coerce',
+        ).fillna(0.0)
 
     print(
-        f"Venda media sera calculada como quantidade vendida / {dias_relatorio} dias."
+        f"Venda media sera calculada como {coluna_venda} / {dias_relatorio} dias."
     )
     df['DIAS_RELATORIO_VENDA'] = dias_relatorio
     
@@ -273,8 +307,4 @@ if __name__ == "__main__":
         processar_calculos()
     else:
         converter_para_parquet()
-
-# limpar tela com cls e depois msg de finalizado
-os.system('cls')
-print("[OK] Processo concluído!")
 
