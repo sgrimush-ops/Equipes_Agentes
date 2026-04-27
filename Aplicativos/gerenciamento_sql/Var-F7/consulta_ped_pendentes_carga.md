@@ -75,3 +75,15 @@ A consulta tambem tenta retornar a data e o usuario da conferencia pela trilha o
 - O filtro operacional usado e CODTIPATIVIDADE = 'CS', conforme evidencia do monitoramento da rotina.
 - As chaves usadas nessa busca sao NROCARGA, CODDEPOSSEPAR, SEQLOTE, NROQUEBRA e NROEMPRESA, vinculadas a partir da MLO_CARGAECOLETOR.
 - Se nao houver atividade CS correspondente ou se a tarefa nao tiver produtivo vinculado, as colunas DATA_CONFERENCIA e USUARIO_CONFERENCIA podem ficar vazias.
+
+## Guardrails de manutencao (nao quebrar expedicao/carga)
+- Caso homologado: pedido de suprimento 49199 com carga esperada 84506.
+- Aprendizado validado: o join em MSU_PSITEMEXPEDIDO nao deve exigir A.NROEMPDESTINO = P.NROEMPRESAPEDVENDA nesta consulta, pois ha cenarios validos em que P.NROEMPRESAPEDVENDA vem diferente da loja destino do pedido de suprimento.
+- Join estavel homologado para expedicao: A.NROPEDIDOSUPRIM = P.NROPEDIDOSUPRIM + A.SEQPRODUTO = P.SEQPRODUTO + A.NROEMPRESA = P.NROEMPRESA.
+- NRO_PED_EXPEDICAO e CARGA ficam em branco em cascata quando o join de P falha; qualquer ajuste futuro deve validar primeiro o casamento em P antes de revisar MV/CP/CC.
+
+## Checklist rapido antes de publicar ajuste
+1. Rodar a consulta com um caso conhecido de controle (ex.: pedido 49199, item 10, loja 17) e confirmar NRO_PED_EXPEDICAO e CARGA preenchidos.
+2. Validar se nao houve duplicidade de linhas por produto/pedido apos ajuste de join.
+3. Confirmar que DATA_CONFERENCIA e USUARIO_CONFERENCIA permanecem coerentes para cargas com conferencia CS.
+4. Manter os filtros Var-F7 inalterados (DT1, DT2, LT1, LT2, NR1), salvo necessidade de negocio.

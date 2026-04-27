@@ -2,10 +2,12 @@ import pandas as pd
 import glob
 import os
 
+BASE_DIR = r"c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def encontrar_query_parquet():
     # Busca o arquivo query.parquet dentro da pasta Aplicativos
-    base_dir = r"c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos"
-    arquivos = glob.glob(os.path.join(base_dir, "**", "query.parquet"), recursive=True)
+    arquivos = glob.glob(os.path.join(BASE_DIR, "**", "query.parquet"), recursive=True)
     if not arquivos:
         print("Erro: query.parquet não encontrado.")
         return None
@@ -26,7 +28,6 @@ def rodar_analise():
     col_prod = next((c for c in df.columns if 'produto' in c.lower()), None)
     col_desc = next((c for c in df.columns if 'descri' in c.lower()), None)
     col_emp = next((c for c in df.columns if 'empresa' in c.lower() or 'loja' in c.lower()), None)
-    col_estq = next((c for c in df.columns if 'estoque' in c.lower()), None) # Apenas como base adicional se precisar
 
     if not all([col_prod, col_emp]):
         print(f"Colunas não identificadas! Encontradas: {list(df.columns)}")
@@ -34,7 +35,7 @@ def rodar_analise():
         
     print(f"Colunas base -> Prod: {col_prod}, Desc: {col_desc}, Loja: {col_emp}")
 
-    # Filtrar apenas os produtos que possuem algunna loja
+    # Filtrar apenas os produtos que possuem alguma loja
     df_validos = df.dropna(subset=[col_prod, col_emp]).copy()
     
     # Lojas Ativas - Como o query.parquet (do Varejo) geralmente contém
@@ -48,7 +49,7 @@ def rodar_analise():
         # Se não tem coluna status, assumimos que existir na base parquet já quer dizer ativo/mix
         df_ativos = df_validos.copy()
         
-    df_ativos[col_emp] = df_ativos[col_emp].astype(str).str.replace('.0', '').str.zfill(3)
+    df_ativos[col_emp] = df_ativos[col_emp].astype(str).str.replace('.0', '', regex=False).str.zfill(3)
     lojas_pequenas = {'004', '005', '007'}
     
     # Agrupar por produto e compilar a lista de lojas ativas
@@ -83,7 +84,8 @@ def rodar_analise():
             
     df_resultado = pd.DataFrame(produtos_alvo)
     
-    path_saida = r"c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos\temporario\resultado_analise.csv"
+    path_saida = os.path.join(SCRIPT_DIR, "resultado_analise.csv")
+    os.makedirs(os.path.dirname(path_saida), exist_ok=True)
     
     if df_resultado.empty:
         print("\nNenhum produto atendeu aos critérios da sua busca.")
@@ -95,8 +97,6 @@ def rodar_analise():
         print(df_resultado[['Codigo_Produto', 'Quais_Lojas_Ativas']].head(10))
 
 if __name__ == "__main__":
+    os.system('cls')
     rodar_analise()
-
-# limpar tela com cls e depois msg de finalizado
-os.system('cls')
-print("[OK] Processo concluído!")
+    print("\n[OK] Processo concluido!")

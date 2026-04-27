@@ -13,6 +13,13 @@ def _resolver_coluna(df, candidatos, nome_logico):
     )
 
 
+def _resolver_coluna_opcional(df, candidatos):
+    for coluna in candidatos:
+        if coluna in df.columns:
+            return coluna
+    return None
+
+
 def _to_numeric(series):
     return pd.to_numeric(
         series.astype(str).str.replace(',', '.', regex=False),
@@ -75,6 +82,10 @@ def gerar_relatorio_diferenca_embalagem():
         ],
         'maximo',
     )
+    col_status_compra = _resolver_coluna_opcional(
+        df,
+        ['ATIVO_COMPRA', 'STATUS_COMPRA', 'STATUSCOMPRA'],
+    )
 
     work = df[
         [
@@ -95,6 +106,19 @@ def gerar_relatorio_diferenca_embalagem():
         'MAXIMO',
     ]
 
+    if col_status_compra:
+        status = df[col_status_compra].astype(str).str.strip().str.upper()
+        work['STATUS_COMPRA_LOJA'] = status.map(
+            {
+                'A': 'ATIVO',
+                'ATIVO': 'ATIVO',
+                'I': 'INATIVO',
+                'INATIVO': 'INATIVO',
+            }
+        ).fillna(status)
+    else:
+        work['STATUS_COMPRA_LOJA'] = 'NAO INFORMADO'
+
     work['EMBL_TRANSFERENCIA'] = _to_numeric(
         work['EMBL_TRANSFERENCIA']
         .astype(str)
@@ -107,11 +131,22 @@ def gerar_relatorio_diferenca_embalagem():
 
     resultado = work[
         (work['EMBL_TRANSFERENCIA'] > 0)
-        & (work['DIFERENCA_MIN_MAX'] >= 0)
+        & (work['DIFERENCA_MIN_MAX'] > 0)
         & (work['DIFERENCA_MIN_MAX'] < work['EMBL_TRANSFERENCIA'])
     ].copy()
 
     resultado = resultado.sort_values(['EMPRESA', 'CODIGO_PRODUTO'])
+    colunas_saida = [
+        'CODIGO_PRODUTO',
+        'DESCRICAO_PRODUTO',
+        'EMBL_TRANSFERENCIA',
+        'EMPRESA',
+        'MINIMO',
+        'MAXIMO',
+        'DIFERENCA_MIN_MAX',
+        'STATUS_COMPRA_LOJA',
+    ]
+    resultado = resultado[colunas_saida]
     resultado.to_excel(arquivo_saida, index=False)
 
     print(f"Excel gerado com sucesso: {arquivo_saida}")

@@ -136,12 +136,16 @@ class AcaoAjusteMinMax(BaseAction):
             # Forçando releitura do disco sem cache do sistema/pandas:
             with open(file_path, 'rb') as f:
                 # Lendo as colunas conforme solicitado
-                df = pd.read_excel(f, engine='openpyxl', usecols=['Código Empresa', 'Código Produto', 'Empresa : Produto', 'Quantidade Estoque Mínimo', 'Quantidade  Estoque Máximo'])
+                df = pd.read_excel(
+                    f,
+                    engine='openpyxl',
+                    usecols=['EMPRESA', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'MINIMO', 'MAXIMO']
+                )
             
             # Ordenando de forma crescente
-            df = df.sort_values(by=['Código Produto', 'Código Empresa'], ascending=[True, True])
+            df = df.sort_values(by=['CODIGO_PRODUTO', 'EMPRESA'], ascending=[True, True])
             
-            produtos_agrupados = df.groupby('Código Produto')
+            produtos_agrupados = df.groupby('CODIGO_PRODUTO')
             total_produtos = len(produtos_agrupados)
             
             if update_callback:
@@ -158,7 +162,56 @@ class AcaoAjusteMinMax(BaseAction):
         time.sleep(5)
 
         count = 0
-        aviso_detectado_anterior = False
+
+        # Precarrega os templates do popup uma unica vez para reduzir custo por item.
+        imagens_para_procurar = [
+            'captura_tela/aviso_icone.png',
+            'captura_tela/aviso_crop_nativo.png'
+        ]
+        templates_cv2 = []
+        for img_path in imagens_para_procurar:
+            if os.path.exists(img_path):
+                template = cv2.imread(img_path)
+                if template is not None:
+                    templates_cv2.append((img_path, template))
+
+        def detectar_aviso_popup(timeout_segundos=2.0, confianca=0.8):
+            if not templates_cv2:
+                return False
+
+            inicio = time.time()
+            while (time.time() - inicio) < timeout_segundos:
+                try:
+                    tela_pil = pyautogui.screenshot()
+                    tela_bgr = cv2.cvtColor(np.array(tela_pil), cv2.COLOR_RGB2BGR)
+                except Exception:
+                    return False
+
+                for _, template in templates_cv2:
+                    try:
+                        res = cv2.matchTemplate(
+                            tela_bgr,
+                            template,
+                            cv2.TM_CCOEFF_NORMED
+                        )
+                        _, max_val, _, _ = cv2.minMaxLoc(res)
+                        if max_val >= confianca:
+                            return True
+                    except Exception:
+                        pass
+
+                time.sleep(0.3)
+
+            return False
+
+        def confirmar_popup_sim():
+            # Em alguns ambientes o atalho funciona via ALT+S; em outros, S/Enter.
+            pyautogui.hotkey('alt', 's')
+            time.sleep(0.3)
+            pyautogui.press('s')
+            time.sleep(0.3)
+            pyautogui.press('enter')
+            time.sleep(0.5)
 
         for codigo_produto, df_grupo in produtos_agrupados:
             if stop_event and stop_event.is_set():
@@ -169,24 +222,21 @@ class AcaoAjusteMinMax(BaseAction):
                 time.sleep(0.5)
 
             count += 1
-            descricao_produto = str(df_grupo['Empresa : Produto'].iloc[0]) if 'Empresa : Produto' in df_grupo.columns else ""
+            descricao_produto = str(df_grupo['DESCRICAO_PRODUTO'].iloc[0]) if 'DESCRICAO_PRODUTO' in df_grupo.columns else ""
             if update_callback:
                 update_callback({'status': f'Processando {count}/{total_produtos}', 'log': f'Iniciando: {int(codigo_produto)} - {descricao_produto}'})
                 
-            lojas_processar = df_grupo.set_index('Código Empresa').to_dict('index')
+            lojas_processar = df_grupo.set_index('EMPRESA').to_dict('index')
 
             # 2. Comando "F2", limpa a tela para digitação;
             pyautogui.press('f2')
             time.sleep(0.5)
             
-            # Se o aviso foi detectado no produto anterior, o F2 pedirá mais uma confirmação para limpar
-            if aviso_detectado_anterior:
+            # Se a limpeza abrir popup de caracteres especiais, confirmar com Sim.
+            if detectar_aviso_popup(timeout_segundos=1.5):
                 if update_callback:
-                    update_callback({'log': 'Confirmando limpeza de tela após aviso (ALT+S)...'})
-                pyautogui.hotkey('alt', 's')
-                time.sleep(1.0) # Tempo maior para a tela de confirmação sumir
-                
-                aviso_detectado_anterior = False # Resetar para o próximo loop
+                    update_callback({'log': 'Popup de limpeza detectado. Confirmando Sim (S)...'})
+                confirmar_popup_sim()
             
             # 3. vai digitar o código do produto;
             pyautogui.write(str(int(codigo_produto)))
@@ -217,8 +267,8 @@ class AcaoAjusteMinMax(BaseAction):
 
                 if num_loja in lojas_processar:
                     # Loja existe na planilha
-                    min_val = lojas_processar[num_loja]['Quantidade Estoque Mínimo']
-                    max_val = lojas_processar[num_loja]['Quantidade  Estoque Máximo']
+                    min_val = lojas_processar[num_loja]['MINIMO']
+                    max_val = lojas_processar[num_loja]['MAXIMO']
                     
                     # Se estiver vazio (NaN) em min_val e max_val, trata a loja como ignorada
                     if pd.isna(min_val) and pd.isna(max_val):
@@ -263,58 +313,12 @@ class AcaoAjusteMinMax(BaseAction):
             pyautogui.press('f4')
             time.sleep(4) # Dar tempo para processar o save
 
-            # Verificar se ocorreu o popup de aviso após a gravação
-            # Vamos tentar encontrar o aviso por até 4 segundos após o F4, 
-            # já que o sistema pode demorar um pouco para renderizar o popup 
+            # Verificar se ocorreu popup de aviso apos a gravacao e confirmar com Sim.
             try:
-                aviso_encontrado = False
-                tempo_maximo_busca = 4.0
-                tempo_inicio_busca = time.time()
-                # Usar raw CV2 para a busca pois PyAutoGUI apresenta falhas internas de confidence nesse ambiente
-                # O teste cv2 comprovou 1.000 (100%) de precisao com a tela
-                imagens_para_procurar = [
-                    'captura_tela/aviso_icone.png',
-                    'captura_tela/aviso_crop_nativo.png'
-                ]
-                
-                # Precarregando imagens
-                templates_cv2 = []
-                for img_path in imagens_para_procurar:
-                    if os.path.exists(img_path):
-                        template = cv2.imread(img_path)
-                        if template is not None:
-                            templates_cv2.append((img_path, template))
-
-                while not aviso_encontrado and (time.time() - tempo_inicio_busca) < tempo_maximo_busca:
-                    if len(templates_cv2) > 0:
-                        # Tira a foto da tela exata do momento usando pyautogui
-                        # Converte a imagem PIL para o formato padrao do OpenCV (Numpy + BGR)
-                        tela_pil = pyautogui.screenshot()
-                        tela_bgr = cv2.cvtColor(np.array(tela_pil), cv2.COLOR_RGB2BGR)
-
-                        for img_name, template in templates_cv2:
-                            try:
-                                res = cv2.matchTemplate(tela_bgr, template, cv2.TM_CCOEFF_NORMED)
-                                _, max_val, _, _ = cv2.minMaxLoc(res)
-                                
-                                # Se a confianca da busca bater a meta de seguranca de 80% (0.8)
-                                if max_val >= 0.8:
-                                    aviso_encontrado = True
-                                    break
-                            except Exception:
-                                pass
-                                
-                    if not aviso_encontrado:
-                        time.sleep(0.5) # Aguarda meio segundo antes de tentar procurar de novo na tela
-
-                if aviso_encontrado:
-                    aviso_detectado_anterior = True
+                if detectar_aviso_popup(timeout_segundos=4.0):
                     if update_callback:
-                        update_callback({'log': 'Aviso detectado. Pressionando Enter 2x...'})
-                    pyautogui.press('enter')
-                    time.sleep(0.5)
-                    pyautogui.press('enter')
-                    time.sleep(0.5)
+                        update_callback({'log': 'Aviso detectado apos F4. Confirmando Sim (S)...'})
+                    confirmar_popup_sim()
             except Exception:
                 pass
 
