@@ -108,7 +108,7 @@ def processar_pedidos_pendentes():
     try:
         # Lê o TXT bruto delimitado por ponto-e-vírgula (Padrão Consinco),
         # forçando object puro para evitar interpretação errada de floats.
-        df = pd.read_csv(arquivo_origem, sep=';', dtype=str, encoding='utf-8')
+        df = pd.read_csv(arquivo_origem, sep=';', dtype=str, encoding='cp1252')
 
         # Limpeza genérica em colunas textuais.
         for col in df.columns:

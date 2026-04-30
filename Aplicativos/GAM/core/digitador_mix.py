@@ -62,7 +62,8 @@ class MixProcessor:
             col_empresa = next((c for c in df.columns if str(c).startswith('Código Empresa')), 'Código Empresa')
             col_produto = next((c for c in df.columns if str(c).startswith('Código Produto')), 'Código Produto')
             col_status = next((c for c in df.columns if str(c).startswith('Status')), 'Status')
-            col_descricao = next((c for c in df.columns if any(x in str(c).lower() for x in ['descri', 'produto', 'nome'])), None)
+            _colunas_reservadas = {col_empresa, col_produto, col_status}
+            col_descricao = next((c for c in df.columns if c not in _colunas_reservadas and any(x in str(c).lower() for x in ['descri', 'produto', 'nome', ' : '])), None)
 
             df = df.rename(columns={col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'})
             if col_descricao: df = df.rename(columns={col_descricao: 'Descrição'})
@@ -156,7 +157,7 @@ class MixProcessor:
                     if 'M' in code_up: group_status_map['M'] = action
                     if 'P' in code_up: group_status_map['P'] = action
                 
-                lojas_forcar_inativo = ["009", "010", "020", "021", "022", "023","050", "900", "901", "902"]
+                lojas_forcar_inativo = ["009", "010", "016" ] #"020", "021", "022", "023","050", "900", "901", "902"]
                 lista_cds = ["015", "016", "050"]
                 lojas_grandes = ["002", "003", "006", "011", "012", "017", "018"]
                 lojas_medias = ["008", "013", "014"]

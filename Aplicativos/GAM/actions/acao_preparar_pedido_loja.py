@@ -2,6 +2,17 @@ import os
 import pandas as pd
 from actions.base_action import BaseAction
 
+
+def _resolver_arquivo_entrada(base_dir: str) -> str:
+    candidatos = [
+        os.path.join(base_dir, 'bd_entrada', 'pedido.xlsx'),
+        os.path.join(base_dir, 'bd_entrada', 'pedidos.xlsx'),
+    ]
+    for caminho in candidatos:
+        if os.path.exists(caminho):
+            return caminho
+    return candidatos[0]
+
 class AcaoPrepararDados(BaseAction):
     @property
     def name(self) -> str:
@@ -9,14 +20,15 @@ class AcaoPrepararDados(BaseAction):
         
     @property
     def description(self) -> str:
-        return "Converte e formata o arquivo 'pedido.xlsx' em um arquivo 'digitar.csv'."
+        return "Converte e formata o arquivo 'pedido.xlsx' (ou 'pedidos.xlsx') em um arquivo 'digitar.csv'."
         
     def execute(self, update_callback=None, stop_event=None, pause_event=None):
-        input_file = 'bd_entrada/pedido.xlsx'
-        output_file = 'bd_saida/digitar.csv'
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        input_file = _resolver_arquivo_entrada(base_dir)
+        output_file = os.path.join(base_dir, 'bd_saida', 'digitar.csv')
         
         if update_callback:
-            update_callback({'status': 'Preparando dados...', 'log': f"Lendo {input_file}..."})
+            update_callback({'status': 'Preparando dados...', 'log': f"Lendo {os.path.relpath(input_file, base_dir)}..."})
 
         # Verifica bloqueios antes de iniciar
         if stop_event and stop_event.is_set(): return
@@ -67,7 +79,7 @@ class AcaoPrepararDados(BaseAction):
                 
         except FileNotFoundError:
             if update_callback:
-                update_callback({'error': f"O arquivo '{input_file}' não foi encontrado na pasta."})
+                update_callback({'error': "Nenhum arquivo de entrada encontrado em 'bd_entrada' (esperado: pedido.xlsx ou pedidos.xlsx)."})
         except Exception as e:
             if update_callback:
                 update_callback({'error': f"Erro inesperado ao converter planilha: {str(e)}"})
