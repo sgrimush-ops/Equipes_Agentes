@@ -26,6 +26,47 @@ class MixProcessor:
         with open('coords/coords.json', 'r') as f:
             return json.load(f)
 
+    def _normalize_header(self, value):
+        txt = str(value).strip().upper()
+        txt = txt.replace('Á', 'A').replace('À', 'A').replace('Â', 'A').replace('Ã', 'A')
+        txt = txt.replace('É', 'E').replace('Ê', 'E')
+        txt = txt.replace('Í', 'I')
+        txt = txt.replace('Ó', 'O').replace('Ô', 'O').replace('Õ', 'O')
+        txt = txt.replace('Ú', 'U').replace('Ç', 'C')
+        txt = txt.replace(' ', '').replace('_', '').replace(':', '')
+        return txt
+
+    def _find_column(self, columns, aliases):
+        normalized = {col: self._normalize_header(col) for col in columns}
+        alias_set = {self._normalize_header(a) for a in aliases}
+
+        # Primeiro tenta equivalência exata dos aliases normalizados
+        for col, norm in normalized.items():
+            if norm in alias_set:
+                return col
+
+        # Fallback por prefixo para casos de sufixo inesperado no Excel
+        for col, norm in normalized.items():
+            if any(norm.startswith(a) for a in alias_set):
+                return col
+
+        return None
+
+    def _normalize_action(self, value):
+        txt = str(value).strip().upper()
+        if not txt or txt == 'NAN':
+            return None
+
+        compact = txt.replace(' ', '').replace('_', '').replace('-', '')
+        if compact in {'A', 'ATIVO'}:
+            return 'A'
+        if compact in {'TI', 'TOTALMENTEINATIVO'}:
+            return 'TI'
+        if compact in {'I', 'INATIVO'}:
+            return 'I'
+
+        return txt
+
     def run(self, update_callback=None, stop_event=None, pause_event=None):
         if not self.coords:
             msg = "Arquivo 'coords/coords.json' não encontrado. Calibre primeiro."
@@ -58,18 +99,35 @@ class MixProcessor:
             if update_callback: update_callback({'status': "Lendo planilha..."})
             df = pd.read_excel(input_file, dtype=str)
             
-            # Mapeamento robusto de colunas
-            col_empresa = next((c for c in df.columns if str(c).startswith('Código Empresa')), 'Código Empresa')
-            col_produto = next((c for c in df.columns if str(c).startswith('Código Produto')), 'Código Produto')
-            col_status = next((c for c in df.columns if str(c).startswith('Status')), 'Status')
+            # Mapeamento robusto de colunas (novo layout e legado)
+            col_empresa = self._find_column(df.columns, ['EMPRESA', 'CODIGO EMPRESA'])
+            col_produto = self._find_column(df.columns, ['CODIGO PRODUTO', 'CÓDIGO PRODUTO'])
+            col_status = self._find_column(df.columns, ['ACAO', 'AÇÃO', 'STATUS'])
+
+            if not col_empresa or not col_produto or not col_status:
+                cols = ", ".join([str(c) for c in df.columns])
+                faltantes = []
+                if not col_produto:
+                    faltantes.append('CODIGO_PRODUTO')
+                if not col_empresa:
+                    faltantes.append('EMPRESA')
+                if not col_status:
+                    faltantes.append('ACAO')
+                raise ValueError(
+                    f"Colunas obrigatórias não encontradas: {', '.join(faltantes)}. Colunas lidas: {cols}"
+                )
+
             _colunas_reservadas = {col_empresa, col_produto, col_status}
-            col_descricao = next((c for c in df.columns if c not in _colunas_reservadas and any(x in str(c).lower() for x in ['descri', 'produto', 'nome', ' : '])), None)
+            col_descricao = self._find_column(df.columns, ['DESCRICAO PRODUTO', 'DESCRIÇÃO PRODUTO', 'EMPRESA : PRODUTO'])
+            if not col_descricao:
+                col_descricao = next((c for c in df.columns if c not in _colunas_reservadas and any(x in str(c).lower() for x in ['descri', 'produto', 'nome', ' : '])), None)
 
             df = df.rename(columns={col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'})
             if col_descricao: df = df.rename(columns={col_descricao: 'Descrição'})
             
             df['Código Empresa'] = df['Código Empresa'].apply(lambda x: str(x).strip().replace('.0', ''))
             df['Código Empresa'] = df['Código Empresa'].apply(lambda s: s.zfill(3) if s.isdigit() else s)
+            df['Status'] = df['Status'].apply(self._normalize_action)
             
             produtos = df['Código Produto'].unique()
             total_produtos = len(produtos)
@@ -143,8 +201,9 @@ class MixProcessor:
                 cd_status = status_map.get("CD")
                 
                 # Regras de Agrupamento
-                ti_total = status_map.get("CD") == "TI"
-                ti_lojas_only = status_map.get("") == "TI"
+                tem_ti_explicito = any(v == "TI" for k, v in status_map.items() if str(k).strip())
+                ti_total = cd_status == "TI" or tem_ti_explicito
+                ti_lojas_only = status_map.get("") == "TI" and not ti_total
                 
                 tem_tc = "TC" in status_map.values() or cd_status == "TC"
                 tem_ta = "TA" in status_map.values() or cd_status == "TA"
