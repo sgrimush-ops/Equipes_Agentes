@@ -40,6 +40,7 @@ Aplicativos/pendencias/bd_resultados/
 Aplicativos/GAM/bd_entrada/*.xlsx
 Aplicativos/GAM/bd_saida/*.csv
 Aplicativos/import_querys/ped_pendentes.txt
+Aplicativos/import_querys/sem_venda.txt
 Aplicativos/zcontratos
 aplocativos/.temp/
 
