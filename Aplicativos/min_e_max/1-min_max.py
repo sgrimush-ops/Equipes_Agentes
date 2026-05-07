@@ -65,6 +65,12 @@ def calcular_min_max(row, dias_relatorio):
         aumento_caixas = max(aumento_caixas, 1)
         max_novo = min_novo + (aumento_caixas * embalagem)
 
+    # Ajuste de paridade: se a embalagem for par, o mínimo também deve ser par.
+    # Aplicado APÓS o cálculo do máximo para não interferir na regra dele.
+    if embalagem % 2 == 0 and min_novo % 2 != 0:
+        min_novo += 1
+        regra_minimo += '+PAR'
+
     return pd.Series([
         round(venda_media, 2),
         int(min_novo),
