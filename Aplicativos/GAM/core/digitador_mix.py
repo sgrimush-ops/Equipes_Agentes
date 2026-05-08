@@ -218,6 +218,14 @@ class MixProcessor:
                 
                 lojas_forcar_inativo = ["009", "010", "016" ] #"020", "021", "022", "023","050", "900", "901", "902"]
                 lista_cds = ["015", "016", "050"]
+
+                # Regra: se todas as lojas de venda da planilha estão com 'I', inativar CDs também
+                cds_num = {cd.lstrip('0') for cd in lista_cds}
+                lojas_venda_no_mapa = {k: v for k, v in status_map.items()
+                                       if k.lstrip('0') and k.lstrip('0') not in cds_num
+                                       and k.upper() not in ('CD', 'TC', 'TA', 'TI', 'G', 'M', 'P', '')}
+                todas_lojas_venda_inativas = bool(lojas_venda_no_mapa) and all(v == 'I' for v in lojas_venda_no_mapa.values())
+
                 lojas_grandes = ["002", "003", "006", "011", "012", "017", "018"]
                 lojas_medias = ["008", "013", "014"]
                 lojas_pequenas = ["004", "005", "007"]
@@ -271,6 +279,8 @@ class MixProcessor:
                     elif tem_ta:
                         if loja_str in lista_cds: continue
                         status = "A" if (loja_str != "001" and loja_str not in lojas_forcar_inativo) else "I"
+                    elif todas_lojas_venda_inativas and loja_str in lista_cds:
+                        status = "I"  # todas lojas de venda com I → inativar CDs também
                     elif cd_status and loja_str in lista_cds: status = "A" if cd_status == "A" else "I"
                     elif loja_str in lojas_forcar_inativo: status = "I"
                     else: continue

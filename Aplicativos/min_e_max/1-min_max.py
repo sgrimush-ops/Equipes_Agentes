@@ -71,6 +71,13 @@ def calcular_min_max(row, dias_relatorio):
         min_novo += 1
         regra_minimo += '+PAR'
 
+    # Garante que a diferença (max - min) seja sempre múltiplo da embalagem,
+    # ou seja, corresponda a um número inteiro de caixas fechadas.
+    if embalagem > 1:
+        diff = max_novo - min_novo
+        if diff % embalagem != 0:
+            max_novo = min_novo + math.ceil(diff / embalagem) * embalagem
+
     return pd.Series([
         round(venda_media, 2),
         int(min_novo),
@@ -247,7 +254,17 @@ def processar_calculos():
     else:
         print("\n=> Exportando a totalidade dos produtos analisados...")
         df_resultado = df.copy()
-        
+
+    # Expurga itens onde sugestão é idêntica ao atual (sem alteração)
+    sem_mudanca = (
+        (df_resultado['NOVO_MINIMO'] == df_resultado['QUANTIDADE_ESTOQUE_MINIMO']) &
+        (df_resultado['NOVO_MAXIMO'] == df_resultado['QUANTIDADE_ESTOQUE_MAXIMO'])
+    )
+    qtd_expurgados = sem_mudanca.sum()
+    if qtd_expurgados:
+        print(f"  → Expurgando {qtd_expurgados} item(ns) sem alteração (novo mín/máx igual ao atual)...")
+        df_resultado = df_resultado[~sem_mudanca].copy()
+
     print(f"Total de linhas prontas para exportação: {len(df_resultado)}")
     
     # 5. Organiza as colunas limpas
