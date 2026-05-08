@@ -211,6 +211,7 @@ def principal():
         function atualizarDashboard() {
             const comprador = document.getElementById("FiltroComprador").value;
             const loja = document.getElementById("FiltroLoja").value;
+            const semFiltros = comprador === "TODOS" && loja === "TODAS";
 
             let dadosComprador = masterData.filter(d => d.COMPRADOR_FILTER === comprador);
             
@@ -225,8 +226,16 @@ def principal():
                 dadosGrafico = dadosComprador.filter(d => d.LOJA === loja);
             }
 
-            renderTable(dadosTabela);
+            renderTable(dadosTabela, semFiltros);
             renderChart(dadosGrafico, "Ranking: " + (comprador === "TODOS" ? "Todos os Compradores" : comprador) + " | Foco: " + (loja === "TODAS" ? "Rede Completa" : loja));
+        }
+
+        function getPctRupturaLoja(row, usarMediaNoTotal) {
+            if (!row) return 0;
+            if (row.LOJA === "TOTAL GERAL" && !usarMediaNoTotal) {
+                return row.Base_Loja ? (row.Ruptura_Loja / row.Base_Loja) * 100 : 0;
+            }
+            return row['% Ruptura Loja'] || 0;
         }
 
         function fmt(val, perc=false) {
@@ -241,7 +250,7 @@ def principal():
             return val;
         }
 
-        function renderTable(data) {
+        function renderTable(data, usarMediaNoTotal) {
             let rows = data.filter(d => d.LOJA !== "TOTAL GERAL");
             let totalRow = data.find(d => d.LOJA === "TOTAL GERAL");
 
@@ -253,12 +262,13 @@ def principal():
             rows.forEach(row => {
                 let isTotal = row.LOJA === "TOTAL GERAL";
                 let fw = isTotal ? "font-weight: bold; background-color: #f1f3f5 !important;" : "";
+                let pctRupturaLoja = getPctRupturaLoja(row, usarMediaNoTotal);
                 
                 html += `<tr style="${fw}">
                     <td style="text-align: left; padding-left: 15px; ${isTotal ? 'background-color:#f1f3f5;' : ''}">${row.LOJA}</td>
                     <td>${fmt(row.Base_Loja)}</td>
                     <td>${fmt(row.Ruptura_Loja)}</td>
-                    <td style="color:#FFA500;font-weight:bold;">${fmt(row['% Ruptura Loja'], true)}</td>
+                    <td style="color:#FFA500;font-weight:bold;">${fmt(pctRupturaLoja, true)}</td>
                     <td>${fmt(row.Rup_Loja_Neg)}</td>
                     <td style="color:#800080;font-weight:bold;">${fmt(row['% Rup. Loja Neg.'], true)}</td>
                     <td>${fmt(row.Rup_Loja_Pend)}</td>

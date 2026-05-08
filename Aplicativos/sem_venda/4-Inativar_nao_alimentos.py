@@ -1,0 +1,72 @@
+import pandas as pd
+from pathlib import Path
+
+ARQUIVO_ENTRADA = Path(__file__).parent / 'sem_venda.xlsx'
+ARQUIVO_SAIDA   = Path(__file__).parent / 'inativar_nao_alimentos.xlsx'
+
+DEPARTAMENTOS_ALVO = {
+    'NAO ALIMENTO',
+}
+
+EMPRESAS_CD = {15, 16, 50}   # CDs — ficam "A" quando produto não cobre todas as lojas
+                             # e "I" quando o produto é inativado em TODAS as lojas
+
+# ---------------------------------------------------------------------------
+print(f'Lendo {ARQUIVO_ENTRADA.name}...')
+df = pd.read_excel(ARQUIVO_ENTRADA, dtype={'EMPRESA': int})
+
+# Filtra apenas os departamentos desejados
+df = df[df['DEPARTAMENTO'].str.upper().isin(DEPARTAMENTOS_ALVO)].copy()
+
+# Mantém apenas as colunas necessárias
+df = df[['CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'DEPARTAMENTO', 'EMPRESA']].copy()
+
+# ---------------------------------------------------------------------------
+# Identifica o conjunto de lojas de venda (excluindo todos os CDs)
+todas_lojas = sorted(e for e in df['EMPRESA'].unique() if e not in EMPRESAS_CD)
+total_lojas = len(todas_lojas)
+
+print(f'Lojas de venda encontradas ({total_lojas}): {todas_lojas}')
+print(f'CDs identificados: {sorted(EMPRESAS_CD)}')
+
+# ---------------------------------------------------------------------------
+# Para cada produto, conta em quantas lojas de venda ele aparece
+lojas_df = df[~df['EMPRESA'].isin(EMPRESAS_CD)]
+
+cobertura = (
+    lojas_df.groupby('CODIGO_PRODUTO')['EMPRESA']
+    .nunique()
+    .rename('QTD_LOJAS')
+)
+
+# Produtos que aparecem em TODAS as lojas de venda → TI (inativar inclusive nos CDs)
+produtos_ti = set(cobertura[cobertura == total_lojas].index)
+
+# ---------------------------------------------------------------------------
+# Aplica a coluna ACAO
+def calcular_acao(row):
+    produto  = row['CODIGO_PRODUTO']
+    empresa  = row['EMPRESA']
+
+    if produto in produtos_ti:
+        return 'I'                    # inativar em tudo: lojas E CDs
+
+    # Produto não cobre todas as lojas de venda
+    if empresa in EMPRESAS_CD:
+        return 'A'                    # CD fica ativo para abastecer lojas restantes
+    return 'I'                        # lojas com sem-venda → inativar
+
+df['ACAO'] = df.apply(calcular_acao, axis=1)
+
+# ---------------------------------------------------------------------------
+# Ordenação para facilitar revisão
+df = df.sort_values(['ACAO', 'DEPARTAMENTO', 'CODIGO_PRODUTO', 'EMPRESA'] if 'DEPARTAMENTO' in df.columns
+                    else ['ACAO', 'CODIGO_PRODUTO', 'EMPRESA']).reset_index(drop=True)
+
+# ---------------------------------------------------------------------------
+print(f'\nResumo da coluna ACAO:')
+print(df['ACAO'].value_counts().to_string())
+print(f'\nTotal de linhas: {len(df):,}')
+
+df.to_excel(ARQUIVO_SAIDA, index=False)
+print(f'\n✅ Arquivo gerado: {ARQUIVO_SAIDA.name}')

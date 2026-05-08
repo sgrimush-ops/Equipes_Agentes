@@ -25,15 +25,15 @@ def principal():
 
     # Saneamento (Regra 65)
     cols_saneamento = ['QUANTIDADE_DISPONIVEL', 'EMBL_COMPRA', 'EMBL_TRANSFERENCIA', 
-                       'QTD_PEND_PEDCOMPRA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA_30D']
+                       'QTD_PEND_PEDCOMPRA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA_PERIODO']
     
     for col in cols_saneamento:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    if 'QTD_VENDIDA_30D' not in df.columns:
-        df['QTD_VENDIDA_30D'] = 0
+    if 'QTD_VENDIDA_PERIODO' not in df.columns:
+        df['QTD_VENDIDA_PERIODO'] = 0
 
     print("Gerando flags booleanas...")
     df['is_rup_cd'] = (df['CODIGO_EMPRESA'] == 15) & ((df['QUANTIDADE_DISPONIVEL'] <= 0) | (df['QUANTIDADE_DISPONIVEL'] < df['EMBL_TRANSFERENCIA']))
@@ -46,7 +46,7 @@ def principal():
     df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
         ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
         PEDIDOS=('QTD_PEND_PEDCOMPRA', 'sum'),
-        VENDA=('QTD_VENDIDA_30D', 'sum'),
+        VENDA=('QTD_VENDIDA_PERIODO', 'sum'),
         RUP_CD=('is_rup_cd', 'max'),
         RUP_LOJA=('is_rup_loja', 'max'),
         RUP_NEG=('is_rup_neg', 'max'),

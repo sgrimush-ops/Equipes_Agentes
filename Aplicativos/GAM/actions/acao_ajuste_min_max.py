@@ -9,6 +9,8 @@ from pynput import mouse
 import pyautogui
 import cv2
 import numpy as np
+import ctypes
+import re
 from actions.base_action import BaseAction
 
 
@@ -112,6 +114,11 @@ class AcaoAjusteMinMax(BaseAction):
         return "Ajusta os valores Mínimo e Máximo por loja baseado na planilha ajustepp.xlsx."
 
     def execute(self, update_callback=None, stop_event=None, pause_event=None):
+        # Ajustes de desempenho da etapa de leitura/edicao de campos.
+        SLEEP_CAMPO = 0.03
+        SLEEP_TAB = 0.06
+        SLEEP_NAVEGACAO = 0.08
+
         if update_callback:
             update_callback({'status': 'Iniciando', 'log': 'Lendo arquivo de dados...'})
 
@@ -213,6 +220,64 @@ class AcaoAjusteMinMax(BaseAction):
             pyautogui.press('enter')
             time.sleep(0.5)
 
+        CF_UNICODETEXT = 13
+
+        def ler_clipboard_texto():
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+
+            if not user32.OpenClipboard(0):
+                return ""
+
+            texto = ""
+            try:
+                h_data = user32.GetClipboardData(CF_UNICODETEXT)
+                if not h_data:
+                    return ""
+
+                ptr = kernel32.GlobalLock(h_data)
+                if not ptr:
+                    return ""
+
+                try:
+                    texto = ctypes.wstring_at(ptr)
+                finally:
+                    kernel32.GlobalUnlock(h_data)
+            except Exception:
+                texto = ""
+            finally:
+                user32.CloseClipboard()
+
+            return texto.strip()
+
+        def normalizar_numero_campo(valor_texto):
+            if valor_texto is None:
+                return ""
+
+            texto = str(valor_texto).strip()
+            if texto == "":
+                return ""
+
+            # Aceita formatos comuns da tela: 12, 12,00, 1.234,00 etc.
+            texto = texto.replace(" ", "")
+            texto = texto.replace(".", "")
+            texto = texto.replace(",", ".")
+
+            try:
+                numero = float(texto)
+                if numero.is_integer():
+                    return int(numero)
+                return int(round(numero))
+            except Exception:
+                encontrados = re.findall(r"\d+", texto)
+                if encontrados:
+                    return int(encontrados[0])
+                return ""
+
+        def escrever_valor_campo(valor):
+            pyautogui.write(str(valor), interval=0.05)
+            time.sleep(SLEEP_CAMPO)
+
         for codigo_produto, df_grupo in produtos_agrupados:
             if stop_event and stop_event.is_set():
                 if update_callback:
@@ -223,10 +288,11 @@ class AcaoAjusteMinMax(BaseAction):
 
             count += 1
             descricao_produto = str(df_grupo['DESCRICAO_PRODUTO'].iloc[0]) if 'DESCRICAO_PRODUTO' in df_grupo.columns else ""
-            if update_callback:
-                update_callback({'status': f'Processando {count}/{total_produtos}', 'log': f'Iniciando: {int(codigo_produto)} - {descricao_produto}'})
-                
             lojas_processar = df_grupo.set_index('EMPRESA').to_dict('index')
+            ultima_loja = max(lojas_processar.keys()) if lojas_processar else 1
+
+            if update_callback:
+                update_callback({'status': f'Processando {count}/{total_produtos}', 'log': f'Iniciando: {int(codigo_produto)} - {descricao_produto} | Lojas: 1 até {ultima_loja}'})
 
             # 2. Comando "F2", limpa a tela para digitação;
             pyautogui.press('f2')
@@ -259,8 +325,8 @@ class AcaoAjusteMinMax(BaseAction):
             pyautogui.press('up')
             time.sleep(0.1)
             
-            # Lógica de iteração de lojas de 1 a 18
-            for num_loja in range(1, 19):
+            # Lógica de iteração de lojas de 1 até a última loja com dados
+            for num_loja in range(1, ultima_loja + 1):
                 # Verificando pause/stop event constantemente
                 if stop_event and stop_event.is_set(): return
                 while pause_event and pause_event.is_set(): time.sleep(0.5)
@@ -272,7 +338,7 @@ class AcaoAjusteMinMax(BaseAction):
                     
                     # Se estiver vazio (NaN) em min_val e max_val, trata a loja como ignorada
                     if pd.isna(min_val) and pd.isna(max_val):
-                        if num_loja != 18:
+                        if num_loja != ultima_loja:
                             pyautogui.press('down')
                         time.sleep(0.1)
                         continue
@@ -281,41 +347,45 @@ class AcaoAjusteMinMax(BaseAction):
                     min_val = int(min_val) if not pd.isna(min_val) else ""
                     max_val = int(max_val) if not pd.isna(max_val) else ""
 
-                    # 7. digitar o valor minimo da loja;
+                    if update_callback:
+                        update_callback({
+                            'log': (
+                                f'Loja {num_loja} | Produto: {int(codigo_produto)} - {descricao_produto} | '
+                                f'Escrevendo min={min_val!r} max={max_val!r}'
+                            )
+                        })
+
+                    # Escreve mínimo diretamente no campo atual
                     if min_val != "":
-                        if update_callback:
-                            update_callback({'log': f'Loja {num_loja} | Produto: {int(codigo_produto)} - {descricao_produto} | Mín/Máx: {min_val}/{max_val}'})
-                        pyautogui.write(str(min_val))
-                    time.sleep(0.1)
-                    
-                    # 8. um "tab" para ir para o próximo campo (máximo);
+                        escrever_valor_campo(min_val)
                     pyautogui.press('tab')
-                    time.sleep(0.1)
-                    
-                    # 9. digitar o maximo da loja;
+                    time.sleep(SLEEP_TAB)
+
+                    # Escreve máximo
                     if max_val != "":
-                        pyautogui.write(str(max_val))
-                    time.sleep(0.1)
-                    
-                    # 10. shift+tab para voltar e seta baixo, para ir para o minimo da próxima loja;
-                    if num_loja != 18:
+                        escrever_valor_campo(max_val)
+
+                    time.sleep(SLEEP_CAMPO)
+
+                    # Voltar para mínimo e ir para próxima loja.
+                    if num_loja != ultima_loja:
                         pyautogui.hotkey('shift', 'tab')
-                        time.sleep(0.2)
+                        time.sleep(SLEEP_NAVEGACAO)
                         pyautogui.press('down')
-                        time.sleep(0.1)
+                        time.sleep(SLEEP_CAMPO)
                 else:
-                    # Loja não existe na planilha (ou é a 9/10), focar no próximo usando seta baixo
-                    if num_loja != 18:
+                    # Loja não existe na planilha, focar no próximo usando seta baixo
+                    if num_loja != ultima_loja:
                         pyautogui.press('down')
-                    time.sleep(0.1)
+                    time.sleep(SLEEP_CAMPO)
 
             # Finalizar essa etapa com a gravação "F4"
             pyautogui.press('f4')
-            time.sleep(4) # Dar tempo para processar o save
+            time.sleep(1) # Dar tempo para processar o save
 
             # Verificar se ocorreu popup de aviso apos a gravacao e confirmar com Sim.
             try:
-                if detectar_aviso_popup(timeout_segundos=4.0):
+                if detectar_aviso_popup(timeout_segundos=2.0):
                     if update_callback:
                         update_callback({'log': 'Aviso detectado apos F4. Confirmando Sim (S)...'})
                     confirmar_popup_sim()

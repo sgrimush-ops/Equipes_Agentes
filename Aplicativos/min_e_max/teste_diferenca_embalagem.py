@@ -1,4 +1,5 @@
-﻿from pathlib import Path
+﻿import math
+from pathlib import Path
 
 import pandas as pd
 
@@ -32,7 +33,7 @@ def gerar_relatorio_diferenca_embalagem():
     arquivo_origem = base_dir / 'import_querys' / 'query.parquet'
     arquivo_saida = (
         Path(__file__).resolve().parent
-        / 'itens_diferenca_menor_que_embalagem.xlsx'
+        / 'itens_diferenca_nao_multiplo_embalagem.xlsx'
     )
 
     if not arquivo_origem.exists():
@@ -129,11 +130,27 @@ def gerar_relatorio_diferenca_embalagem():
 
     work['DIFERENCA_MIN_MAX'] = work['MAXIMO'] - work['MINIMO']
 
-    resultado = work[
-        (work['EMBL_TRANSFERENCIA'] > 0)
-        & (work['DIFERENCA_MIN_MAX'] > 0)
-        & (work['DIFERENCA_MIN_MAX'] < work['EMBL_TRANSFERENCIA'])
-    ].copy()
+    # Identifica itens onde a diferença (MAX - MIN) não é múltipla da embalagem,
+    # ou seja, não corresponde a caixas fechadas inteiras.
+    emb_int = work['EMBL_TRANSFERENCIA'].astype(int)
+    diff_int = work['DIFERENCA_MIN_MAX'].astype(int)
+    nao_multiplo = (
+        (emb_int > 1)
+        & (diff_int > 0)
+        & (diff_int % emb_int != 0)
+    )
+
+    resultado = work[nao_multiplo].copy()
+
+    # Calcula o máximo corrigido (próximo múltiplo válido da embalagem acima do mínimo)
+    resultado['MAXIMO_CORRETO'] = (
+        resultado['MINIMO']
+        + (
+            resultado['DIFERENCA_MIN_MAX']
+            / resultado['EMBL_TRANSFERENCIA']
+        ).apply(math.ceil)
+        * resultado['EMBL_TRANSFERENCIA']
+    ).astype(int)
 
     resultado = resultado.sort_values(['EMPRESA', 'CODIGO_PRODUTO'])
     colunas_saida = [
@@ -144,6 +161,7 @@ def gerar_relatorio_diferenca_embalagem():
         'MINIMO',
         'MAXIMO',
         'DIFERENCA_MIN_MAX',
+        'MAXIMO_CORRETO',
         'STATUS_COMPRA_LOJA',
     ]
     resultado = resultado[colunas_saida]
