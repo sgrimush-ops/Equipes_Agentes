@@ -1,10 +1,3 @@
-if __name__ == '__main__':
-    import os
-    from pathlib import Path
-    try:
-        os.chdir(Path(__file__).parent.resolve())
-    except NameError:
-        pass
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog, simpledialog
 import os
@@ -374,6 +367,11 @@ class MacroAutomationApp:
             self.root.after(100, self.process_queue)
 
 if __name__ == "__main__":
+    from pathlib import Path
+    try:
+        os.chdir(Path(__file__).parent.resolve())
+    except NameError:
+        pass
     root = tk.Tk()
     app = MacroAutomationApp(root)
     root.mainloop()

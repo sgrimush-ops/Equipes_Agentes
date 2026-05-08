@@ -6,6 +6,10 @@ import json
 import cv2
 import numpy as np
 from pynput import keyboard
+try:
+    from familia_cleaner import FamiliaDescriptionCleaner
+except ModuleNotFoundError:
+    from core.familia_cleaner import FamiliaDescriptionCleaner
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.02 # Reduzido para velocidade turbo
@@ -13,6 +17,7 @@ pyautogui.PAUSE = 0.02 # Reduzido para velocidade turbo
 class MixProcessor:
     def __init__(self):
         self.coords = self.load_coordinates()
+        self.familia_cleaner = FamiliaDescriptionCleaner()
         self.store_list = [
             "001", "002", "003", "004", "005", "006", "007", "008", 
             "009", "010", "011", "012", "013", "014", "015", "016", 
@@ -193,6 +198,22 @@ class MixProcessor:
                 time.sleep(0.2) # Reduzido de 0.5s
                 pyautogui.press('f8')
                 time.sleep(1.2) # Reduzido de 2s para o F8
+                
+                # --- DETECÇÃO E LIMPEZA DE CARACTERES ESPECIAIS EM DESCRIÇÃO DE FAMÍLIA ---
+                # Se houver erro de caracteres especiais, executa limpeza automática
+                if desc_str and not self.familia_cleaner.validate_cleaned_description(desc_str):
+                    print(f"[MixProcessor] Descrição com caracteres especiais detectada: '{desc_str}'")
+                    if self.familia_cleaner.handle_error_flow(desc_str):
+                        print(f"[MixProcessor] Descrição limpa com sucesso!")
+                        if update_callback:
+                            update_callback({'log': f"✓ Descrição '{prod_str}' foi limpa automaticamente"})
+                        # Após limpeza bem-sucedida, o fluxo continua normalmente
+                        time.sleep(0.5)
+                    else:
+                        print(f"[MixProcessor] Falha na limpeza automática, continuando mesmo assim...")
+                        if update_callback:
+                            update_callback({'log': f"⚠ Falha ao limpar '{prod_str}', continuando..."})
+                
                 pyautogui.click(pos_empresa)
                 time.sleep(0.5) # Reduzido de 1s
 
