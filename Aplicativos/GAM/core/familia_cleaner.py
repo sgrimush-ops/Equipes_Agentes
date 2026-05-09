@@ -214,25 +214,28 @@ class FamiliaDescriptionCleaner:
             except:
                 print(f"[FamiliaCleanerERROR] Falha total em digitar texto!")
     
-    def handle_error_flow(self, description_text):
+    def handle_error_flow(self, description_text, timeout=1.5, force=False):
         """
-        Aguarda o popup de erro aparecer (se houver) e executa o fluxo de limpeza.
-        Chamado quando já se sabe que a descrição tem caracteres especiais.
-        
+        Detecta popup de erro e executa limpeza somente quando necessário.
+
         Args:
             description_text: Descrição original
-            
+            timeout: Tempo máximo para detectar popup
+            force: Se True, executa limpeza mesmo sem detectar popup
+
         Returns:
-            bool: True se limpeza bem-sucedida, False caso contrário
+            bool: True se erro foi tratado e limpeza bem-sucedida, False caso contrário
         """
-        print("[FamiliaCleanerINFO] Aguardando popup de caracteres especiais...")
-        # Aguarda o popup aparecer na tela antes de tentar fechar
-        popup_found = self.detect_error_popup(timeout=3.0)
+        popup_found = self.detect_error_popup(timeout=timeout)
+
+        if not popup_found and not force:
+            return False
+
         if popup_found:
-            print("[FamiliaCleanerINFO] Popup detectado! Executando limpeza...")
+            print("[FamiliaCleanerINFO] Popup de caracteres especiais detectado!")
         else:
-            print("[FamiliaCleanerWARN] Popup não detectado visualmente, prosseguindo mesmo assim...")
-        # Executa o fluxo de limpeza independentemente da detecção visual
+            print("[FamiliaCleanerWARN] Forçando limpeza sem detecção visual de popup.")
+
         return self.execute_cleanup_flow(description_text)
     
     def validate_cleaned_description(self, description):
