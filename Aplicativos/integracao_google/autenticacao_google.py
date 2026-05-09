@@ -8,7 +8,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 # Se modificar esses escopos, delete o arquivo token.json.
 SCOPES = [
     'https://www.googleapis.com/auth/drive',
-    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/script.projects',
     'https://www.googleapis.com/auth/script.deployments'
@@ -31,6 +31,9 @@ def get_google_credentials() -> Credentials:
     # criados automaticamente na primeira vez que o fluxo de autorização for concluído.
     if token_path.exists():
         creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+        # Se o token atual nao tiver todos os escopos necessarios, força novo consentimento.
+        if creds and not creds.has_scopes(SCOPES):
+            creds = None
 
     # Se não existem credenciais (ou não são válidas), deixa o usuário fazer login.
     if not creds or not creds.valid:

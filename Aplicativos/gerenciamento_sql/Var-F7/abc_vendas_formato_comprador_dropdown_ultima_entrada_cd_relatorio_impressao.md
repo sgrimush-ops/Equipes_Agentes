@@ -12,6 +12,7 @@ Versao preparada para sair mais pronta no Quick Report do Consinco, com os mesmo
 - O filtro de comprador segue a regra de ouro homologada: lista no formato codigo - apelido, filtrando por SEQCOMPRADOR.
 
 ## Colunas desta versao
+- TITULO_FORNECEDOR
 - SUBGRUPO
 - COD_PROD
 - PRODUTO
@@ -81,5 +82,6 @@ WHERE C.SEQCOMPRADOR IS NOT NULL
 ## Observacoes
 - Esta versao existe especificamente para impressao mais compacta.
 - As colunas de comprador e fornecedor principal continuam fora da grade.
+- Para usar no cabecalho da impressao, configure o titulo do Quick Report com a coluna TITULO_FORNECEDOR (ex.: 12345 - FORNECEDOR XYZ).
 - PRODUTO foi reduzido com SUBSTR(..., 1, 55) para caber melhor no Quick Report.
 - A ordenacao ficou por SUBGRUPO crescente e QTD_VDA decrescente.
