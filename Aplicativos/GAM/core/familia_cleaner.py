@@ -193,9 +193,13 @@ class FamiliaDescriptionCleaner:
         try:
             # Copia para clipboard usando PowerShell (Windows)
             if sys.platform == "win32":
-                # PowerShell é mais confiável
-                cmd = f'powershell -NoProfile -Command "Set-Clipboard -Value \'{text.replace(chr(39), chr(34))}\'\"'
-                subprocess.run(cmd, shell=True, check=True, capture_output=True)
+                # PowerShell sem shell=True (Regra 66 — anti roubo de foco)
+                subprocess.run(
+                    ['powershell', '-NoProfile', '-Command',
+                     f'Set-Clipboard -Value "{text.replace(chr(34), chr(39))}"'],
+                    check=True, capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
             else:
                 # Para Linux/Mac (não testado neste contexto)
                 subprocess.run(['xclip', '-selection', 'clipboard'], input=text.encode(), check=True)

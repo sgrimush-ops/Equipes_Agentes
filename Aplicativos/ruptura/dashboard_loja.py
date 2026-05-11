@@ -88,16 +88,40 @@ def principal():
         
     final_df = pd.concat(master_frames, ignore_index=True)
     
-    # Cálculos Percentuais
+    # Cálculos Percentuais — linhas individuais (por loja)
     final_df['% Ruptura Loja'] = (final_df['Ruptura_Loja'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja Neg.'] = (final_df['Rup_Loja_Neg'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja Pend.'] = (final_df['Rup_Loja_Pend'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Est. c/ Ped.'] = (final_df['Est_Pend'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
 
-    # TOTAL GERAL: % Ruptura Loja deve ser a média das lojas, não o ratio global
+    # TOTAL GERAL: recalcular valores e percentuais como soma ponderada das lojas
+    # (nunique global deduplica entre lojas e gera % inconsistente com as linhas individuais)
     mask_total = final_df['LOJA'] == 'TOTAL GERAL'
-    avg_rup_loja = final_df[~mask_total].groupby('COMPRADOR_FILTER')['% Ruptura Loja'].mean()
-    final_df.loc[mask_total, '% Ruptura Loja'] = final_df.loc[mask_total, 'COMPRADOR_FILTER'].map(avg_rup_loja)
+    for comprador_filter in final_df['COMPRADOR_FILTER'].unique():
+        mask_comp = final_df['COMPRADOR_FILTER'] == comprador_filter
+        mask_lojas = mask_comp & ~mask_total
+        mask_total_comp = mask_comp & mask_total
+
+        if not mask_total_comp.any():
+            continue
+
+        soma_base = final_df.loc[mask_lojas, 'Base_Loja'].sum()
+        soma_rup = final_df.loc[mask_lojas, 'Ruptura_Loja'].sum()
+        soma_neg = final_df.loc[mask_lojas, 'Rup_Loja_Neg'].sum()
+        soma_pend = final_df.loc[mask_lojas, 'Rup_Loja_Pend'].sum()
+        soma_est_pend = final_df.loc[mask_lojas, 'Est_Pend'].sum()
+
+        final_df.loc[mask_total_comp, 'Base_Loja'] = soma_base
+        final_df.loc[mask_total_comp, 'Ruptura_Loja'] = soma_rup
+        final_df.loc[mask_total_comp, 'Rup_Loja_Neg'] = soma_neg
+        final_df.loc[mask_total_comp, 'Rup_Loja_Pend'] = soma_pend
+        final_df.loc[mask_total_comp, 'Est_Pend'] = soma_est_pend
+
+        if soma_base > 0:
+            final_df.loc[mask_total_comp, '% Ruptura Loja'] = soma_rup / soma_base * 100
+            final_df.loc[mask_total_comp, '% Rup. Loja Neg.'] = soma_neg / soma_base * 100
+            final_df.loc[mask_total_comp, '% Rup. Loja Pend.'] = soma_pend / soma_base * 100
+            final_df.loc[mask_total_comp, '% Est. c/ Ped.'] = soma_est_pend / soma_base * 100
 
     # Exportar para JSON (Estratégia No-Server < 10MB)
     dados_json = json.dumps(final_df.to_dict(orient='records'))
@@ -211,7 +235,6 @@ def principal():
         function atualizarDashboard() {
             const comprador = document.getElementById("FiltroComprador").value;
             const loja = document.getElementById("FiltroLoja").value;
-            const semFiltros = comprador === "TODOS" && loja === "TODAS";
 
             let dadosComprador = masterData.filter(d => d.COMPRADOR_FILTER === comprador);
             
@@ -226,15 +249,12 @@ def principal():
                 dadosGrafico = dadosComprador.filter(d => d.LOJA === loja);
             }
 
-            renderTable(dadosTabela, semFiltros);
+            renderTable(dadosTabela);
             renderChart(dadosGrafico, "Ranking: " + (comprador === "TODOS" ? "Todos os Compradores" : comprador) + " | Foco: " + (loja === "TODAS" ? "Rede Completa" : loja));
         }
 
-        function getPctRupturaLoja(row, usarMediaNoTotal) {
+        function getPctRupturaLoja(row) {
             if (!row) return 0;
-            if (row.LOJA === "TOTAL GERAL" && !usarMediaNoTotal) {
-                return row.Base_Loja ? (row.Ruptura_Loja / row.Base_Loja) * 100 : 0;
-            }
             return row['% Ruptura Loja'] || 0;
         }
 
@@ -250,7 +270,7 @@ def principal():
             return val;
         }
 
-        function renderTable(data, usarMediaNoTotal) {
+        function renderTable(data) {
             let rows = data.filter(d => d.LOJA !== "TOTAL GERAL");
             let totalRow = data.find(d => d.LOJA === "TOTAL GERAL");
 
@@ -262,7 +282,7 @@ def principal():
             rows.forEach(row => {
                 let isTotal = row.LOJA === "TOTAL GERAL";
                 let fw = isTotal ? "font-weight: bold; background-color: #f1f3f5 !important;" : "";
-                let pctRupturaLoja = getPctRupturaLoja(row, usarMediaNoTotal);
+                let pctRupturaLoja = getPctRupturaLoja(row);
                 
                 html += `<tr style="${fw}">
                     <td style="text-align: left; padding-left: 15px; ${isTotal ? 'background-color:#f1f3f5;' : ''}">${row.LOJA}</td>

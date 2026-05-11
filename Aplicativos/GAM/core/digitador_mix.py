@@ -6,6 +6,7 @@ import json
 import cv2
 import numpy as np
 from pynput import keyboard
+from pynput.mouse import Button as PynButton, Controller as PynMouse
 try:
     from familia_cleaner import FamiliaDescriptionCleaner
 except ModuleNotFoundError:
@@ -18,12 +19,19 @@ class MixProcessor:
     def __init__(self):
         self.coords = self.load_coordinates()
         self.familia_cleaner = FamiliaDescriptionCleaner()
+        self._mouse = PynMouse()  # Cliques via pynput para paridade DPI (Regra 65)
         self.store_list = [
             "001", "002", "003", "004", "005", "006", "007", "008", 
             "009", "010", "011", "012", "013", "014", "015", "016", 
             "017", "018", "020", "021", "022", "023", "050", "900", 
             "901", "902"
         ]
+
+    def _click(self, coord):
+        """Clique preciso via pynput (anti-DPI offset). Coordenadas devem vir de pynput.Listener."""
+        self._mouse.position = (coord[0], coord[1])
+        time.sleep(0.02)
+        self._mouse.click(PynButton.left)
 
     def load_coordinates(self):
         if not os.path.exists('coords/coords.json'):
@@ -191,23 +199,17 @@ class MixProcessor:
                         'log': f"[{i+1}/{total_produtos} | Faltam: {faltam}] {prod_str} - {desc_str}"
                     })
 
-                # Fluxo ERP Otimizado
+                # Fluxo ERP Otimizado: F2 abre busca, digita código, F8 confirma
                 pyautogui.press('f2')
-                time.sleep(0.5) # Reduzido de 1s
-                pyautogui.write(prod_str)
-                time.sleep(0.2) # Reduzido de 0.5s
+                time.sleep(1.0)  # Aguardar diálogo de busca abrir completamente
+                pyautogui.write(prod_str, interval=0.05)  # Intervalo entre teclas para confiabilidade no ERP
+                time.sleep(0.3)
                 pyautogui.press('f8')
                 time.sleep(1.2) # Reduzido de 2s para o F8
                 
-                # --- AJUSTE DE FAMÍLIA APENAS QUANDO O POPUP APARECER ---
-                # A manutenção do item deve seguir normalmente; o ajuste é eventual/aleatório.
-                if self.familia_cleaner.handle_error_flow(desc_str, timeout=1.2):
-                    print(f"[MixProcessor] Popup tratado e descrição ajustada para '{prod_str}'.")
-                    if update_callback:
-                        update_callback({'log': f"✓ Popup de família tratado em '{prod_str}'"})
-                    time.sleep(0.5)
+                # (Detecção de família movida para DEPOIS do F4 — linha de salvar produto)
                 
-                pyautogui.click(pos_empresa)
+                self._click(pos_empresa)
                 time.sleep(0.5) # Reduzido de 1s
 
                 # Mapa de Lojas
@@ -319,8 +321,8 @@ class MixProcessor:
                                 continue # PULA! Já está correto.
                         except: pass
                     
-                    # Mecânica de Clique (Fallback)
-                    pyautogui.click(self.coords[f"loja_{loja_str}"])
+                    # Mecânica de Clique via pynput (Regra 65 anti-DPI)
+                    self._click(self.coords[f"loja_{loja_str}"])
                     time.sleep(0.01)
                     pyautogui.press('a' if status == "A" else 'i', presses=2, interval=0.01)
 
@@ -338,15 +340,33 @@ class MixProcessor:
                 pyautogui.press('f4')
                 time.sleep(0.8)
                 
-                # Lidar com popup de Atenção
+                # Lidar com popup de Atenção / popup de Família (caracteres especiais)
                 teve_popup = False
                 try:
                     import pygetwindow as gw
+                    
+                    # Popup de Atenção padrão
                     atn = [w for w in gw.getWindowsWithTitle("Atenção") if w.visible]
                     if atn: 
                         teve_popup = True
                         pyautogui.press('s')
-                        time.sleep(1.2)  # Tempo maior para garantir que as novas abas caguem a tela, se existirem
+                        time.sleep(1.2)
+                    
+                    # Popup de família (caracteres especiais na descrição)
+                    # Títulos comuns: "Confirmação", "Família", "Caractere", "Erro"
+                    popup_familia = False
+                    for titulo_busca in ["Confirmação", "Confirma", "Família", "Caractere"]:
+                        janelas = [w for w in gw.getWindowsWithTitle(titulo_busca) if w.visible]
+                        if janelas:
+                            popup_familia = True
+                            break
+                    
+                    if popup_familia:
+                        print(f"[MixProcessor] Popup de família detectado para '{prod_str}'. Tratando...")
+                        if self.familia_cleaner.execute_cleanup_flow(desc_str):
+                            if update_callback:
+                                update_callback({'log': f"✓ Popup de família tratado em '{prod_str}'"})
+                        time.sleep(0.5)
                 except: pass
                 
                 # --- TRAVA DE SEGURANÇA BASEADA EM DIFERENÇA DE IMAGEM ---
