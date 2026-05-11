@@ -62,3 +62,5 @@ if __name__ == "__main__":
     main()
     # limpar terminal
     os.system("cls")
+#Sucesso
+print("✅ Commint e Push realizado com sucesso!")   
