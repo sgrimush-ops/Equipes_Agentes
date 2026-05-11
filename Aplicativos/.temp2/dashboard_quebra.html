@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Quebras - Varejo Insight</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1117;color:#e1e4e8;font-family:'Inter',sans-serif;padding:20px}
+.header{background:linear-gradient(135deg,#1a1e2e 0%,#2d1b4e 50%,#1a1e2e 100%);padding:28px 32px;border-radius:16px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;border:1px solid rgba(139,92,246,0.3);box-shadow:0 8px 32px rgba(139,92,246,0.15)}
+.header h2{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{color:#9ca3af;font-size:0.9rem;margin-top:4px}
+.filters{display:flex;gap:16px;flex-wrap:wrap}
+.filter-group label{display:block;color:#9ca3af;font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:600}
+.filter-group select{background:#1a1e2e;color:#e1e4e8;border:1px solid rgba(139,92,246,0.4);border-radius:10px;padding:10px 16px;font-size:0.95rem;min-width:220px;outline:none;cursor:pointer;transition:all .2s}
+.filter-group select:hover{border-color:#a78bfa;box-shadow:0 0 12px rgba(139,92,246,0.3)}
+.card{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:24px;margin-bottom:20px;box-shadow:0 4px 16px rgba(0,0,0,0.3)}
+.card-title{font-size:1.1rem;font-weight:700;color:#c9d1d9;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.kpi{background:linear-gradient(135deg,#1a1e2e,#21262d);border:1px solid #30363d;border-radius:12px;padding:20px;text-align:center;transition:transform .2s,box-shadow .2s}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(139,92,246,0.2)}
+.kpi .value{font-size:1.8rem;font-weight:800;margin-bottom:4px}
+.kpi .label{font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:1px}
+.kpi.purple .value{color:#a78bfa}
+.kpi.pink .value{color:#f472b6}
+.kpi.cyan .value{color:#22d3ee}
+.kpi.green .value{color:#34d399}
+.table-wrap{overflow-x:auto;max-height:600px;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:0.85rem}
+thead th{background:#21262d;color:#8b949e;text-transform:uppercase;font-size:0.7rem;letter-spacing:1px;padding:12px 10px;position:sticky;top:0;z-index:2;text-align:center;border-bottom:2px solid #30363d}
+thead th:first-child{text-align:left;padding-left:16px}
+tbody td{padding:10px;text-align:center;border-bottom:1px solid #21262d}
+tbody td:first-child{text-align:left;padding-left:16px;font-weight:600}
+tbody tr:hover{background:rgba(139,92,246,0.08)}
+tbody tr.total-row{background:#1a1e2e;font-weight:700;border-top:2px solid #a78bfa}
+tbody tr.total-row td{color:#a78bfa}
+.rank-badge{display:inline-block;width:28px;height:28px;line-height:28px;border-radius:50%;text-align:center;font-weight:700;font-size:0.75rem}
+.rank-1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000}
+.rank-2{background:linear-gradient(135deg,#9ca3af,#6b7280);color:#fff}
+.rank-3{background:linear-gradient(135deg,#d97706,#b45309);color:#fff}
+.rank-n{background:#30363d;color:#8b949e}
+.pct-bar{height:6px;border-radius:3px;background:#21262d;position:relative;min-width:60px}
+.pct-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#a78bfa,#f472b6);transition:width .3s}
+.legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;padding:16px;background:#1a1e2e;border-radius:10px;border:1px solid #30363d}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#8b949e}
+.legend-dot{width:12px;height:12px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="header">
+ <div>
+  <h2>📊 Dashboard de Quebras</h2>
+  <p>Atualizado em: 11/05/2026</p>
+ </div>
+ <div class="filters">
+  <div class="filter-group">
+   <label>Visão por Loja</label>
+   <select id="FiltroLoja" onchange="att()"><option value="TODAS">TODAS AS LOJAS</option><option value="1">Loja 1</option><option value="2">Loja 2</option><option value="3">Loja 3</option><option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option><option value="7">Loja 7</option><option value="8">Loja 8</option><option value="9">Loja 9</option><option value="11">Loja 11</option><option value="12">Loja 12</option><option value="13">Loja 13</option><option value="14">Loja 14</option><option value="15">Loja 15</option><option value="16">Loja 16</option><option value="17">Loja 17</option><option value="18">Loja 18</option><option value="56">Loja 56</option></select>
+  </div>
+  <div class="filter-group">
+   <label>Filtro Comprador</label>
+   <select id="FiltroComp" onchange="att()"><option value="TODOS">TODOS OS COMPRADORES</option><option value="JOAO BATISTA">JOAO BATISTA</option><option value="LAURINDO BISCUBI RAMOS">LAURINDO BISCUBI RAMOS</option><option value="NICOLAS AUGUSTO P. BORGES">NICOLAS AUGUSTO P. BORGES</option><option value="NIDAL TUBASI">NIDAL TUBASI</option><option value="NJOUD HASSAN ZITAWI">NJOUD HASSAN ZITAWI</option><option value="SANDRO MARTINS VIANNA">SANDRO MARTINS VIANNA</option><option value="SEM COMPRADOR">SEM COMPRADOR</option><option value="WETER SONNENFELDET">WETER SONNENFELDET</option></select>
+  </div>
+ </div>
+</div>
+
+<div class="kpi-row">
+ <div class="kpi purple"><div class="value" id="kpi-valor">-</div><div class="label">Valor Total Quebra</div></div>
+ <div class="kpi pink"><div class="value" id="kpi-itens">-</div><div class="label">Total de Itens</div></div>
+ <div class="kpi cyan"><div class="value" id="kpi-skus">-</div><div class="label">SKUs Distintos</div></div>
+ <div class="kpi green"><div class="value" id="kpi-qtd">-</div><div class="label">Qtd Total</div></div>
+</div>
+
+<div class="card">
+ <div class="card-title">📈 Quebra por Loja (R$)</div>
+ <div id="chart-loja" style="width:100%;height:420px;"></div>
+</div>
+
+<div class="card">
+ <div class="card-title">🏆 Ranking por Comprador</div>
+ <div id="chart-rank" style="width:100%;height:380px;"></div>
+</div>
+
+<div class="card">
+ <div class="card-title">📋 Tabela Detalhada</div>
+ <div class="table-wrap">
+  <table>
+   <thead><tr>
+    <th>#</th><th>Comprador</th><th>Itens</th><th>SKUs</th>
+    <th>Qtd Total</th><th>Valor Total (R$)</th><th>% do Total</th><th>Participação</th>
+   </tr></thead>
+   <tbody id="tbody"></tbody>
+  </table>
+ </div>
+</div>
+
+<script>
+var MD=[{"COMPRADOR": "TOTAL GERAL", "Itens": 110675, "SKUs": 4176, "Qtd_Total": 888804.3, "Valor_Total": 4325137.1, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "TODAS"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 97657, "SKUs": 2181, "Qtd_Total": 589831.0, "Valor_Total": 3050742.76, "Pct_Valor": 70.54, "Rank": 1, "LOJA": "TODAS"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 5977, "SKUs": 450, "Qtd_Total": 185229.1, "Valor_Total": 699811.53, "Pct_Valor": 16.18, "Rank": 2, "LOJA": "TODAS"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 3518, "SKUs": 739, "Qtd_Total": 57465.8, "Valor_Total": 265317.75, "Pct_Valor": 6.13, "Rank": 3, "LOJA": "TODAS"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 1291, "SKUs": 235, "Qtd_Total": 37876.1, "Valor_Total": 184824.34, "Pct_Valor": 4.27, "Rank": 4, "LOJA": "TODAS"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 1347, "SKUs": 530, "Qtd_Total": 6381.0, "Valor_Total": 73210.59, "Pct_Valor": 1.69, "Rank": 5, "LOJA": "TODAS"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 872, "SKUs": 31, "Qtd_Total": 11951.3, "Valor_Total": 50711.82, "Pct_Valor": 1.17, "Rank": 6, "LOJA": "TODAS"}, {"COMPRADOR": "LAURINDO BISCUBI RAMOS", "Itens": 4, "SKUs": 1, "Qtd_Total": 60.0, "Valor_Total": 460.0, "Pct_Valor": 0.01, "Rank": 7, "LOJA": "TODAS"}, {"COMPRADOR": "NJOUD HASSAN ZITAWI", "Itens": 9, "SKUs": 9, "Qtd_Total": 10.0, "Valor_Total": 58.32, "Pct_Valor": 0.0, "Rank": 8, "LOJA": "TODAS"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 150, "SKUs": 60, "Qtd_Total": 32026.9, "Valor_Total": 157641.52, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "1"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 134, "SKUs": 46, "Qtd_Total": 31938.9, "Valor_Total": 157172.22, "Pct_Valor": 99.7, "Rank": 1, "LOJA": "1"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 2, "SKUs": 2, "Qtd_Total": 22.0, "Valor_Total": 199.95, "Pct_Valor": 0.13, "Rank": 2, "LOJA": "1"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 9, "SKUs": 7, "Qtd_Total": 41.0, "Valor_Total": 173.4, "Pct_Valor": 0.11, "Rank": 3, "LOJA": "1"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 5, "SKUs": 5, "Qtd_Total": 25.0, "Valor_Total": 95.95, "Pct_Valor": 0.06, "Rank": 4, "LOJA": "1"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 8109, "SKUs": 478, "Qtd_Total": 21953.5, "Valor_Total": 119731.86, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "2"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 8044, "SKUs": 437, "Qtd_Total": 21691.1, "Valor_Total": 118536.01, "Pct_Valor": 99.0, "Rank": 1, "LOJA": "2"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 40, "SKUs": 16, "Qtd_Total": 205.4, "Valor_Total": 921.3, "Pct_Valor": 0.77, "Rank": 2, "LOJA": "2"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 6, "SKUs": 6, "Qtd_Total": 14.0, "Valor_Total": 104.49, "Pct_Valor": 0.09, "Rank": 3, "LOJA": "2"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 3, "SKUs": 3, "Qtd_Total": 14.0, "Valor_Total": 88.86, "Pct_Valor": 0.07, "Rank": 4, "LOJA": "2"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 15, "SKUs": 15, "Qtd_Total": 28.0, "Valor_Total": 77.33, "Pct_Valor": 0.06, "Rank": 5, "LOJA": "2"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 1, "SKUs": 1, "Qtd_Total": 1.0, "Valor_Total": 3.87, "Pct_Valor": 0.0, "Rank": 6, "LOJA": "2"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 6662, "SKUs": 467, "Qtd_Total": 41320.9, "Valor_Total": 209729.08, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "3"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 6545, "SKUs": 419, "Qtd_Total": 40791.6, "Valor_Total": 207422.74, "Pct_Valor": 98.9, "Rank": 1, "LOJA": "3"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 94, "SKUs": 25, "Qtd_Total": 482.3, "Valor_Total": 2104.74, "Pct_Valor": 1.0, "Rank": 2, "LOJA": "3"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 17, "SKUs": 17, "Qtd_Total": 30.0, "Valor_Total": 124.02, "Pct_Valor": 0.06, "Rank": 3, "LOJA": "3"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 4, "SKUs": 4, "Qtd_Total": 15.0, "Valor_Total": 61.11, "Pct_Valor": 0.03, "Rank": 4, "LOJA": "3"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 2, "SKUs": 2, "Qtd_Total": 2.0, "Valor_Total": 16.48, "Pct_Valor": 0.01, "Rank": 5, "LOJA": "3"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 7296, "SKUs": 468, "Qtd_Total": 67044.4, "Valor_Total": 377082.5, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "4"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 7291, "SKUs": 466, "Qtd_Total": 66982.4, "Valor_Total": 376640.3, "Pct_Valor": 99.88, "Rank": 1, "LOJA": "4"}, {"COMPRADOR": "LAURINDO BISCUBI RAMOS", "Itens": 2, "SKUs": 1, "Qtd_Total": 40.0, "Valor_Total": 290.0, "Pct_Valor": 0.08, "Rank": 2, "LOJA": "4"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 3, "SKUs": 1, "Qtd_Total": 22.0, "Valor_Total": 152.2, "Pct_Valor": 0.04, "Rank": 3, "LOJA": "4"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 5674, "SKUs": 384, "Qtd_Total": 34647.8, "Valor_Total": 190975.73, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "5"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 5629, "SKUs": 361, "Qtd_Total": 34258.6, "Valor_Total": 188253.18, "Pct_Valor": 98.57, "Rank": 1, "LOJA": "5"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 38, "SKUs": 16, "Qtd_Total": 344.2, "Valor_Total": 1729.69, "Pct_Valor": 0.91, "Rank": 2, "LOJA": "5"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 7, "SKUs": 7, "Qtd_Total": 45.0, "Valor_Total": 992.86, "Pct_Valor": 0.52, "Rank": 3, "LOJA": "5"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 18, "SKUs": 18, "Qtd_Total": 27.0, "Valor_Total": 130.53, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "6"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 10, "SKUs": 10, "Qtd_Total": 14.0, "Valor_Total": 50.62, "Pct_Valor": 38.78, "Rank": 1, "LOJA": "6"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 2, "SKUs": 2, "Qtd_Total": 4.0, "Valor_Total": 36.1, "Pct_Valor": 27.66, "Rank": 2, "LOJA": "6"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 2, "SKUs": 2, "Qtd_Total": 5.0, "Valor_Total": 22.13, "Pct_Valor": 16.95, "Rank": 3, "LOJA": "6"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 3, "SKUs": 3, "Qtd_Total": 3.0, "Valor_Total": 11.4, "Pct_Valor": 8.73, "Rank": 4, "LOJA": "6"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 1, "SKUs": 1, "Qtd_Total": 1.0, "Valor_Total": 10.28, "Pct_Valor": 7.88, "Rank": 5, "LOJA": "6"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 7810, "SKUs": 459, "Qtd_Total": 35626.3, "Valor_Total": 175837.07, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "7"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 7702, "SKUs": 410, "Qtd_Total": 35165.2, "Valor_Total": 173592.14, "Pct_Valor": 98.72, "Rank": 1, "LOJA": "7"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 81, "SKUs": 22, "Qtd_Total": 408.1, "Valor_Total": 1787.94, "Pct_Valor": 1.02, "Rank": 2, "LOJA": "7"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 3, "SKUs": 3, "Qtd_Total": 22.0, "Valor_Total": 332.1, "Pct_Valor": 0.19, "Rank": 3, "LOJA": "7"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 16, "SKUs": 16, "Qtd_Total": 22.0, "Valor_Total": 80.72, "Pct_Valor": 0.05, "Rank": 4, "LOJA": "7"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 8, "SKUs": 8, "Qtd_Total": 9.0, "Valor_Total": 44.17, "Pct_Valor": 0.03, "Rank": 5, "LOJA": "7"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 4662, "SKUs": 420, "Qtd_Total": 13662.4, "Valor_Total": 73013.65, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "8"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 4557, "SKUs": 352, "Qtd_Total": 13239.0, "Valor_Total": 70252.16, "Pct_Valor": 96.22, "Rank": 1, "LOJA": "8"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 42, "SKUs": 36, "Qtd_Total": 117.0, "Valor_Total": 1343.22, "Pct_Valor": 1.84, "Rank": 2, "LOJA": "8"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 48, "SKUs": 17, "Qtd_Total": 278.4, "Valor_Total": 1214.01, "Pct_Valor": 1.66, "Rank": 3, "LOJA": "8"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 4, "SKUs": 4, "Qtd_Total": 9.0, "Valor_Total": 89.05, "Pct_Valor": 0.12, "Rank": 4, "LOJA": "8"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 2, "SKUs": 2, "Qtd_Total": 9.0, "Valor_Total": 71.47, "Pct_Valor": 0.1, "Rank": 5, "LOJA": "8"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 9, "SKUs": 9, "Qtd_Total": 10.0, "Valor_Total": 43.74, "Pct_Valor": 0.06, "Rank": 6, "LOJA": "8"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 7, "SKUs": 6, "Qtd_Total": 5047.0, "Valor_Total": 45959.17, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "9"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 2, "SKUs": 1, "Qtd_Total": 5040.0, "Valor_Total": 45864.0, "Pct_Valor": 99.79, "Rank": 1, "LOJA": "9"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 5, "SKUs": 5, "Qtd_Total": 7.0, "Valor_Total": 95.17, "Pct_Valor": 0.21, "Rank": 2, "LOJA": "9"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 11749, "SKUs": 764, "Qtd_Total": 44298.9, "Valor_Total": 231917.48, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "11"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 11345, "SKUs": 616, "Qtd_Total": 40076.0, "Valor_Total": 212905.17, "Pct_Valor": 91.8, "Rank": 1, "LOJA": "11"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 126, "SKUs": 26, "Qtd_Total": 2786.1, "Valor_Total": 12074.71, "Pct_Valor": 5.21, "Rank": 2, "LOJA": "11"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 113, "SKUs": 22, "Qtd_Total": 1127.0, "Valor_Total": 4638.85, "Pct_Valor": 2.0, "Rank": 3, "LOJA": "11"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 28, "SKUs": 26, "Qtd_Total": 91.0, "Valor_Total": 1557.94, "Pct_Valor": 0.67, "Rank": 4, "LOJA": "11"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 119, "SKUs": 58, "Qtd_Total": 177.8, "Valor_Total": 651.18, "Pct_Valor": 0.28, "Rank": 5, "LOJA": "11"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 14, "SKUs": 12, "Qtd_Total": 36.0, "Valor_Total": 72.36, "Pct_Valor": 0.03, "Rank": 6, "LOJA": "11"}, {"COMPRADOR": "NJOUD HASSAN ZITAWI", "Itens": 4, "SKUs": 4, "Qtd_Total": 5.0, "Valor_Total": 17.28, "Pct_Valor": 0.01, "Rank": 7, "LOJA": "11"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 8188, "SKUs": 622, "Qtd_Total": 43527.9, "Valor_Total": 230089.08, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "12"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 7833, "SKUs": 522, "Qtd_Total": 42410.8, "Valor_Total": 225146.95, "Pct_Valor": 97.85, "Rank": 1, "LOJA": "12"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 144, "SKUs": 21, "Qtd_Total": 666.0, "Valor_Total": 2868.74, "Pct_Valor": 1.25, "Rank": 2, "LOJA": "12"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 188, "SKUs": 61, "Qtd_Total": 413.0, "Valor_Total": 1811.37, "Pct_Valor": 0.79, "Rank": 3, "LOJA": "12"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 10, "SKUs": 6, "Qtd_Total": 25.0, "Valor_Total": 178.15, "Pct_Valor": 0.08, "Rank": 4, "LOJA": "12"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 9, "SKUs": 8, "Qtd_Total": 9.0, "Valor_Total": 51.93, "Pct_Valor": 0.02, "Rank": 5, "LOJA": "12"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 4, "SKUs": 4, "Qtd_Total": 4.1, "Valor_Total": 31.95, "Pct_Valor": 0.01, "Rank": 6, "LOJA": "12"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 3804, "SKUs": 327, "Qtd_Total": 28682.1, "Valor_Total": 135907.56, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "13"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 3733, "SKUs": 317, "Qtd_Total": 28449.3, "Valor_Total": 134524.42, "Pct_Valor": 98.98, "Rank": 1, "LOJA": "13"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 70, "SKUs": 9, "Qtd_Total": 231.8, "Valor_Total": 1371.45, "Pct_Valor": 1.01, "Rank": 2, "LOJA": "13"}, {"COMPRADOR": "NJOUD HASSAN ZITAWI", "Itens": 1, "SKUs": 1, "Qtd_Total": 1.0, "Valor_Total": 11.69, "Pct_Valor": 0.01, "Rank": 3, "LOJA": "13"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 10237, "SKUs": 487, "Qtd_Total": 35884.5, "Valor_Total": 193559.85, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "14"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 10190, "SKUs": 448, "Qtd_Total": 35646.0, "Valor_Total": 190798.35, "Pct_Valor": 98.57, "Rank": 1, "LOJA": "14"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 7, "SKUs": 6, "Qtd_Total": 107.0, "Valor_Total": 1862.99, "Pct_Valor": 0.96, "Rank": 2, "LOJA": "14"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 17, "SKUs": 11, "Qtd_Total": 71.5, "Valor_Total": 413.26, "Pct_Valor": 0.21, "Rank": 3, "LOJA": "14"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 16, "SKUs": 16, "Qtd_Total": 35.0, "Valor_Total": 293.42, "Pct_Valor": 0.15, "Rank": 4, "LOJA": "14"}, {"COMPRADOR": "LAURINDO BISCUBI RAMOS", "Itens": 2, "SKUs": 1, "Qtd_Total": 20.0, "Valor_Total": 170.0, "Pct_Valor": 0.09, "Rank": 5, "LOJA": "14"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 5, "SKUs": 5, "Qtd_Total": 5.0, "Valor_Total": 21.83, "Pct_Valor": 0.01, "Rank": 6, "LOJA": "14"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 13617, "SKUs": 2617, "Qtd_Total": 359063.0, "Valor_Total": 1588756.25, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "15"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 5938, "SKUs": 445, "Qtd_Total": 180087.0, "Valor_Total": 653412.25, "Pct_Valor": 41.13, "Rank": 1, "LOJA": "15"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 2268, "SKUs": 800, "Qtd_Total": 75469.0, "Valor_Total": 413091.19, "Pct_Valor": 26.0, "Rank": 2, "LOJA": "15"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 3052, "SKUs": 667, "Qtd_Total": 55914.0, "Valor_Total": 258472.66, "Pct_Valor": 16.27, "Rank": 3, "LOJA": "15"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 1074, "SKUs": 212, "Qtd_Total": 34744.0, "Valor_Total": 170447.17, "Pct_Valor": 10.73, "Rank": 4, "LOJA": "15"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 1215, "SKUs": 469, "Qtd_Total": 5868.0, "Valor_Total": 64995.64, "Pct_Valor": 4.09, "Rank": 5, "LOJA": "15"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 68, "SKUs": 22, "Qtd_Total": 6979.0, "Valor_Total": 28324.74, "Pct_Valor": 1.78, "Rank": 6, "LOJA": "15"}, {"COMPRADOR": "NJOUD HASSAN ZITAWI", "Itens": 2, "SKUs": 2, "Qtd_Total": 2.0, "Valor_Total": 12.6, "Pct_Valor": 0.0, "Rank": 7, "LOJA": "15"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 39, "SKUs": 32, "Qtd_Total": 161.4, "Valor_Total": 1164.92, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "16"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 39, "SKUs": 32, "Qtd_Total": 161.4, "Valor_Total": 1164.92, "Pct_Valor": 100.0, "Rank": 1, "LOJA": "16"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 4378, "SKUs": 358, "Qtd_Total": 32888.0, "Valor_Total": 155893.04, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "17"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 4343, "SKUs": 332, "Qtd_Total": 32783.8, "Valor_Total": 154988.05, "Pct_Valor": 99.42, "Rank": 1, "LOJA": "17"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 7, "SKUs": 4, "Qtd_Total": 23.0, "Valor_Total": 453.31, "Pct_Valor": 0.29, "Rank": 2, "LOJA": "17"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 11, "SKUs": 6, "Qtd_Total": 53.2, "Valor_Total": 265.9, "Pct_Valor": 0.17, "Rank": 3, "LOJA": "17"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 8, "SKUs": 8, "Qtd_Total": 19.0, "Valor_Total": 121.3, "Pct_Valor": 0.08, "Rank": 4, "LOJA": "17"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 6, "SKUs": 5, "Qtd_Total": 6.0, "Valor_Total": 45.86, "Pct_Valor": 0.03, "Rank": 5, "LOJA": "17"}, {"COMPRADOR": "NJOUD HASSAN ZITAWI", "Itens": 2, "SKUs": 2, "Qtd_Total": 2.0, "Valor_Total": 16.75, "Pct_Valor": 0.01, "Rank": 6, "LOJA": "17"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 1, "SKUs": 1, "Qtd_Total": 1.0, "Valor_Total": 1.87, "Pct_Valor": 0.0, "Rank": 7, "LOJA": "17"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 8148, "SKUs": 563, "Qtd_Total": 46600.2, "Valor_Total": 209052.09, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "18"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 7988, "SKUs": 462, "Qtd_Total": 45342.1, "Valor_Total": 202732.93, "Pct_Valor": 96.98, "Rank": 1, "LOJA": "18"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 68, "SKUs": 56, "Qtd_Total": 813.0, "Valor_Total": 3622.66, "Pct_Valor": 1.73, "Rank": 2, "LOJA": "18"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 29, "SKUs": 15, "Qtd_Total": 185.0, "Valor_Total": 1253.74, "Pct_Valor": 0.6, "Rank": 3, "LOJA": "18"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 55, "SKUs": 22, "Qtd_Total": 215.1, "Valor_Total": 1050.8, "Pct_Valor": 0.5, "Rank": 4, "LOJA": "18"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 8, "SKUs": 8, "Qtd_Total": 45.0, "Valor_Total": 391.96, "Pct_Valor": 0.19, "Rank": 5, "LOJA": "18"}, {"COMPRADOR": "TOTAL GERAL", "Itens": 10127, "SKUs": 509, "Qtd_Total": 46342.1, "Valor_Total": 228695.72, "Pct_Valor": 100.0, "Rank": 0, "LOJA": "56"}, {"COMPRADOR": "SEM COMPRADOR", "Itens": 10016, "SKUs": 461, "Qtd_Total": 45425.8, "Valor_Total": 223522.04, "Pct_Valor": 97.74, "Rank": 1, "LOJA": "56"}, {"COMPRADOR": "SANDRO MARTINS VIANNA", "Itens": 83, "SKUs": 22, "Qtd_Total": 837.3, "Valor_Total": 3750.13, "Pct_Valor": 1.64, "Rank": 2, "LOJA": "56"}, {"COMPRADOR": "JOAO BATISTA", "Itens": 12, "SKUs": 12, "Qtd_Total": 43.0, "Valor_Total": 1102.84, "Pct_Valor": 0.48, "Rank": 3, "LOJA": "56"}, {"COMPRADOR": "NIDAL TUBASI", "Itens": 6, "SKUs": 4, "Qtd_Total": 20.0, "Valor_Total": 219.12, "Pct_Valor": 0.1, "Rank": 4, "LOJA": "56"}, {"COMPRADOR": "WETER SONNENFELDET", "Itens": 9, "SKUs": 9, "Qtd_Total": 14.0, "Valor_Total": 83.39, "Pct_Valor": 0.04, "Rank": 5, "LOJA": "56"}, {"COMPRADOR": "NICOLAS AUGUSTO P. BORGES", "Itens": 1, "SKUs": 1, "Qtd_Total": 2.0, "Valor_Total": 18.2, "Pct_Valor": 0.01, "Rank": 6, "LOJA": "56"}];
+
+function fmtR(v){return"R$ "+v.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".")}
+function fmtN(v){return v.toLocaleString("pt-BR")}
+function fmtP(v){return v.toFixed(1).replace(".",",")+"%"}
+
+function att(){
+ var loja=document.getElementById("FiltroLoja").value;
+ var comp=document.getElementById("FiltroComp").value;
+ var dl=MD.filter(function(d){return d.LOJA===loja});
+
+ var total=dl.find(function(d){return d.COMPRADOR==="TOTAL GERAL"});
+ var rows=dl.filter(function(d){return d.COMPRADOR!=="TOTAL GERAL"});
+
+ if(comp!=="TODOS"){
+  rows=rows.filter(function(d){return d.COMPRADOR===comp});
+  var t2={COMPRADOR:"TOTAL GERAL",Itens:0,SKUs:0,Qtd_Total:0,Valor_Total:0,Pct_Valor:100,Rank:0,LOJA:loja};
+  rows.forEach(function(r){t2.Itens+=r.Itens;t2.Qtd_Total+=r.Qtd_Total;t2.Valor_Total+=r.Valor_Total});
+  t2.SKUs=rows.reduce(function(a,r){return a+r.SKUs},0);
+  total=t2;
+ }
+
+ rows.sort(function(a,b){return b.Valor_Total-a.Valor_Total});
+ for(var i=0;i<rows.length;i++)rows[i].Rank=i+1;
+
+ var gt=total?total.Valor_Total:0;
+ document.getElementById("kpi-valor").textContent=fmtR(gt);
+ document.getElementById("kpi-itens").textContent=fmtN(total?total.Itens:0);
+ document.getElementById("kpi-skus").textContent=fmtN(total?total.SKUs:0);
+ document.getElementById("kpi-qtd").textContent=fmtN(Math.round(total?total.Qtd_Total:0));
+
+ renderTabela(rows,total,gt);
+ renderChartLoja(loja,comp);
+ renderChartRank(rows);
+}
+
+function renderTabela(rows,total,gt){
+ var html="";
+ rows.forEach(function(r){
+  var pct=gt>0?(r.Valor_Total/gt*100):0;
+  var rc=r.Rank<=3?"rank-"+r.Rank:"rank-n";
+  html+="<tr>"
+   +"<td><span class='rank-badge "+rc+"'>"+r.Rank+"</span></td>"
+   +"<td>"+r.COMPRADOR+"</td>"
+   +"<td>"+fmtN(r.Itens)+"</td>"
+   +"<td>"+fmtN(r.SKUs)+"</td>"
+   +"<td>"+fmtN(Math.round(r.Qtd_Total))+"</td>"
+   +"<td style='color:#a78bfa;font-weight:700'>"+fmtR(r.Valor_Total)+"</td>"
+   +"<td>"+fmtP(pct)+"</td>"
+   +"<td><div class='pct-bar'><div class='pct-fill' style='width:"+Math.min(pct,100)+"%'></div></div></td>"
+   +"</tr>";
+ });
+ if(total){
+  html+="<tr class='total-row'>"
+   +"<td></td><td>TOTAL GERAL</td>"
+   +"<td>"+fmtN(total.Itens)+"</td>"
+   +"<td>"+fmtN(total.SKUs)+"</td>"
+   +"<td>"+fmtN(Math.round(total.Qtd_Total))+"</td>"
+   +"<td>"+fmtR(total.Valor_Total)+"</td>"
+   +"<td>100%</td><td></td></tr>";
+ }
+ document.getElementById("tbody").innerHTML=html;
+}
+
+function renderChartLoja(lojaFiltro,compFiltro){
+ var lojas=["1","2","3","4","5","6","7","8","9","11","12","13","14","15","16","17","18","56"];
+ var vals=[];
+ lojas.forEach(function(l){
+  var dl=MD.filter(function(d){return d.LOJA===l});
+  if(compFiltro!=="TODOS"){
+   var cr=dl.filter(function(d){return d.COMPRADOR===compFiltro});
+   vals.push(cr.length>0?cr[0].Valor_Total:0);
+  }else{
+   var t=dl.find(function(d){return d.COMPRADOR==="TOTAL GERAL"});
+   vals.push(t?t.Valor_Total:0);
+  }
+ });
+ var colors=lojas.map(function(l){return l===lojaFiltro?"#f472b6":"#a78bfa"});
+ var trace={
+  x:lojas.map(function(l){return"Loja "+l}),
+  y:vals,type:"bar",
+  marker:{color:colors,line:{color:"rgba(139,92,246,0.5)",width:1}},
+  text:vals.map(function(v){return fmtR(v)}),textposition:"outside",
+  textfont:{color:"#e1e4e8",size:11},
+  hovertemplate:"Loja %{x}<br>%{text}<extra></extra>"
+ };
+ var layout={
+  paper_bgcolor:"transparent",plot_bgcolor:"transparent",
+  font:{color:"#8b949e",family:"Inter"},
+  xaxis:{gridcolor:"#21262d",title:""},
+  yaxis:{gridcolor:"#21262d",title:"Valor (R$)",tickformat:",.0f"},
+  margin:{l:80,r:20,t:20,b:60},
+  showlegend:false
+ };
+ Plotly.react("chart-loja",[trace],layout,{displayModeBar:false,responsive:true});
+}
+
+function renderChartRank(rows){
+ var top=rows.slice(0,15);
+ top.reverse();
+ var trace={
+  y:top.map(function(r){return r.COMPRADOR}),
+  x:top.map(function(r){return r.Valor_Total}),
+  type:"bar",orientation:"h",
+  marker:{color:top.map(function(r,i){
+   var t=top.length;
+   var h=280-((t-1-i)/Math.max(t-1,1))*200;
+   return"hsl("+h+",70%,60%)"
+  }),line:{color:"rgba(139,92,246,0.3)",width:1}},
+  text:top.map(function(r){return fmtR(r.Valor_Total)}),textposition:"outside",
+  textfont:{color:"#e1e4e8",size:11},
+  hovertemplate:"%{y}<br>%{text}<extra></extra>"
+ };
+ var layout={
+  paper_bgcolor:"transparent",plot_bgcolor:"transparent",
+  font:{color:"#8b949e",family:"Inter"},
+  xaxis:{gridcolor:"#21262d",title:"Valor Total Quebra (R$)",tickformat:",.0f"},
+  yaxis:{gridcolor:"#21262d",automargin:true},
+  margin:{l:200,r:100,t:10,b:50},
+  showlegend:false
+ };
+ Plotly.react("chart-rank",[trace],layout,{displayModeBar:false,responsive:true});
+}
+
+window.onload=att;
+</script>
+</body>
+</html>
