@@ -25,15 +25,15 @@ def principal():
 
     # Saneamento (Regra 65)
     cols_saneamento = ['QUANTIDADE_DISPONIVEL', 'EMBL_COMPRA', 'EMBL_TRANSFERENCIA', 
-                       'QTD_PEND_PEDCOMPRA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA_PERIODO']
+                       'QTD_PEND_PEDCOMPRA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA']
     
     for col in cols_saneamento:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '.', regex=False)
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    if 'QTD_VENDIDA_PERIODO' not in df.columns:
-        df['QTD_VENDIDA_PERIODO'] = 0
+    if 'QTD_VENDIDA' not in df.columns:
+        df['QTD_VENDIDA'] = 0
 
     print("Gerando flags booleanas...")
     df['is_rup_cd'] = (df['CODIGO_EMPRESA'] == 15) & ((df['QUANTIDADE_DISPONIVEL'] <= 0) | (df['QUANTIDADE_DISPONIVEL'] < df['EMBL_TRANSFERENCIA']))
@@ -46,7 +46,7 @@ def principal():
     df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
         ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
         PEDIDOS=('QTD_PEND_PEDCOMPRA', 'sum'),
-        VENDA=('QTD_VENDIDA_PERIODO', 'sum'),
+        VENDA=('QTD_VENDIDA', 'sum'),
         RUP_CD=('is_rup_cd', 'max'),
         RUP_LOJA=('is_rup_loja', 'max'),
         RUP_NEG=('is_rup_neg', 'max'),
@@ -169,7 +169,7 @@ def principal():
                             <th class="cd-column">Estoque CD 15</th>
                             <th id="header-estoque">Estoque Local</th>
                             <th id="header-pedidos">Pedidos Local</th>
-                            <th id="header-venda">Venda 30D (Local)</th>
+                            <th id="header-venda">Qtd. Vendida (Local)</th>
                         </tr>
                     </thead>
                     <tbody id="tabela-body">
@@ -196,7 +196,7 @@ def principal():
             // Atualizar headers da tabela
             document.getElementById("header-estoque").innerText = (loja === "TODAS") ? "Estoque TOTAL (Rede)" : "Estoque na Loja " + loja;
             document.getElementById("header-pedidos").innerText = (loja === "TODAS") ? "Pedidos TOTAL (Rede)" : "Pedidos na Loja " + loja;
-            document.getElementById("header-venda").innerText = (loja === "TODAS") ? "Venda TOTAL (Rede)" : "Venda na Loja " + loja;
+            document.getElementById("header-venda").innerText = (loja === "TODAS") ? "Qtd. Vendida (Rede)" : "Qtd. Vendida Loja " + loja;
 
             if (!visaoAtual) {
                 mudarVisao('RUPTURA_LOJA');
@@ -357,7 +357,7 @@ def principal():
                 'Lojas c/ Est e Pedido': ", ".join(lojas_est_ped),
                 'Estoque Local (Rede)': est_loc,
                 'Pedidos Local (Rede)': ped_loc,
-                'Venda 30D (Rede)': vda_loc
+                'Qtd. Vendida (Rede)': vda_loc
             })
             
         df_comp = pd.DataFrame(rows_excel)
