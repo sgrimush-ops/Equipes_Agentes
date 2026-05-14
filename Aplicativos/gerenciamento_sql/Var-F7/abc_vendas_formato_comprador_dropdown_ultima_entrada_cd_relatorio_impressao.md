@@ -1,6 +1,60 @@
 # Var-F7 - abc_vendas_formato_comprador_dropdown_ultima_entrada_cd_relatorio_impressao
 
 ## Query vinculada
+- Arquivo SQL: [Aplicativos/gerenciamento_sql/querys/abc_vendas_formato_comprador_dropdown_ultima_entrada_cd_relatorio_impressao.sql](Aplicativos/gerenciamento_sql/querys/abc_vendas_formato_comprador_dropdown_ultima_entrada_cd_relatorio_impressao.sql)
+
+## Objetivo
+Consulta de ABC por fornecedor, subgrupo e produto, com custo bruto/Custo NF parametrizado pela loja de origem do custo. O filtro novo afeta apenas o custo; o restante da consulta permanece no desenho atual.
+
+## Variáveis para cadastrar em Var-F7
+
+### DT1
+- Tipo: Data
+- Descrição: Data Inicial Venda
+
+### DT2
+- Tipo: Data
+- Descrição: Data Final Venda
+
+### LT2
+- Tipo: Literal
+- Descrição: Código Fornecedor
+- Valor padrão: 0
+- Regra: informar apenas números; 0 = todos
+
+### LS3
+- Tipo: Lista
+- Descrição: Comprador
+- Tipo de retorno: Texto único
+- Valor padrão: 0 - TODOS
+- Regra: selecionar pela lista no formato código - apelido
+
+### NR1
+- Tipo: Numérico
+- Descrição: Qtd Vendida Maior Que
+- Valor padrão: 0
+
+### NR2
+- Tipo: Numérico
+- Descrição: Loja de origem do custo
+- Valor padrão: 3
+- Regra: informe a loja que deve ser usada para calcular o custo bruto/Custo NF
+
+## Passo a passo curto
+1. Abrir a tela Consulta Criacao.
+2. Cadastrar a SQL desta consulta.
+3. Abrir Var - F7 e cadastrar DT1, DT2, LT2, LS3, NR1 e NR2.
+4. Deixar NR2 com valor 3 para manter o comportamento atual, ou trocar para a loja desejada.
+5. Salvar as variáveis.
+6. Informar as datas, o fornecedor, o comprador, a quantidade mínima e a loja de custo.
+7. Executar a consulta.
+
+## Observações
+- O filtro de NR2 altera apenas a origem do custo bruto em MRL_PRODUTOEMPRESA.CMULTVLRNF.
+- O preço de venda continua vindo da loja 3, como já estava homologado.
+- O filtro de comprador continua no formato codigo - apelido.
+
+## Query vinculada
 - Arquivo SQL: Aplicativos/gerenciamento_sql/querys/abc_vendas_formato_comprador_dropdown_ultima_entrada_cd_relatorio_impressao.sql
 
 ## Objetivo
