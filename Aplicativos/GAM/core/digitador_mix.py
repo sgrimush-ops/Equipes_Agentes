@@ -344,13 +344,35 @@ class MixProcessor:
                 teve_popup = False
                 try:
                     import pygetwindow as gw
+
+                    def pausar_apos_confirmacao_popup():
+                        if not pause_event:
+                            return False
+
+                        pause_event.set()
+                        if update_callback:
+                            update_callback({
+                                'status': 'PAUSADO - Popup de manutenção de família detectado',
+                                'log': f"⚠ Popup confirmado com 'S' em '{prod_str}'. Aguardando despausar para continuar..."
+                            })
+
+                        while pause_event.is_set() and not (stop_event and stop_event.is_set()):
+                            time.sleep(0.5)
+
+                        if stop_event and stop_event.is_set():
+                            return True
+
+                        if update_callback:
+                            update_callback({'status': f"Retomando após popup de família ({prod_str})"})
+                        return False
                     
                     # Popup de Atenção padrão
                     atn = [w for w in gw.getWindowsWithTitle("Atenção") if w.visible]
                     if atn: 
                         teve_popup = True
                         pyautogui.press('s')
-                        time.sleep(1.2)
+                        if pausar_apos_confirmacao_popup():
+                            break
                     
                     # Popup de família (caracteres especiais na descrição)
                     # Títulos comuns: "Confirmação", "Família", "Caractere", "Erro"
@@ -363,10 +385,11 @@ class MixProcessor:
                     
                     if popup_familia:
                         print(f"[MixProcessor] Popup de família detectado para '{prod_str}'. Tratando...")
-                        if self.familia_cleaner.execute_cleanup_flow(desc_str):
-                            if update_callback:
-                                update_callback({'log': f"✓ Popup de família tratado em '{prod_str}'"})
-                        time.sleep(0.5)
+                        # Se não houve popup de Atenção antes, confirma com 'S' e pausa imediatamente.
+                        if not atn:
+                            pyautogui.press('s')
+                            if pausar_apos_confirmacao_popup():
+                                break
                 except: pass
                 
                 # --- TRAVA DE SEGURANÇA BASEADA EM DIFERENÇA DE IMAGEM ---
