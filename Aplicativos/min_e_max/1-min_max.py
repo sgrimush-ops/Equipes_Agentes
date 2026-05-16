@@ -1,3 +1,36 @@
+# Função para converter arquivo intermediário para CSV
+def converter_para_csv(arquivo_parquet=None):
+    """
+    Lê o arquivo query.parquet e exporta resultado.csv, sem recalcular mínimos/máximos.
+    """
+    if arquivo_parquet is None:
+        arquivo_parquet = Path(__file__).parent.parent / 'import_querys' / 'query.parquet'
+    else:
+        arquivo_parquet = Path(arquivo_parquet)
+    if not arquivo_parquet.exists():
+        print(f"ERRO: O arquivo '{arquivo_parquet}' não foi encontrado.")
+        return
+    print(f"Lendo dados de '{arquivo_parquet.name}'...")
+    try:
+        df = pd.read_parquet(arquivo_parquet)
+    except Exception as e:
+        print(f"Erro ao ler Parquet: {e}")
+        return
+    # Ordena se possível
+    if 'CODIGO_PRODUTO' in df.columns and 'CODIGO_EMPRESA' in df.columns:
+        df = df.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
+    arquivo_saida = Path('resultado.csv')
+    try:
+        df.to_csv(
+            arquivo_saida,
+            sep=';',
+            encoding='utf-8-sig',
+            index=False,
+            decimal=',',
+        )
+        print(f"Exportação concluída: {arquivo_saida.name}")
+    except Exception as e:
+        print(f"Erro ao exportar CSV: {e}")
 import pandas as pd
 import math
 import os
@@ -86,37 +119,6 @@ def calcular_min_max(row, dias_relatorio):
         regra_maximo,
     ])
 
-def converter_para_parquet(arquivo_csv='resultado.csv'):
-    """
-    Lê o resultado.csv e gera o resultado.parquet para o GAM.
-    Incorporado de reajuste_digitar.py.
-    """
-    arquivo_csv = Path(arquivo_csv)
-    if not arquivo_csv.exists():
-        print(f"ERRO: O arquivo '{arquivo_csv.name}' não foi encontrado.")
-        return
-        
-    print(f"Lendo dados de '{arquivo_csv.name}'...")
-    try:
-        df = pd.read_csv(arquivo_csv, sep=';', encoding='utf-8-sig', decimal=',')
-    except Exception as e:
-        print(f"Erro ao ler CSV: {e}")
-        return
-        
-    arquivo_parquet = Path('resultado.parquet')
-    print(f"Convertendo e salvando em '{arquivo_parquet.name}'...")
-    
-    try:
-        # Tenta com pyarrow (padrão Rules)
-        df.to_parquet(arquivo_parquet, engine='pyarrow', index=False)
-        print("Sucesso! O arquivo 'resultado.parquet' foi gerado corretamente e já pode ser lido pelo GAM.")
-    except Exception as e:
-        print(f"Aviso: Erro com pyarrow ({e})\nTentando fallback com fastparquet...")
-        try:
-            df.to_parquet(arquivo_parquet, engine='fastparquet', index=False)
-            print("Sucesso usando fastparquet!")
-        except Exception as err:
-            print(f"Erro catastrófico ao gerar parquet: {err}")
 
 
 def solicitar_dias_relatorio():
@@ -158,6 +160,17 @@ def processar_calculos():
     if 'ATIVO_COMPRA' in df.columns:
         print("Filtrando apenas produtos ATIVOS para as lojas...")
         df = df[df['ATIVO_COMPRA'] == 'A'].copy()
+    else:
+        print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada. Todos os itens serão considerados ativos!")
+
+    # Remove CDs (empresa 15) do cálculo e exportação
+    if 'CODIGO_EMPRESA' in df.columns:
+        antes = len(df)
+        df = df[df['CODIGO_EMPRESA'] != 15].copy()
+        depois = len(df)
+        print(f"Removidos {antes - depois} registros de CDs (empresa 15) do cálculo e exportação.")
+    else:
+        print("[AVISO] Coluna 'CODIGO_EMPRESA' não encontrada. Não foi possível remover CDs.")
     
     # 1. Aplicando Regra Global nº 6 (Saneamento de Inteiros)
     print("Saneando extração de embalagens e ajustando preenchimentos...")
@@ -213,23 +226,7 @@ def processar_calculos():
         axis=1,
     )
     
-    # 3. Regra de Negócio que preserva Loja 15 recebe a soma das outras filiais do CD
-    print("Projetando equivalências para o Centro de Distribuição (Loja 15)...")
-    df_outras = df[df['CODIGO_EMPRESA'] != 15]
-    somas_produto = df_outras.groupby('CODIGO_PRODUTO')[['NOVO_MINIMO', 'NOVO_MAXIMO']].sum()
-    
-    mapa_soma_min = somas_produto['NOVO_MINIMO'].to_dict()
-    mapa_soma_max = somas_produto['NOVO_MAXIMO'].to_dict()
-    
-    mask_15 = df['CODIGO_EMPRESA'] == 15
-    df.loc[mask_15, 'NOVO_MINIMO'] = df.loc[mask_15, 'CODIGO_PRODUTO'].map(mapa_soma_min).fillna(0).astype(int)
-    df.loc[mask_15, 'NOVO_MAXIMO'] = df.loc[mask_15, 'CODIGO_PRODUTO'].map(mapa_soma_max).fillna(0).astype(int)
-    
-    df['NOVO_MINIMO'] = df['NOVO_MINIMO'].astype(int)
-    df['NOVO_MAXIMO'] = df['NOVO_MAXIMO'].astype(int)
-    
-    df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df.get('QUANTIDADE_ESTOQUE_MINIMO', 0), errors='coerce').fillna(0).astype(int)
-    df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df.get('QUANTIDADE_ESTOQUE_MAXIMO', 0), errors='coerce').fillna(0).astype(int)
+    # 3. Não há mais cálculo ou sugestão para CDs (empresa 15) — já removidos acima
     
     # 4. Input Terminal
     print("\n" + "="*50)
@@ -249,6 +246,9 @@ def processar_calculos():
         
     if opcao == '1':
         print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO (Diferença > 5 unidades)...")
+        # Garante que as colunas estejam como inteiro para o filtro
+        df['NOVO_MINIMO'] = pd.to_numeric(df['NOVO_MINIMO'], errors='coerce').fillna(0).astype(int)
+        df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
         df_resultado = df[df['NOVO_MINIMO'] > (df['QUANTIDADE_ESTOQUE_MINIMO'] + 5)].copy()
     else:
         print("\n=> Exportando a totalidade dos produtos analisados...")
@@ -266,16 +266,45 @@ def processar_calculos():
 
     print(f"Total de linhas prontas para exportação: {len(df_resultado)}")
     
-    # 5. Organiza as colunas limpas
+    # 5. Refaz o filtro de ativos para garantir que só exporta produtos ativos
+    if 'ATIVO_COMPRA' in df_resultado.columns:
+        antes = len(df_resultado)
+        df_resultado = df_resultado[df_resultado['ATIVO_COMPRA'] == 'A'].copy()
+        depois = len(df_resultado)
+        print(f"Filtro final de ativos: {antes} → {depois} linhas ativas exportadas.")
+    else:
+        print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada no resultado. Exportando todos os itens!")
+
+    # Adiciona coluna 'Status' como última coluna, baseada em ATIVO_COMPRA se existir
     colunas_finais = [
         'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
         'CODIGO_EMPRESA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
         'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
         'REGRA_MINIMO', 'REGRA_MAXIMO'
     ]
-    
     cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
-    df_export = df_resultado[cols_existentes]
+    df_export = df_resultado[cols_existentes].copy()
+    # Garante que a coluna Status sempre traga o valor de STATUS_COMPRA da query.parquet
+    if 'STATUS_COMPRA' in df.columns:
+        # Realinha pelo índice original para garantir correspondência
+        status_map = df['STATUS_COMPRA']
+        # Se o índice mudou, faz o merge pelo identificador
+        if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
+            df_export = df_export.merge(
+                df[['CODIGO_PRODUTO', 'CODIGO_EMPRESA', 'STATUS_COMPRA']],
+                on=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'],
+                how='left',
+                suffixes=('', '_orig')
+            )
+            df_export['Status'] = df_export['STATUS_COMPRA']
+            df_export = df_export.drop(columns=[c for c in df_export.columns if c.startswith('STATUS_COMPRA') and c != 'Status'])
+        else:
+            df_export['Status'] = status_map
+    else:
+        df_export['Status'] = 'DESCONHECIDO'
+    # Ordena pelo código do produto e depois pela empresa
+    if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
+        df_export = df_export.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
     
     print("Exportando os resultados para 'resultado.csv' para conferência humana...")
     arquivo_saida = Path('resultado.csv')
@@ -304,10 +333,6 @@ def processar_calculos():
             decimal=',',
         )
     
-    # 6. Chama a conversão direta (Antigo reajuste_digitar.py)
-    print("\nInvocando pipeline de conversão para Parquet...")
-    converter_para_parquet(arquivo_saida)
-        
     print("\n[✓] Trabalho finalizado de ponta a ponta com sucesso!")
 
 if __name__ == "__main__":
@@ -315,18 +340,6 @@ if __name__ == "__main__":
     print("\n" + "="*50)
     print("       GERENCIADOR DE ESTOQUE MÍNIMO E MÁXIMO")
     print("="*50)
-    print("[1] - Executar Script Completo (Cálculos + Conversão)")
-    print("[2] - Apenas Converter 'resultado.csv' para Parquet")
-    print("="*50)
-    
-    while True:
-        modo = input("-> Escolha o modo de operação (1 ou 2): ").strip()
-        if modo in ['1', '2']:
-            break
-        print("x Opção inválida. Digite 1 ou 2.")
-        
-    if modo == '1':
-        processar_calculos()
-    else:
-        converter_para_parquet()
+    print("Executando cálculo completo (Cálculos + Exportação)...")
+    processar_calculos()
 
