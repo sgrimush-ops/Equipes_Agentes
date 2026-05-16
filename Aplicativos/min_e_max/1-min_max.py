@@ -165,7 +165,6 @@ def processar_calculos():
 
     colunas_venda_possiveis = [
         'QTD_VENDIDA_PERIODO',
-        'QTD_VENDIDA_30D',
         'QTD_VENDIDA',
     ]
     coluna_venda = next((c for c in colunas_venda_possiveis if c in df.columns), None)
@@ -173,7 +172,7 @@ def processar_calculos():
     if not coluna_venda:
         print(
             'Erro: coluna de venda nao encontrada. '
-            'Esperado uma entre: QTD_VENDIDA_PERIODO, QTD_VENDIDA_30D, QTD_VENDIDA.'
+            'Esperado uma entre: QTD_VENDIDA_PERIODO, QTD_VENDIDA.'
         )
         return
 
@@ -269,9 +268,9 @@ def processar_calculos():
     
     # 5. Organiza as colunas limpas
     colunas_finais = [
-        'DESCRICAO_PRODUTO', 'CODIGO_PRODUTO', 'CODIGO_EMPRESA',
-        'EMBL_TRANSFERENCIA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
-        'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
+        'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
+        'CODIGO_EMPRESA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
+        'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
         'REGRA_MINIMO', 'REGRA_MAXIMO'
     ]
     
