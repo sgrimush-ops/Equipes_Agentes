@@ -234,13 +234,74 @@ class MixProcessor:
                 
                 lojas_forcar_inativo = ["009", "010", "016" ] #"020", "021", "022", "023","050", "900", "901", "902"]
                 lista_cds = ["015", "016", "050"]
+                # Grupos de lojas
+                grupos_lojas = {
+                    'PP': ["001"],
+                    'P': ["004", "005", "007"],
+                    'M': ["008", "013", "014"],
+                    'G': ["002", "006", "011", "012", "017", "018"],
+                    'GG': ["003"]
+                }
+                # Lista fixa das 14 lojas de venda
+                lojas_venda_fixas = [loja for grupo in grupos_lojas.values() for loja in grupo]
+                # Monta o mapa de status das lojas de venda para o produto
+                lojas_venda_status = {loja: status_map.get(loja) for loja in lojas_venda_fixas}
+                # Só considera todas inativas se todas as 14 lojas estão presentes E todas com 'I'
+                todas_lojas_venda_inativas = all(
+                    (lojas_venda_status[loja] == 'I') for loja in lojas_venda_fixas
+                )
 
-                # Regra: se todas as lojas de venda da planilha estão com 'I', inativar CDs também
-                cds_num = {cd.lstrip('0') for cd in lista_cds}
-                lojas_venda_no_mapa = {k: v for k, v in status_map.items()
-                                       if k.lstrip('0') and k.lstrip('0') not in cds_num
-                                       and k.upper() not in ('CD', 'TC', 'TA', 'TI', 'G', 'M', 'P', '')}
-                todas_lojas_venda_inativas = bool(lojas_venda_no_mapa) and all(v == 'I' for v in lojas_venda_no_mapa.values())
+                # --- REGRA DE ESCALONAMENTO PARA INATIVAÇÃO DOS GRUPOS ---
+                # 1. Apura status de cada grupo
+                status_grupos = {}
+                for grupo, lojas in grupos_lojas.items():
+                    status_set = set()
+                    for loja in lojas:
+                        st = status_map.get(loja)
+                        if st:
+                            status_set.add(st)
+                    # Prioridade: se houver "A", prevalece sobre "I"
+                    if "A" in status_set:
+                        status_grupos[grupo] = "A"
+                    elif "I" in status_set and len(status_set) > 0:
+                        status_grupos[grupo] = "I"
+                    else:
+                        status_grupos[grupo] = None
+
+                # 2. Escalonamento de inativação
+                # Se GG=I então G, M, P também = I (PP isolado)
+                if status_grupos.get('GG') == 'I':
+                    for grupo in ['GG', 'G', 'M', 'P']:
+                        for loja in grupos_lojas[grupo]:
+                            status_map[loja] = 'I'
+                # Se G=I então M,P=I
+                elif status_grupos.get('G') == 'I':
+                    for grupo in ['M', 'P']:
+                        for loja in grupos_lojas[grupo]:
+                            status_map[loja] = 'I'
+                # Se M=I então P=I
+                elif status_grupos.get('M') == 'I':
+                    for loja in grupos_lojas['P']:
+                        status_map[loja] = 'I'
+
+                # 3. Após escalonamento, aplica status dominante dentro de cada grupo (exceto PP)
+                for grupo, lojas in grupos_lojas.items():
+                    if grupo == 'PP':
+                        continue  # PP é isolada
+                    status_set = set()
+                    for loja in lojas:
+                        st = status_map.get(loja)
+                        if st:
+                            status_set.add(st)
+                    if status_set:
+                        if "A" in status_set:
+                            status_final = "A"
+                        elif "I" in status_set:
+                            status_final = "I"
+                        else:
+                            status_final = list(status_set)[0]
+                        for loja in lojas:
+                            status_map[loja] = status_final
 
                 lojas_grandes = ["002", "003", "006", "011", "012", "017", "018"]
                 lojas_medias = ["008", "013", "014"]
