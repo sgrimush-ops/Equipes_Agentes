@@ -1,0 +1,22 @@
+[
+  {
+    "forma_pagamento_detectada": "BOLETO BANCARIO",
+    "quantidade": 80
+  },
+  {
+    "forma_pagamento_detectada": "DEPOSITO CONTA CORRENTE",
+    "quantidade": 68
+  },
+  {
+    "forma_pagamento_detectada": "BONIFICACAO EM PRODUTO",
+    "quantidade": 64
+  },
+  {
+    "forma_pagamento_detectada": "DESCONTO EM DUPLICATAS",
+    "quantidade": 58
+  },
+  {
+    "forma_pagamento_detectada": "FACTORING",
+    "quantidade": 1
+  }
+]

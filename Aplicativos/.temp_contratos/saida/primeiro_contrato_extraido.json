@@ -1,0 +1,12 @@
+{
+  "arquivo_pdf": "A.CICONETTCONGELADOS.pdf",
+  "fornecedor_nome": "A.CICONETTCONGELADOS",
+  "cnpj": "09272.739/0001-27",
+  "prazo_pagamento_dias": 45,
+  "forma_pagamento": "BOLETO BANCARIO",
+  "bonus_percentual": 3.0,
+  "cobranca_bonus": "MENSAL",
+  "forma_pagamento_bonus": "DESCONTO BOLETO BANCARIO",
+  "politica_trocas": "DEVOLUCAO NOTA FISCAL",
+  "observacoes_extracao": "Prototipo OCR da primeira pagina. Ajustar regex e recortes conforme novos contratos."
+}

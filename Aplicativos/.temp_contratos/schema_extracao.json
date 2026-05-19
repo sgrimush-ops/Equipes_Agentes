@@ -1,0 +1,271 @@
+{
+  "versao": 2,
+  "descricao": "Schema consolidado para extracao de contratos comerciais em PDF com foco em fornecedor, pagamento e investimentos.",
+  "fonte": "contratospdf",
+  "colunas_excel": [
+    "arquivo_pdf",
+    "layout_tipo",
+    "fornecedor_nome",
+    "cnpj",
+    "codigo_fornecedor_consinco",
+    "fornecedor_descricao_atual",
+    "a_receber",
+    "dias_de_atraso",
+    "data_assinatura",
+    "ano_assinatura",
+    "prazo_pagamento_dias",
+    "forma_pagamento",
+    "formas_pagamento_detectadas",
+    "bonus_percentual",
+    "cobranca_bonus",
+    "forma_pagamento_bonus",
+    "politica_trocas",
+    "beneficios_detectados",
+    "descontos_beneficios_detectados",
+    "investimento_bonus_comercial",
+    "investimento_bonus_percentual",
+    "investimento_bonus_cobranca",
+    "investimento_bonus_forma_pagamento",
+    "investimento_politica_trocas",
+    "tipos_investimento_detectados",
+    "observacoes_extracao"
+  ],
+  "tipos_investimento": [
+    {
+      "nome": "BONUS_COMERCIAL",
+      "descricao": "Bonus ou verba comercial acordada em percentual sobre compras."
+    },
+    {
+      "nome": "POLITICA_TROCAS",
+      "descricao": "Regra de devolucao ou troca para mercadorias sem comercializacao."
+    },
+    {
+      "nome": "VERBA_ANIVERSARIO",
+      "descricao": "Beneficio ligado a campanhas de aniversario ou acoes promocionais sazonais."
+    },
+    {
+      "nome": "APOIO_LOGISTICO",
+      "descricao": "Apoio operacional ou logistico como promotor, codigo, EAN ou EDI."
+    }
+  ],
+  "campos": [
+    {
+      "nome": "arquivo_pdf",
+      "rotulo": "Arquivo do contrato",
+      "tipo": "texto",
+      "obrigatorio": true,
+      "origem": "nome do arquivo"
+    },
+    {
+      "nome": "layout_tipo",
+      "rotulo": "Layout identificado do contrato",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "ocr pagina inteira"
+    },
+    {
+      "nome": "fornecedor_nome",
+      "rotulo": "Razao social ou nome fantasia",
+      "tipo": "texto",
+      "obrigatorio": true,
+      "origem": "secao cadastro fornecedor",
+      "palavras_chave": [
+        "Fornecedor"
+      ]
+    },
+    {
+      "nome": "cnpj",
+      "rotulo": "CNPJ do fornecedor",
+      "tipo": "texto",
+      "obrigatorio": true,
+      "origem": "secao cadastro fornecedor",
+      "palavras_chave": [
+        "CNPJ"
+      ]
+    },
+    {
+      "nome": "a_receber",
+      "rotulo": "Valor em aberto encontrado no relatorio de contas a receber",
+      "tipo": "decimal",
+      "obrigatorio": false,
+      "origem": "cruzamento com relatorio contas a receber"
+    },
+    {
+      "nome": "codigo_fornecedor_consinco",
+      "rotulo": "Codigo atual do fornecedor no Consinco",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "cadastro local cruzado por CNPJ ou nome do fornecedor"
+    },
+    {
+      "nome": "fornecedor_descricao_atual",
+      "rotulo": "Descricao atual do fornecedor no Consinco",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "cadastro local cruzado por CNPJ ou nome do fornecedor"
+    },
+    {
+      "nome": "dias_de_atraso",
+      "rotulo": "Maior quantidade de dias de atraso encontrada no relatorio financeiro",
+      "tipo": "inteiro",
+      "obrigatorio": false,
+      "origem": "cruzamento com relatorio contas a receber"
+    },
+    {
+      "nome": "data_assinatura",
+      "rotulo": "Data identificada na pagina de assinatura do contrato",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "pagina final do contrato"
+    },
+    {
+      "nome": "ano_assinatura",
+      "rotulo": "Ano da assinatura do contrato",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "pagina final do contrato"
+    },
+    {
+      "nome": "prazo_pagamento_dias",
+      "rotulo": "Prazo de pagamento em dias",
+      "tipo": "inteiro",
+      "obrigatorio": false,
+      "origem": "secao condicoes de pagamento",
+      "palavras_chave": [
+        "Prazo de Pagamento",
+        "Dias"
+      ]
+    },
+    {
+      "nome": "forma_pagamento",
+      "rotulo": "Forma de pagamento principal",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "secao condicoes de pagamento",
+      "palavras_chave": [
+        "Forma de Pagamento",
+        "Boleto Bancario",
+        "Deposito Conta Corrente"
+      ]
+    },
+    {
+      "nome": "formas_pagamento_detectadas",
+      "rotulo": "Todas as formas de pagamento encontradas no contrato",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "primeira e ultima pagina"
+    },
+    {
+      "nome": "bonus_percentual",
+      "rotulo": "Bonus percentual referente as compras",
+      "tipo": "decimal",
+      "obrigatorio": false,
+      "origem": "secao acordos comerciais",
+      "palavras_chave": [
+        "Bonus",
+        "%",
+        "Percentual"
+      ]
+    },
+    {
+      "nome": "cobranca_bonus",
+      "rotulo": "Periodicidade da cobranca do bonus",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "secao acordos comerciais",
+      "palavras_chave": [
+        "Cobranca",
+        "Mensal",
+        "Trimestral",
+        "Semestral"
+      ]
+    },
+    {
+      "nome": "forma_pagamento_bonus",
+      "rotulo": "Forma de pagamento do bonus",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "secao acordos comerciais",
+      "palavras_chave": [
+        "Desconto Boleto Bancario",
+        "Bonificacao em produto",
+        "Deposito Conta Corrente"
+      ]
+    },
+    {
+      "nome": "politica_trocas",
+      "rotulo": "Politica de devolucao e troca",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "secao politica de devolucao e troca",
+      "palavras_chave": [
+        "Devolucao",
+        "Troca",
+        "Nota Fiscal"
+      ]
+    },
+    {
+      "nome": "beneficios_detectados",
+      "rotulo": "Beneficios e verbas detectados no contrato",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "primeira e ultima pagina"
+    },
+    {
+      "nome": "descontos_beneficios_detectados",
+      "rotulo": "Descontos e beneficios financeiros detectados",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "primeira e ultima pagina"
+    },
+    {
+      "nome": "investimento_bonus_comercial",
+      "rotulo": "Indicador de bonus comercial",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "derivado"
+    },
+    {
+      "nome": "investimento_bonus_percentual",
+      "rotulo": "Bonus percentual consolidado",
+      "tipo": "decimal",
+      "obrigatorio": false,
+      "origem": "derivado"
+    },
+    {
+      "nome": "investimento_bonus_cobranca",
+      "rotulo": "Periodicidade do bonus consolidada",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "derivado"
+    },
+    {
+      "nome": "investimento_bonus_forma_pagamento",
+      "rotulo": "Forma de pagamento do bonus consolidada",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "derivado"
+    },
+    {
+      "nome": "investimento_politica_trocas",
+      "rotulo": "Politica de trocas consolidada",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "derivado"
+    },
+    {
+      "nome": "tipos_investimento_detectados",
+      "rotulo": "Tipos de investimento detectados",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "derivado"
+    },
+    {
+      "nome": "observacoes_extracao",
+      "rotulo": "Observacoes do extrator",
+      "tipo": "texto",
+      "obrigatorio": false,
+      "origem": "processamento"
+    }
+  ]
+}
