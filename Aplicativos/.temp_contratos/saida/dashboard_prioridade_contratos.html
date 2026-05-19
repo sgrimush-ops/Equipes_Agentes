@@ -1,0 +1,222 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard de Contratos Prioritarios</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --paper: #fffaf2;
+      --ink: #1d1a16;
+      --muted: #6f675f;
+      --line: #d9c9b6;
+      --accent: #9c3d1f;
+      --accent-2: #d8a94a;
+      --ok: #476c51;
+      --danger: #a42b2b;
+      --danger-soft: #fce7e5;
+      --shadow: 0 18px 40px rgba(71, 48, 22, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(216,169,74,.18), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(156,61,31,.12), transparent 26%),
+        var(--bg);
+    }
+    .shell {
+      max-width: 1460px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .hero {
+      background: linear-gradient(135deg, rgba(255,250,242,.94), rgba(247,239,226,.98));
+      border: 1px solid rgba(217,201,182,.9);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -60px -80px auto;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(216,169,74,.25), rgba(216,169,74,0));
+      pointer-events: none;
+    }
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      letter-spacing: .24em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 4vw, 56px);
+      line-height: 1.02;
+      max-width: 860px;
+    }
+    .hero p {
+      max-width: 860px;
+      font-size: 18px;
+      line-height: 1.55;
+      color: var(--muted);
+      margin: 14px 0 0;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+    .hero-chip {
+      border: 1px solid rgba(156,61,31,.18);
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,.7);
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 24px 0 18px;
+    }
+    .view-button {
+      border: 1px solid var(--line);
+      background: rgba(255,250,242,.8);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+    .view-button:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .view-button.active {
+      background: linear-gradient(135deg, var(--accent), #7e2b12);
+      border-color: transparent;
+      color: #fff8f2;
+    }
+    .dashboard-view { display: none; animation: fade .18s ease; }
+    .dashboard-view.active { display: block; }
+    @keyframes fade { from {opacity:0; transform: translateY(6px);} to {opacity:1; transform: translateY(0);} }
+    .view-head h2 { margin: 0 0 6px; font-size: 32px; }
+    .view-head p { margin: 0 0 18px; color: var(--muted); font-size: 16px; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .kpi-card, .panel {
+      background: var(--paper);
+      border: 1px solid rgba(217,201,182,.94);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+    .kpi-card { padding: 18px; min-height: 142px; display: flex; flex-direction: column; justify-content: space-between; }
+    .kpi-label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+    .kpi-value { font-size: 34px; line-height: 1; color: var(--accent); }
+    .kpi-help { font-size: 13px; color: var(--muted); line-height: 1.35; }
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .panel { padding: 20px; }
+    .panel h3 { margin: 0 0 14px; font-size: 22px; }
+    .bar-row + .bar-row { margin-top: 12px; }
+    .bar-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; margin-bottom: 6px; }
+    .bar-track { height: 12px; background: rgba(217,201,182,.45); border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .supplier-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .supplier-card {
+      border: 1px solid rgba(217,201,182,.94);
+      border-radius: 18px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.68), rgba(249,240,229,.86));
+    }
+    .supplier-card-problem { border-color: rgba(164,43,43,.35); background: linear-gradient(180deg, rgba(255,248,247,.95), rgba(252,231,229,.85)); }
+    .supplier-rank { font-size: 12px; letter-spacing: .16em; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+    .supplier-card h3 { margin: 0 0 10px; font-size: 20px; min-height: 52px; }
+    .supplier-card p { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.35; }
+    .problem-badges { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; margin-bottom: 4px; }
+    .problem-badge { background: var(--danger-soft); color: var(--danger); border: 1px solid rgba(164,43,43,.18); border-radius: 999px; font-size: 11px; padding: 4px 8px; text-transform: uppercase; letter-spacing: .06em; }
+    .table-panel { overflow: hidden; }
+    .priority-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .priority-table th { text-align: left; padding: 12px 10px; background: rgba(216,169,74,.18); border-bottom: 1px solid var(--line); }
+    .priority-table td { padding: 11px 10px; border-bottom: 1px solid rgba(217,201,182,.6); vertical-align: top; }
+    .priority-table tbody tr:hover { background: rgba(255,248,235,.9); }
+    .priority-table tbody tr.problem-row { background: rgba(252,231,229,.45); }
+    .missing-value { color: var(--danger); font-weight: 700; }
+    .empty-state { padding: 22px; border: 1px dashed var(--line); border-radius: 18px; color: var(--muted); background: rgba(255,255,255,.5); }
+    .footer-note { text-align: right; color: var(--muted); font-size: 13px; margin-top: 18px; }
+    @media (max-width: 1200px) {
+      .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .supplier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .shell { padding: 16px; }
+      .hero { padding: 20px; border-radius: 20px; }
+      .analytics-grid, .kpi-grid, .supplier-grid { grid-template-columns: 1fr; }
+      .priority-table { display: block; overflow-x: auto; white-space: nowrap; }
+      .view-head h2 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <span class="eyebrow">ZContratos</span>
+      <h1>Resumo dos contratos no topo da lista de prioridade</h1>
+      <p>Painel estatico gerado a partir do consolidado atual, destacando primeiro os fornecedores que aparecem na lista de prioridade e exibindo visoes por recorte do topo da fila.</p>
+      <div class="hero-meta">
+        <span class="hero-chip">Contratos priorizados: 17</span>
+        <span class="hero-chip">Gerado em: 20/04/2026 17:54</span>
+        <span class="hero-chip">Fonte: contratos_consolidados.json</span>
+      </div>
+    </section>
+
+    <div class="toolbar"><button class='view-button active' data-view='top10'>Top 10 da prioridade</button><button class='view-button' data-view='top20'>Top 20 da prioridade</button><button class='view-button' data-view='top50'>Top 50 da prioridade</button><button class='view-button' data-view='todos'>Todos os contratos priorizados</button><button class='view-button' data-view='problemas'>Contratos priorizados problematicos</button></div>
+    <section id='view_top10' class='dashboard-view'><div class='view-head'><h2>Top 10 da prioridade</h2><p>10 contrato(s) priorizado(s) neste recorte.</p></div><div class='kpi-grid'><div class='kpi-card'><span class='kpi-label'>Contratos no recorte</span><strong class='kpi-value'>10</strong><span class='kpi-help'>Fornecedores priorizados visiveis</span></div><div class='kpi-card'><span class='kpi-label'>Com CNPJ</span><strong class='kpi-value'>5</strong><span class='kpi-help'>Registros com identificacao fiscal</span></div><div class='kpi-card'><span class='kpi-label'>Pagamento identificado</span><strong class='kpi-value'>3</strong><span class='kpi-help'>Forma de pagamento preenchida</span></div><div class='kpi-card'><span class='kpi-label'>Data de assinatura</span><strong class='kpi-value'>3</strong><span class='kpi-help'>Contratos com data capturada</span></div><div class='kpi-card'><span class='kpi-label'>Com pendencia</span><strong class='kpi-value'>10</strong><span class='kpi-help'>Contratos com layout critico ou campos essenciais faltantes</span></div><div class='kpi-card'><span class='kpi-label'>Bonus medio</span><strong class='kpi-value'>3,7%</strong><span class='kpi-help'>Media entre contratos com percentual preenchido</span></div><div class='kpi-card'><span class='kpi-label'>Prazo medio</span><strong class='kpi-value'>25 dias</strong><span class='kpi-help'>Media entre contratos com prazo preenchido</span></div></div><div class='analytics-grid'><div class='panel'><h3>Layouts detectados</h3><div class='bar-row'><div class='bar-meta'><span>ACORDO_COMERCIAL</span><strong>10</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div></div><div class='panel'><h3>Formas de pagamento</h3><div class='bar-row'><div class='bar-meta'><span>Sem informacao</span><strong>7</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>BOLETO BANCARIO</span><strong>3</strong></div><div class='bar-track'><div class='bar-fill' style='width:43%'></div></div></div></div></div><div class='panel'><h3>Top fornecedores deste recorte</h3><div class='supplier-grid'><article class='supplier-card supplier-card-problem'><div class='supplier-rank'>#2</div><h3>BEBIDAS FRUKI LTDA</h3><div class='problem-badges'><span class='problem-badge'>Sem prazo</span></div><p><strong>Layout:</strong> <span class=''>ACORDO_COMERCIAL</span></p><p><strong>Pagamento:</strong> <span class=''>BOLETO BANCARIO</span></p><p><strong>Bonus:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>Prazo:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>CNPJ:</strong> <span class=''>87.315.099/0001-07</span></p><p><strong>Arquivo:</strong> BEBIDAS FRUKI.pdf</p></article></div></div><div class='panel table-panel'><h3>Tabela resumida</h3><table class='priority-table'><thead><tr><th>Posicao</th><th>Fornecedor</th><th>Layout</th><th>Pagamento</th><th>Bonus %</th><th>Prazo</th><th>Assinatura</th><th>Arquivo PDF</th></tr></thead><tbody><tr class='problem-row'><td>2</td><td>BEBIDAS FRUKI LTDA</td><td class=''>ACORDO_COMERCIAL</td><td class=''>BOLETO BANCARIO</td><td class='missing-value'>Nao informado</td><td class='missing-value'>Nao informado</td><td class=''>18/12/2006</td><td>BEBIDAS FRUKI.pdf</td></tr></tbody></table></div></section><section id='view_top20' class='dashboard-view'><div class='view-head'><h2>Top 20 da prioridade</h2><p>17 contrato(s) priorizado(s) neste recorte.</p></div><div class='kpi-grid'><div class='kpi-card'><span class='kpi-label'>Contratos no recorte</span><strong class='kpi-value'>17</strong><span class='kpi-help'>Fornecedores priorizados visiveis</span></div><div class='kpi-card'><span class='kpi-label'>Com CNPJ</span><strong class='kpi-value'>8</strong><span class='kpi-help'>Registros com identificacao fiscal</span></div><div class='kpi-card'><span class='kpi-label'>Pagamento identificado</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Forma de pagamento preenchida</span></div><div class='kpi-card'><span class='kpi-label'>Data de assinatura</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Contratos com data capturada</span></div><div class='kpi-card'><span class='kpi-label'>Com pendencia</span><strong class='kpi-value'>15</strong><span class='kpi-help'>Contratos com layout critico ou campos essenciais faltantes</span></div><div class='kpi-card'><span class='kpi-label'>Bonus medio</span><strong class='kpi-value'>3,3%</strong><span class='kpi-help'>Media entre contratos com percentual preenchido</span></div><div class='kpi-card'><span class='kpi-label'>Prazo medio</span><strong class='kpi-value'>30 dias</strong><span class='kpi-help'>Media entre contratos com prazo preenchido</span></div></div><div class='analytics-grid'><div class='panel'><h3>Layouts detectados</h3><div class='bar-row'><div class='bar-meta'><span>ACORDO_COMERCIAL</span><strong>16</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>NAO_IDENTIFICADO</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:8%'></div></div></div></div><div class='panel'><h3>Formas de pagamento</h3><div class='bar-row'><div class='bar-meta'><span>Sem informacao</span><strong>11</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>BOLETO BANCARIO</span><strong>5</strong></div><div class='bar-track'><div class='bar-fill' style='width:45%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>DEPOSITO CONTA CORRENTE</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:9%'></div></div></div></div></div><div class='panel'><h3>Top fornecedores deste recorte</h3><div class='supplier-grid'><article class='supplier-card supplier-card-problem'><div class='supplier-rank'>#2</div><h3>BEBIDAS FRUKI LTDA</h3><div class='problem-badges'><span class='problem-badge'>Sem prazo</span></div><p><strong>Layout:</strong> <span class=''>ACORDO_COMERCIAL</span></p><p><strong>Pagamento:</strong> <span class=''>BOLETO BANCARIO</span></p><p><strong>Bonus:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>Prazo:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>CNPJ:</strong> <span class=''>87.315.099/0001-07</span></p><p><strong>Arquivo:</strong> BEBIDAS FRUKI.pdf</p></article></div></div><div class='panel table-panel'><h3>Tabela resumida</h3><table class='priority-table'><thead><tr><th>Posicao</th><th>Fornecedor</th><th>Layout</th><th>Pagamento</th><th>Bonus %</th><th>Prazo</th><th>Assinatura</th><th>Arquivo PDF</th></tr></thead><tbody><tr class='problem-row'><td>2</td><td>BEBIDAS FRUKI LTDA</td><td class=''>ACORDO_COMERCIAL</td><td class=''>BOLETO BANCARIO</td><td class='missing-value'>Nao informado</td><td class='missing-value'>Nao informado</td><td class=''>18/12/2006</td><td>BEBIDAS FRUKI.pdf</td></tr></tbody></table></div></section><section id='view_top50' class='dashboard-view'><div class='view-head'><h2>Top 50 da prioridade</h2><p>17 contrato(s) priorizado(s) neste recorte.</p></div><div class='kpi-grid'><div class='kpi-card'><span class='kpi-label'>Contratos no recorte</span><strong class='kpi-value'>17</strong><span class='kpi-help'>Fornecedores priorizados visiveis</span></div><div class='kpi-card'><span class='kpi-label'>Com CNPJ</span><strong class='kpi-value'>8</strong><span class='kpi-help'>Registros com identificacao fiscal</span></div><div class='kpi-card'><span class='kpi-label'>Pagamento identificado</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Forma de pagamento preenchida</span></div><div class='kpi-card'><span class='kpi-label'>Data de assinatura</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Contratos com data capturada</span></div><div class='kpi-card'><span class='kpi-label'>Com pendencia</span><strong class='kpi-value'>15</strong><span class='kpi-help'>Contratos com layout critico ou campos essenciais faltantes</span></div><div class='kpi-card'><span class='kpi-label'>Bonus medio</span><strong class='kpi-value'>3,3%</strong><span class='kpi-help'>Media entre contratos com percentual preenchido</span></div><div class='kpi-card'><span class='kpi-label'>Prazo medio</span><strong class='kpi-value'>30 dias</strong><span class='kpi-help'>Media entre contratos com prazo preenchido</span></div></div><div class='analytics-grid'><div class='panel'><h3>Layouts detectados</h3><div class='bar-row'><div class='bar-meta'><span>ACORDO_COMERCIAL</span><strong>16</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>NAO_IDENTIFICADO</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:8%'></div></div></div></div><div class='panel'><h3>Formas de pagamento</h3><div class='bar-row'><div class='bar-meta'><span>Sem informacao</span><strong>11</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>BOLETO BANCARIO</span><strong>5</strong></div><div class='bar-track'><div class='bar-fill' style='width:45%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>DEPOSITO CONTA CORRENTE</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:9%'></div></div></div></div></div><div class='panel'><h3>Top fornecedores deste recorte</h3><div class='supplier-grid'><article class='supplier-card supplier-card-problem'><div class='supplier-rank'>#2</div><h3>BEBIDAS FRUKI LTDA</h3><div class='problem-badges'><span class='problem-badge'>Sem prazo</span></div><p><strong>Layout:</strong> <span class=''>ACORDO_COMERCIAL</span></p><p><strong>Pagamento:</strong> <span class=''>BOLETO BANCARIO</span></p><p><strong>Bonus:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>Prazo:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>CNPJ:</strong> <span class=''>87.315.099/0001-07</span></p><p><strong>Arquivo:</strong> BEBIDAS FRUKI.pdf</p></article></div></div><div class='panel table-panel'><h3>Tabela resumida</h3><table class='priority-table'><thead><tr><th>Posicao</th><th>Fornecedor</th><th>Layout</th><th>Pagamento</th><th>Bonus %</th><th>Prazo</th><th>Assinatura</th><th>Arquivo PDF</th></tr></thead><tbody><tr class='problem-row'><td>2</td><td>BEBIDAS FRUKI LTDA</td><td class=''>ACORDO_COMERCIAL</td><td class=''>BOLETO BANCARIO</td><td class='missing-value'>Nao informado</td><td class='missing-value'>Nao informado</td><td class=''>18/12/2006</td><td>BEBIDAS FRUKI.pdf</td></tr></tbody></table></div></section><section id='view_todos' class='dashboard-view'><div class='view-head'><h2>Todos os contratos priorizados</h2><p>17 contrato(s) priorizado(s) neste recorte.</p></div><div class='kpi-grid'><div class='kpi-card'><span class='kpi-label'>Contratos no recorte</span><strong class='kpi-value'>17</strong><span class='kpi-help'>Fornecedores priorizados visiveis</span></div><div class='kpi-card'><span class='kpi-label'>Com CNPJ</span><strong class='kpi-value'>8</strong><span class='kpi-help'>Registros com identificacao fiscal</span></div><div class='kpi-card'><span class='kpi-label'>Pagamento identificado</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Forma de pagamento preenchida</span></div><div class='kpi-card'><span class='kpi-label'>Data de assinatura</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Contratos com data capturada</span></div><div class='kpi-card'><span class='kpi-label'>Com pendencia</span><strong class='kpi-value'>15</strong><span class='kpi-help'>Contratos com layout critico ou campos essenciais faltantes</span></div><div class='kpi-card'><span class='kpi-label'>Bonus medio</span><strong class='kpi-value'>3,3%</strong><span class='kpi-help'>Media entre contratos com percentual preenchido</span></div><div class='kpi-card'><span class='kpi-label'>Prazo medio</span><strong class='kpi-value'>30 dias</strong><span class='kpi-help'>Media entre contratos com prazo preenchido</span></div></div><div class='analytics-grid'><div class='panel'><h3>Layouts detectados</h3><div class='bar-row'><div class='bar-meta'><span>ACORDO_COMERCIAL</span><strong>16</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>NAO_IDENTIFICADO</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:8%'></div></div></div></div><div class='panel'><h3>Formas de pagamento</h3><div class='bar-row'><div class='bar-meta'><span>Sem informacao</span><strong>11</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>BOLETO BANCARIO</span><strong>5</strong></div><div class='bar-track'><div class='bar-fill' style='width:45%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>DEPOSITO CONTA CORRENTE</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:9%'></div></div></div></div></div><div class='panel'><h3>Top fornecedores deste recorte</h3><div class='supplier-grid'><article class='supplier-card supplier-card-problem'><div class='supplier-rank'>#2</div><h3>BEBIDAS FRUKI LTDA</h3><div class='problem-badges'><span class='problem-badge'>Sem prazo</span></div><p><strong>Layout:</strong> <span class=''>ACORDO_COMERCIAL</span></p><p><strong>Pagamento:</strong> <span class=''>BOLETO BANCARIO</span></p><p><strong>Bonus:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>Prazo:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>CNPJ:</strong> <span class=''>87.315.099/0001-07</span></p><p><strong>Arquivo:</strong> BEBIDAS FRUKI.pdf</p></article></div></div><div class='panel table-panel'><h3>Tabela resumida</h3><table class='priority-table'><thead><tr><th>Posicao</th><th>Fornecedor</th><th>Layout</th><th>Pagamento</th><th>Bonus %</th><th>Prazo</th><th>Assinatura</th><th>Arquivo PDF</th></tr></thead><tbody><tr class='problem-row'><td>2</td><td>BEBIDAS FRUKI LTDA</td><td class=''>ACORDO_COMERCIAL</td><td class=''>BOLETO BANCARIO</td><td class='missing-value'>Nao informado</td><td class='missing-value'>Nao informado</td><td class=''>18/12/2006</td><td>BEBIDAS FRUKI.pdf</td></tr></tbody></table></div></section><section id='view_problemas' class='dashboard-view'><div class='view-head'><h2>Contratos priorizados problematicos</h2><p>15 contrato(s) priorizado(s) neste recorte.</p></div><div class='kpi-grid'><div class='kpi-card'><span class='kpi-label'>Contratos no recorte</span><strong class='kpi-value'>15</strong><span class='kpi-help'>Fornecedores priorizados visiveis</span></div><div class='kpi-card'><span class='kpi-label'>Com CNPJ</span><strong class='kpi-value'>6</strong><span class='kpi-help'>Registros com identificacao fiscal</span></div><div class='kpi-card'><span class='kpi-label'>Pagamento identificado</span><strong class='kpi-value'>4</strong><span class='kpi-help'>Forma de pagamento preenchida</span></div><div class='kpi-card'><span class='kpi-label'>Data de assinatura</span><strong class='kpi-value'>4</strong><span class='kpi-help'>Contratos com data capturada</span></div><div class='kpi-card'><span class='kpi-label'>Com pendencia</span><strong class='kpi-value'>15</strong><span class='kpi-help'>Contratos com layout critico ou campos essenciais faltantes</span></div><div class='kpi-card'><span class='kpi-label'>Bonus medio</span><strong class='kpi-value'>3,3%</strong><span class='kpi-help'>Media entre contratos com percentual preenchido</span></div><div class='kpi-card'><span class='kpi-label'>Prazo medio</span><strong class='kpi-value'>26 dias</strong><span class='kpi-help'>Media entre contratos com prazo preenchido</span></div></div><div class='analytics-grid'><div class='panel'><h3>Layouts detectados</h3><div class='bar-row'><div class='bar-meta'><span>ACORDO_COMERCIAL</span><strong>14</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>NAO_IDENTIFICADO</span><strong>1</strong></div><div class='bar-track'><div class='bar-fill' style='width:8%'></div></div></div></div><div class='panel'><h3>Formas de pagamento</h3><div class='bar-row'><div class='bar-meta'><span>Sem informacao</span><strong>11</strong></div><div class='bar-track'><div class='bar-fill' style='width:100%'></div></div></div><div class='bar-row'><div class='bar-meta'><span>BOLETO BANCARIO</span><strong>4</strong></div><div class='bar-track'><div class='bar-fill' style='width:36%'></div></div></div></div></div><div class='panel'><h3>Top fornecedores deste recorte</h3><div class='supplier-grid'><article class='supplier-card supplier-card-problem'><div class='supplier-rank'>#2</div><h3>BEBIDAS FRUKI LTDA</h3><div class='problem-badges'><span class='problem-badge'>Sem prazo</span></div><p><strong>Layout:</strong> <span class=''>ACORDO_COMERCIAL</span></p><p><strong>Pagamento:</strong> <span class=''>BOLETO BANCARIO</span></p><p><strong>Bonus:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>Prazo:</strong> <span class='missing-value'>Nao informado</span></p><p><strong>CNPJ:</strong> <span class=''>87.315.099/0001-07</span></p><p><strong>Arquivo:</strong> BEBIDAS FRUKI.pdf</p></article></div></div><div class='panel table-panel'><h3>Tabela resumida</h3><table class='priority-table'><thead><tr><th>Posicao</th><th>Fornecedor</th><th>Layout</th><th>Pagamento</th><th>Bonus %</th><th>Prazo</th><th>Assinatura</th><th>Arquivo PDF</th></tr></thead><tbody><tr class='problem-row'><td>2</td><td>BEBIDAS FRUKI LTDA</td><td class=''>ACORDO_COMERCIAL</td><td class=''>BOLETO BANCARIO</td><td class='missing-value'>Nao informado</td><td class='missing-value'>Nao informado</td><td class=''>18/12/2006</td><td>BEBIDAS FRUKI.pdf</td></tr></tbody></table></div></section>
+    <div class="footer-note">Arquivo gerado em C:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos\zcontratos\saida\dashboard_prioridade_contratos.html</div>
+  </div>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll('.view-button'));
+    const views = Array.from(document.querySelectorAll('.dashboard-view'));
+
+    function activateView(viewId) {
+      buttons.forEach((button) => {
+        button.classList.toggle('active', button.dataset.view === viewId);
+      });
+      views.forEach((view) => {
+        view.classList.toggle('active', view.id === `view_${viewId}`);
+      });
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => activateView(button.dataset.view));
+    });
+
+    activateView('top10');
+  </script>
+</body>
+</html>

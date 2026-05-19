@@ -1,0 +1,30 @@
+[
+  {
+    "beneficio_detectado": "POLITICA_TROCAS",
+    "quantidade": 89
+  },
+  {
+    "beneficio_detectado": "BONIFICACAO_EM_PRODUTO",
+    "quantidade": 64
+  },
+  {
+    "beneficio_detectado": "PROMOTOR",
+    "quantidade": 58
+  },
+  {
+    "beneficio_detectado": "BONUS_COMERCIAL",
+    "quantidade": 47
+  },
+  {
+    "beneficio_detectado": "APOIO_LOGISTICO",
+    "quantidade": 34
+  },
+  {
+    "beneficio_detectado": "VERBA_ANIVERSARIO",
+    "quantidade": 17
+  },
+  {
+    "beneficio_detectado": "MIDIA_ESPACO_LOJA",
+    "quantidade": 2
+  }
+]
