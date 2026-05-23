@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
 base_dir = Path(__file__).parent
 # Caminho absoluto conforme ambiente local (Regra 26)
-arquivo_entrada = Path(r'c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos\import_querys\query.parquet')
+arquivo_entrada = Path(r'C:\Users\usr\Downloads\Equipes_Agentes\Aplicativos\import_querys\query.parquet')
 
 def compute_metrics(df_subset, loja_nome):
     """Computa as métricas de ruptura para um subconjunto de dados (Loja ou Geral)."""

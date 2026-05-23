@@ -3,7 +3,7 @@ import pandas as pd
 
 def analisar_dados():
     # Caminhos baseados na raiz do projeto local
-    pasta_base = r'c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos'
+    pasta_base = r'C:\Users\usr\Downloads\Equipes_Agentes\Aplicativos'
     arquivo_resultado = os.path.join(pasta_base, 'min_e_max', 'resultado.parquet')
     arquivo_query = os.path.join(pasta_base, 'import_querys', 'query.parquet')
     arquivo_saida = os.path.join(pasta_base, 'min_e_max', 'verificado.csv')
