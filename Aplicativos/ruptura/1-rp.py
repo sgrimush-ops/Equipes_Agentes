@@ -37,15 +37,15 @@ def rodar_script(nome, caminho):
 
 
 # 1. Executar a dashboard detalhada
-script_detalhado = base_dir / "dashboard_detalhado.py"
+script_detalhado = base_dir / "4-dashboard_detalhado.py"
 rodar_script("Dashboard Detalhado", script_detalhado)
 
 # 2. Executar a dashboard de compradores
-script_dashboard = base_dir / "dashboard_comprador.py"
+script_dashboard = base_dir / "2-dashboard_comprador.py"
 rodar_script("Dashboard de Compradores", script_dashboard)
 
 # 3. Executar o ranking de lojas
-script_loja = base_dir / "dashboard_loja.py"
+script_loja = base_dir / "3-dashboard_loja.py"
 rodar_script("Ranking de Lojas", script_loja)
 
 # limpar tela com cls e depois msg de finalizado
