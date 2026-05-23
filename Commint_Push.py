@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 
 
-REPO = r"c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes"
+REPO = os.path.dirname(os.path.abspath(__file__))
 
 
 def run(cmd: list[str]) -> tuple[int, str, str]:

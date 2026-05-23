@@ -1,3 +1,5 @@
+import pandas as pd
+cd Aplicativos/min_e_max
 # Função para converter arquivo intermediário para CSV
 def converter_para_csv(arquivo_parquet=None):
     """
