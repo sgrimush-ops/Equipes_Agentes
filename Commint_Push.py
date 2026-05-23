@@ -46,7 +46,7 @@ def main():
     # git commit
     code, out, err = run(["git", "commit", "-m", msg])
     if code != 0:
-        print(f"Erro no git commit:\n{err}")
+        print(f"Erro no git commit:\nSTDOUT: {out}\nSTDERR: {err}")
         sys.exit(code)
     print(f"✅ Commit realizado:\n{out}")
 
