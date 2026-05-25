@@ -64,7 +64,7 @@ class AcaoPrepararSuplay(BaseAction):
         if stop_event and stop_event.is_set(): return
 
         try:
-            parquet_path = Path('c:/Users/Alessandro.soares.BAKLIZI/Downloads/Equipes_Agentes/Aplicativos/import_querys/query.parquet')
+            parquet_path = Path('c:/Users/usr/Downloads/Equipes_Agentes/Aplicativos/import_querys/query.parquet')
             if parquet_path.exists():
                 if update_callback:
                     update_callback({'log': "Lendo arquivo query.parquet..."})
@@ -172,7 +172,7 @@ class AcaoPrepararSuplay(BaseAction):
         df_resultado[col_empresa] = df_resultado[col_empresa].apply(lambda x: str(int(float(x))).zfill(3))
         
         # Renomeia para compatibilidade com o robô de digitação (OrderProcessorSupply)
-        df_resultado = df_resultado.rename(columns={col_produto: 'CODIGO_CONSINCO', 'DESCRICAO_PRODUTO': 'descricao'})
+        df_resultado = df_resultado.rename(columns={col_produto: 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO': 'DESCRICAO'})
         
         arquivo_saida = 'bd_saida/digitar.csv'
         

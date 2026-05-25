@@ -43,9 +43,9 @@ class OrderProcessorSupply:
             # Carregar dados
             df = pd.read_csv('bd_saida/digitar.csv', sep=';', encoding='utf-8-sig', dtype=str)
             
-            col_codigo = 'CODIGO_CONSINCO'
-            if 'CODIGO_CONSINCO' not in df.columns:
-                msg = "Coluna 'CODIGO_CONSINCO' não encontrada na planilha 'digitar.csv'."
+            col_codigo = 'CODIGO_PRODUTO'
+            if 'CODIGO_PRODUTO' not in df.columns:
+                msg = "Coluna 'CODIGO_PRODUTO' não encontrada na planilha 'digitar.csv'."
                 if update_callback: update_callback({'error': msg})
                 else: print(msg)
                 return
