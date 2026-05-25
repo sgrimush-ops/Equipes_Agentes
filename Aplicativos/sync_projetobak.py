@@ -9,7 +9,7 @@ def rodar_comando(comando, cwd):
     subprocess.run(comando, cwd=cwd, shell=True, check=True)
 
 def main():
-    pasta_base = r"c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos"
+    pasta_base = r"C:\Users\usr\Downloads\Equipes_Agentes\Aplicativos"
     pasta_querys = os.path.join(pasta_base, 'import_querys')
     arquivo_origem = os.path.join(pasta_querys, 'query.parquet')
     
