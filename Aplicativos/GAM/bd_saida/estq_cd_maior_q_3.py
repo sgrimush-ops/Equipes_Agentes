@@ -15,12 +15,12 @@ df = pd.read_csv('digitar.csv', sep=';', encoding='utf-8-sig', decimal=',')
 # Converter estq_CD para numérico de forma coerciva para evitar erro "dtype=str and int"
 df['Estq_CD_cx'] = pd.to_numeric(df['Estq_CD_cx'], errors='coerce').fillna(0)
 
-# Aplicar Saneamento Global: CODIGO_CONSINCO sem vírgula/decimal (forçar Inteiro -> String)
-if 'CODIGO_CONSINCO' in df.columns:
-    df['CODIGO_CONSINCO'] = pd.to_numeric(df['CODIGO_CONSINCO'], errors='coerce').fillna(0).astype(int).astype(str)
+# Aplicar Saneamento Global: CODIGO_PRODUTO sem vírgula/decimal (forçar Inteiro -> String)
+if 'CODIGO_PRODUTO' in df.columns:
+    df['CODIGO_PRODUTO'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(0).astype(int).astype(str)
 
 #remover linhas com valores menor que 3 da coluna Estq_CD
-df = df[df['Estq_CD_cx'] >= 3]
+df = df[df['Estq_CD_cx'] >= 5]
 
 #salvar arquivo csv na pasta bd_saida
 df.to_csv('digitar.csv', index=False, sep=';', encoding='utf-8-sig', decimal=',')

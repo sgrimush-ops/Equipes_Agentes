@@ -1,12 +1,16 @@
+import os
+import math
+from pathlib import Path
+from datetime import datetime
 import pandas as pd
-cd Aplicativos/min_e_max
+#cC:/Users/usr/AppData/Local/Programs/Python/Python314/python.exe 1-min_max.pyd Aplicativos/min_e_max
 # Função para converter arquivo intermediário para CSV
 def converter_para_csv(arquivo_parquet=None):
     """
     Lê o arquivo query.parquet e exporta resultado.csv, sem recalcular mínimos/máximos.
     """
     if arquivo_parquet is None:
-        arquivo_parquet = Path(__file__).parent.parent / 'import_querys' / 'query.parquet'
+        arquivo_parquet = Path(__file__).parent.parent / 'query.parquet'
     else:
         arquivo_parquet = Path(arquivo_parquet)
     if not arquivo_parquet.exists():
@@ -31,13 +35,9 @@ def converter_para_csv(arquivo_parquet=None):
             decimal=',',
         )
         print(f"Exportação concluída: {arquivo_saida.name}")
+
     except Exception as e:
         print(f"Erro ao exportar CSV: {e}")
-import pandas as pd
-import math
-import os
-from pathlib import Path
-from datetime import datetime
 
 # --- TRAVA DE CONTEXTO ---
 if __name__ == '__main__':
