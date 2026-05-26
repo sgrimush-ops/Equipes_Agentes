@@ -179,9 +179,7 @@ class MixProcessor:
             for i, produto in enumerate(produtos):
                 if stop_event and stop_event.is_set(): break
                 
-                # Check Pausa
-                if pause_event and pause_event.is_set():
-                    while pause_event.is_set() and not stop_event.is_set(): time.sleep(0.5)
+                # Pausa removida: execução segue sempre, só para se stop_event
 
                 prod_str = str(produto).strip().replace('.0','')
                 if not prod_str or prod_str.lower() == 'nan': continue
@@ -206,6 +204,17 @@ class MixProcessor:
                 time.sleep(0.3)
                 pyautogui.press('f8')
                 time.sleep(1.2) # Reduzido de 2s para o F8
+
+                # --- DEBUG: Captura tela antes de salvar produto 4766 na empresa 902 ---
+                debug_monitorar = False
+                if prod_str == "4766" and '902' in status_map:
+                    debug_monitorar = True
+                    try:
+                        screenshot = pyautogui.screenshot()
+                        screenshot.save('captura_tela/debug_4766_antes_salvar.png')
+                        print("[DEBUG] Screenshot antes de salvar produto 4766 capturada.")
+                    except Exception as e:
+                        print(f"[DEBUG] Falha ao capturar screenshot antes do salvar: {e}")
                 
                 # (Detecção de família movida para DEPOIS do F4 — linha de salvar produto)
                 
@@ -400,58 +409,42 @@ class MixProcessor:
                 # Salvar Produto
                 pyautogui.press('f4')
                 time.sleep(0.8)
+                # --- DEBUG: Captura tela depois de salvar produto 4766 na empresa 902 ---
+                if debug_monitorar:
+                    try:
+                        screenshot = pyautogui.screenshot()
+                        screenshot.save('captura_tela/debug_4766_depois_salvar.png')
+                        print("[DEBUG] Screenshot depois de salvar produto 4766 capturada.")
+                    except Exception as e:
+                        print(f"[DEBUG] Falha ao capturar screenshot depois do salvar: {e}")
                 
                 # Lidar com popup de Atenção / popup de Família (caracteres especiais)
-                teve_popup = False
                 try:
-                    import pygetwindow as gw
-
-                    def pausar_apos_confirmacao_popup():
-                        if not pause_event:
-                            return False
-
-                        pause_event.set()
-                        if update_callback:
-                            update_callback({
-                                'status': 'PAUSADO - Popup de manutenção de família detectado',
-                                'log': f"⚠ Popup confirmado com 'S' em '{prod_str}'. Aguardando despausar para continuar..."
-                            })
-
-                        while pause_event.is_set() and not (stop_event and stop_event.is_set()):
-                            time.sleep(0.5)
-
-                        if stop_event and stop_event.is_set():
-                            return True
-
-                        if update_callback:
-                            update_callback({'status': f"Retomando após popup de família ({prod_str})"})
-                        return False
-                    
-                    # Popup de Atenção padrão
-                    atn = [w for w in gw.getWindowsWithTitle("Atenção") if w.visible]
-                    if atn: 
-                        teve_popup = True
-                        pyautogui.press('s')
-                        if pausar_apos_confirmacao_popup():
-                            break
-                    
-                    # Popup de família (caracteres especiais na descrição)
-                    # Títulos comuns: "Confirmação", "Família", "Caractere", "Erro"
-                    popup_familia = False
-                    for titulo_busca in ["Confirmação", "Confirma", "Família", "Caractere"]:
-                        janelas = [w for w in gw.getWindowsWithTitle(titulo_busca) if w.visible]
-                        if janelas:
-                            popup_familia = True
-                            break
-                    
-                    if popup_familia:
-                        print(f"[MixProcessor] Popup de família detectado para '{prod_str}'. Tratando...")
-                        # Se não houve popup de Atenção antes, confirma com 'S' e pausa imediatamente.
-                        if not atn:
-                            pyautogui.press('s')
-                            if pausar_apos_confirmacao_popup():
-                                break
-                except: pass
+                    # Sempre responde ALT+S para qualquer popup
+                    print(f"[MixProcessor] Respondendo ALT+S para popup (aviso ou bloqueio)")
+                    pyautogui.hotkey('alt', 's')
+                    time.sleep(0.8)
+                    # Após fechar o popup, valida visualmente se o campo 'Codigo' está presente
+                    # Coordenadas aproximadas do campo (ajuste se necessário)
+                    x, y, w, h = 900, 60, 160, 60  # Ajuste conforme necessário para sua resolução
+                    screenshot = pyautogui.screenshot(region=(x, y, w, h))
+                    screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+                    template = cv2.imread('captura_tela/campo_codigo.png')
+                    if template is not None:
+                        res = cv2.matchTemplate(screenshot_bgr, template, cv2.TM_CCOEFF_NORMED)
+                        _, max_val, _, _ = cv2.minMaxLoc(res)
+                        print(f"[DEBUG] Similaridade campo 'Codigo': {max_val:.2f}")
+                        if max_val < 0.75:
+                            print("[MixProcessor] Campo 'Codigo' NÃO encontrado! Parando execução.")
+                            if update_callback:
+                                update_callback({'error': "Campo 'Codigo' não encontrado após popup. Execução interrompida."})
+                            if stop_event:
+                                stop_event.set()
+                            return
+                    else:
+                        print("[MixProcessor] Template campo_codigo.png não encontrado para validação visual!")
+                except Exception as e:
+                    print(f"Aviso: Falha ao tratar popup/validação visual: {e}")
                 
                 # --- TRAVA DE SEGURANÇA BASEADA EM DIFERENÇA DE IMAGEM ---
                 # Agimos APENAS se houve o Popup, que é o gatilho da nova tela indesejada
