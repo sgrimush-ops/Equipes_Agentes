@@ -178,7 +178,11 @@ class MixProcessor:
             # --- Loop Principal de Produtos ---
             for i, produto in enumerate(produtos):
                 if stop_event and stop_event.is_set(): break
-                
+
+                # Inicializa flag de popup para cada produto
+                teve_popup = False
+                popup_interrompeu = False
+
                 # Pausa removida: execução segue sempre, só para se stop_event
 
                 prod_str = str(produto).strip().replace('.0','')
@@ -197,9 +201,14 @@ class MixProcessor:
                         'log': f"[{i+1}/{total_produtos} | Faltam: {faltam}] {prod_str} - {desc_str}"
                     })
 
-                # Fluxo ERP Otimizado: F2 abre busca, digita código, F8 confirma
+                # Fluxo ERP Otimizado: F2 abre busca, clica no campo Codigo, digita código, F8 confirma
                 pyautogui.press('f2')
                 time.sleep(1.0)  # Aguardar diálogo de busca abrir completamente
+                # Clique preciso no campo Codigo (se calibrado)
+                if self.coords.get('campo_codigo'):
+                    self._click(self.coords['campo_codigo'])
+                    time.sleep(0.1)
+                print(f"[DEBUG] Vai digitar o código: {prod_str}")
                 pyautogui.write(prod_str, interval=0.05)  # Intervalo entre teclas para confiabilidade no ERP
                 time.sleep(0.3)
                 pyautogui.press('f8')
@@ -409,42 +418,67 @@ class MixProcessor:
                 # Salvar Produto
                 pyautogui.press('f4')
                 time.sleep(0.8)
-                # --- DEBUG: Captura tela depois de salvar produto 4766 na empresa 902 ---
-                if debug_monitorar:
-                    try:
-                        screenshot = pyautogui.screenshot()
-                        screenshot.save('captura_tela/debug_4766_depois_salvar.png')
-                        print("[DEBUG] Screenshot depois de salvar produto 4766 capturada.")
-                    except Exception as e:
-                        print(f"[DEBUG] Falha ao capturar screenshot depois do salvar: {e}")
+                # ...existing code...
                 
-                # Lidar com popup de Atenção / popup de Família (caracteres especiais)
+                # Detecção visual do popup antes e depois do ALT+S
                 try:
-                    # Sempre responde ALT+S para qualquer popup
-                    print(f"[MixProcessor] Respondendo ALT+S para popup (aviso ou bloqueio)")
-                    pyautogui.hotkey('alt', 's')
-                    time.sleep(0.8)
-                    # Após fechar o popup, valida visualmente se o campo 'Codigo' está presente
-                    # Coordenadas aproximadas do campo (ajuste se necessário)
-                    x, y, w, h = 900, 60, 160, 60  # Ajuste conforme necessário para sua resolução
-                    screenshot = pyautogui.screenshot(region=(x, y, w, h))
-                    screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-                    template = cv2.imread('captura_tela/campo_codigo.png')
-                    if template is not None:
-                        res = cv2.matchTemplate(screenshot_bgr, template, cv2.TM_CCOEFF_NORMED)
-                        _, max_val, _, _ = cv2.minMaxLoc(res)
-                        print(f"[DEBUG] Similaridade campo 'Codigo': {max_val:.2f}")
-                        if max_val < 0.75:
-                            print("[MixProcessor] Campo 'Codigo' NÃO encontrado! Parando execução.")
-                            if update_callback:
-                                update_callback({'error': "Campo 'Codigo' não encontrado após popup. Execução interrompida."})
-                            if stop_event:
-                                stop_event.set()
-                            return
+                    popup_template = cv2.imread('captura_tela/popup_consinco.png')
+                    if popup_template is not None:
+                        # Região central onde normalmente aparece o popup
+                        px, py, pw, ph = 540, 320, 480, 100
+                        screenshot_popup = pyautogui.screenshot(region=(px, py, pw, ph))
+                        screenshot_popup_bgr = cv2.cvtColor(np.array(screenshot_popup), cv2.COLOR_RGB2BGR)
+                        res_popup = cv2.matchTemplate(screenshot_popup_bgr, popup_template, cv2.TM_CCOEFF_NORMED)
+                        _, max_val_popup, _, _ = cv2.minMaxLoc(res_popup)
+                        print(f"[DEBUG] Similaridade popup Consinco: {max_val_popup:.2f}")
+                        if max_val_popup >= 0.75:
+                            teve_popup = True
+                            print("[MixProcessor] Popup Consinco detectado! Enviando ALT+S...")
+                            pyautogui.hotkey('alt', 's')
+                            time.sleep(1.0)
+                            # Após ALT+S, verifica se o popup sumiu
+                            screenshot_popup2 = pyautogui.screenshot(region=(px, py, pw, ph))
+                            screenshot_popup2_bgr = cv2.cvtColor(np.array(screenshot_popup2), cv2.COLOR_RGB2BGR)
+                            res_popup2 = cv2.matchTemplate(screenshot_popup2_bgr, popup_template, cv2.TM_CCOEFF_NORMED)
+                            _, max_val_popup2, _, _ = cv2.minMaxLoc(res_popup2)
+                            print(f"[DEBUG] Similaridade popup Consinco após ALT+S: {max_val_popup2:.2f}")
+                            if max_val_popup2 >= 0.75:
+                                print("[MixProcessor] Popup Consinco NÃO sumiu após ALT+S! Parando execução imediatamente.")
+                                if update_callback:
+                                    update_callback({'error': "Popup Consinco não sumiu após ALT+S. Execução interrompida para evitar travamento!"})
+                                if stop_event:
+                                    stop_event.set()
+                                print("[Gemini] Execução abortada por popup persistente!")
+                                popup_interrompeu = True
+                                break
+                            # Após ALT+S, valida se voltou para tela de digitação do código
+                            x, y, w, h = 900, 60, 160, 60  # Ajuste conforme necessário para sua resolução
+                            screenshot = pyautogui.screenshot(region=(x, y, w, h))
+                            screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+                            template = cv2.imread('captura_tela/campo_codigo.png')
+                            if template is not None:
+                                res = cv2.matchTemplate(screenshot_bgr, template, cv2.TM_CCOEFF_NORMED)
+                                _, max_val, _, _ = cv2.minMaxLoc(res)
+                                print(f"[DEBUG] Similaridade campo 'Codigo' após ALT+S: {max_val:.2f}")
+                                if max_val < 0.75:
+                                    print("[MixProcessor] Campo 'Codigo' NÃO encontrado após ALT+S! Parando execução imediatamente.")
+                                    if update_callback:
+                                        update_callback({'error': "Campo 'Codigo' não encontrado após ALT+S. Execução interrompida para evitar travamento!"})
+                                    if stop_event:
+                                        stop_event.set()
+                                    print("[Gemini] Execução abortada: campo 'Codigo' não voltou!")
+                                    popup_interrompeu = True
+                                    break
+                            else:
+                                print("[MixProcessor] Template campo_codigo.png não encontrado para validação visual!")
+                            # Se chegou até aqui, popup foi tratado, mas para máxima segurança, interrompe o produto atual
+                            print("[Gemini] Popup tratado, interrompendo processamento deste produto!")
+                            popup_interrompeu = True
+                            break
                     else:
-                        print("[MixProcessor] Template campo_codigo.png não encontrado para validação visual!")
+                        print("[MixProcessor] Template popup_consinco.png não encontrado para detecção de popup!")
                 except Exception as e:
-                    print(f"Aviso: Falha ao tratar popup/validação visual: {e}")
+                    print(f"Aviso: Falha na detecção/tratamento de popup Consinco: {e}")
                 
                 # --- TRAVA DE SEGURANÇA BASEADA EM DIFERENÇA DE IMAGEM ---
                 # Agimos APENAS se houve o Popup, que é o gatilho da nova tela indesejada
@@ -470,6 +504,11 @@ class MixProcessor:
                     print("Aviso: Falha na trava visual:", e)
                 
                 time.sleep(0.5)
+
+                # Se popup interrompeu, para o loop principal imediatamente
+                if popup_interrompeu:
+                    print("[Gemini] Loop principal abortado por popup!")
+                    break
 
             pyautogui.press('f2')
             if update_callback: update_callback({'status': 'Concluído', 'finished': True})
