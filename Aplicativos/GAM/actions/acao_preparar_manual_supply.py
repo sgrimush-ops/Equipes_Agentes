@@ -173,17 +173,27 @@ class AcaoPrepararSuplay(BaseAction):
         
         # Renomeia para compatibilidade com o robô de digitação (OrderProcessorSupply)
         df_resultado = df_resultado.rename(columns={col_produto: 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO': 'DESCRICAO'})
-        
+
+        # Ordenar pelo código da empresa (e produto para desempate)
+        df_resultado = df_resultado.sort_values(by=[col_empresa, 'CODIGO_PRODUTO'])
+
         arquivo_saida = 'bd_saida/digitar.csv'
-        
+
         try:
             df_resultado.to_csv(arquivo_saida, index=False, sep=';', encoding='utf-8-sig', decimal=',')
             msg = f"Arquivo '{arquivo_saida}' gerado com sucesso com {len(df_resultado)} linhas!"
             if update_callback:
                 update_callback({'status': 'Concluído', 'finished': True, 'log': msg})
+
+            # Executar o script de filtro final
+            import subprocess
+            filtro_path = str(Path(__file__).parent.parent / 'bd_saida' / 'estq_cd_maior_q_.py')
+            subprocess.run(['python', filtro_path], check=True)
+            if update_callback:
+                update_callback({'log': 'Filtro estq_cd_maior_q_.py executado com sucesso.'})
         except Exception as e:
             if update_callback:
-                update_callback({'error': f"Erro ao salvar '{arquivo_saida}': {e}"})
+                update_callback({'error': f"Erro ao salvar '{arquivo_saida}' ou executar filtro: {e}"})
 
     def has_calibration(self) -> bool:
         return False

@@ -35,8 +35,9 @@ class MacroAutomationApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Gerenciador de Automações e Macros")
-        self.root.geometry("800x600")
+        self.root.geometry("600x800")
         self.root.configure(bg="#f0f0f0")
+        self.root.attributes("-topmost", True)
         
         self.actions_available = {}
         if getattr(sys, 'frozen', False):

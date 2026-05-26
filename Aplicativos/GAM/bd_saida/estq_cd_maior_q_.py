@@ -19,8 +19,10 @@ df['Estq_CD_cx'] = pd.to_numeric(df['Estq_CD_cx'], errors='coerce').fillna(0)
 if 'CODIGO_PRODUTO' in df.columns:
     df['CODIGO_PRODUTO'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(0).astype(int).astype(str)
 
-#remover linhas com valores menor que 3 da coluna Estq_CD
-df = df[df['Estq_CD_cx'] >= 5]
+
+# Remover linhas onde Estq_CD_cx seja menor que Pedir
+df['Pedir'] = pd.to_numeric(df['Pedir'], errors='coerce').fillna(0)
+df = df[df['Estq_CD_cx'] >= df['Pedir']]
 
 #salvar arquivo csv na pasta bd_saida
 df.to_csv('digitar.csv', index=False, sep=';', encoding='utf-8-sig', decimal=',')
