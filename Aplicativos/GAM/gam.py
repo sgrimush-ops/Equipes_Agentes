@@ -139,22 +139,22 @@ class MacroAutomationApp:
         
         # --- Bottom Column: Execution & Logs ---
         bottom_frame = tk.Frame(self.root, bg="#f0f0f0", padx=10, pady=10)
-        bottom_frame.pack(fill="both", expand=False)
-        
+        bottom_frame.pack(fill="both", expand=True)  # expand=True para crescer junto com a janela
+
         ctrl_frame = tk.Frame(bottom_frame, bg="#f0f0f0")
         ctrl_frame.pack(fill="x", pady=5)
-        
+
         self.btn_iniciar = tk.Button(ctrl_frame, text="Iniciar Sequência", command=self.iniciar_sequencia, bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"), width=20)
         self.btn_iniciar.pack(side="left", padx=5)
-        
-        self.btn_pausar = tk.Button(ctrl_frame, text="PAUSAR", command=self.toggle_pause, state="disabled", bg="#FF9800", fg="white", font=("Segoe UI", 10, "bold"), width=15)
-        self.btn_pausar.pack(side="left", padx=5)
-        
+
+        # Botão de pausa removido
+
         self.btn_parar = tk.Button(ctrl_frame, text="PARAR", command=self.parar_sequencia, state="disabled", bg="#FF5252", fg="white", font=("Segoe UI", 10, "bold"), width=15)
         self.btn_parar.pack(side="left", padx=5)
-        
+
         tk.Label(bottom_frame, text="Log de Execução:", font=("Segoe UI", 9, "bold"), bg="#f0f0f0").pack(anchor="w")
-        self.log_text = tk.Text(bottom_frame, height=6, font=("Consolas", 9), state="disabled")
+        # Aumenta a altura inicial e permite expandir com a janela
+        self.log_text = tk.Text(bottom_frame, height=16, font=("Consolas", 9), state="disabled")
         self.log_text.pack(fill="both", expand=True)
 
     def log(self, msg):
@@ -267,24 +267,13 @@ class MacroAutomationApp:
         if self.is_running:
             self.btn_iniciar.config(state="disabled", bg="#cccccc")
             self.btn_parar.config(state="normal", bg="#FF5252")
-            self.btn_pausar.config(state="normal", text="PAUSAR", bg="#FF9800")
             self.btn_calibrar.config(state="disabled")
         else:
             self.btn_iniciar.config(state="normal", bg="#4CAF50")
             self.btn_parar.config(state="disabled", bg="#cccccc")
-            self.btn_pausar.config(state="disabled", bg="#cccccc", text="PAUSAR")
             self.btn_calibrar.config(state="normal")
 
-    def toggle_pause(self):
-        if not self.is_running: return
-        if self.pause_event.is_set():
-            self.pause_event.clear()
-            self.btn_pausar.config(text="PAUSAR", bg="#FF9800")
-            self.log("Retomando execução...")
-        else:
-            self.pause_event.set()
-            self.btn_pausar.config(text="RETOMAR", bg="#2196F3")
-            self.log("Pausando execução...")
+    # Função de pausa removida
 
     def parar_sequencia(self):
         if self.is_running:
@@ -303,7 +292,6 @@ class MacroAutomationApp:
 
         self.is_running = True
         self.stop_event.clear()
-        self.pause_event.clear()
         self.update_buttons_state()
         
         t = threading.Thread(target=self.run_process_thread, args=(seq,))
@@ -327,8 +315,7 @@ class MacroAutomationApp:
                 # Executa bloqueando até terminar
                 action.execute(
                     update_callback=self.queue.put,
-                    stop_event=self.stop_event,
-                    pause_event=self.pause_event
+                    stop_event=self.stop_event
                 )
                 
                 if self.stop_event.is_set(): break
