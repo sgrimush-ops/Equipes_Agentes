@@ -1,0 +1,12 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "isolated": false,
+    "userDataDir": "Agentes/.motor/_browser_profile",
+    "launchOptions": {
+      "headless": true,
+      "channel": "chrome"
+    }
+  }
+}
+
