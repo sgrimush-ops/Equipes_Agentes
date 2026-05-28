@@ -1,0 +1,32 @@
+=== JANITOR — DRY-RUN === 2026-03-26 16:12:09
+[OK]  debug_limpeza_final.py
+
+=== JANITOR — DRY-RUN === 2026-03-27 11:21:11
+[OK]  Aplicativos\GAM\actions\__pycache__
+[OK]  Aplicativos\GAM\actions\__pycache__\__init__.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_aguardar_1minuto.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_ajuste_min_max.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_aprovar_pedido_manual.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_bloquear_tela.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_digitar_pedido_CD_016.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_digitar_pedido_supply.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_fechar_tela_ativa.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_manutencao_mix.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_pedido_unico.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_preparar_manual_supply.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_preparar_pedido_loja.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_sair_tela_consinco.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_suspender_pc.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\acao_whatsapp.cpython-313.pyc
+[OK]  Aplicativos\GAM\actions\__pycache__\base_action.cpython-313.pyc
+[OK]  Aplicativos\GAM\core\__pycache__
+[OK]  Aplicativos\GAM\core\__pycache__\__init__.cpython-313.pyc
+[OK]  Aplicativos\GAM\core\__pycache__\digitador_mix.cpython-313.pyc
+[OK]  Aplicativos\GAM\core\__pycache__\digitador_pedido_CD_016.cpython-313.pyc
+[OK]  Aplicativos\GAM\core\__pycache__\digitador_pedido_supply.cpython-313.pyc
+[OK]  Aplicativos\GAM\core\__pycache__\digitador_pedido_unico.cpython-313.pyc
+
+=== JANITOR — EXECUÇÃO REAL === 2026-03-27 11:21:34
+[OK]  Aplicativos\GAM\actions\__pycache__
+[OK]  Aplicativos\GAM\core\__pycache__
+
