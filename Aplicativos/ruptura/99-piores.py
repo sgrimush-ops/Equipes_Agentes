@@ -103,7 +103,7 @@ def main() -> None:
 			"Snapshot atual nao contem detalhes por produto "
 			f"(faltando: {', '.join(faltantes)})."
 		)
-	else:
+	elif df is not None and not df.empty:
 		for col in ["QUANTIDADE_DISPONIVEL", "QTD_PEND_PEDCOMPRA", "QTD_VENDIDA"]:
 			df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
@@ -136,9 +136,51 @@ def main() -> None:
 				~df_saida["CODIGO_PRODUTO"].isin(codigos_cadastro_novo)
 			].copy()
 
+		# Adiciona coluna de venda do produto do query.parquet
+		arquivo_query = base_dir.parent / "import_querys" / "query.parquet"
+		if arquivo_query.exists():
+			df_query = pd.read_parquet(arquivo_query)
+			# Remove duplicidades exatas para garantir soma correta
+			df_query = df_query.drop_duplicates()
+			# Garante que os códigos e vendas são numéricos para merge e soma corretos
+			df_query["CODIGO_PRODUTO"] = pd.to_numeric(df_query["CODIGO_PRODUTO"], errors="coerce").astype("Int64")
+			if "QTD_VENDIDA" in df_query.columns:
+				df_query["QTD_VENDIDA"] = pd.to_numeric(df_query["QTD_VENDIDA"], errors="coerce").fillna(0)
+			col_venda = "QTD_VENDIDA" if "QTD_VENDIDA" in df_query.columns else None
+			if col_venda:
+				# Soma QTD_VENDIDA para cada produto
+				df_venda = (
+					df_query.groupby("CODIGO_PRODUTO", as_index=False)[col_venda].sum()
+					.rename(columns={col_venda: "VENDA_QUERY"})
+				)
+				# Garante que df_saida não tem duplicidade antes do merge
+				df_saida = df_saida.drop_duplicates(subset=["CODIGO_PRODUTO", "DESCRICAO_PRODUTO"])
+				df_saida = df_saida.merge(
+					df_venda,
+					on="CODIGO_PRODUTO", how="left"
+				)
 		df_saida["EMPRESA"] = "CD"
 		df_saida["STATUS"] = "TI"
+		# Adiciona coluna LOJAS_ATIVAS após VENDA_QUERY, se possível
+		# Sempre usa CODIGO_EMPRESA como coluna de loja para LOJAS_ATIVAS
+		if "VENDA_QUERY" in df_saida.columns:
+			if arquivo_query.exists() and "CODIGO_EMPRESA" in df_query.columns:
+				lojas_ativas = (
+					df_query.groupby("CODIGO_PRODUTO")["CODIGO_EMPRESA"]
+					.apply(lambda x: ','.join(sorted(map(str, set(x.dropna())))))
+					.reset_index()
+					.rename(columns={"CODIGO_EMPRESA": "LOJAS_ATIVAS"})
+				)
+				df_saida = df_saida.merge(lojas_ativas, on="CODIGO_PRODUTO", how="left")
+			if "LOJAS_ATIVAS" not in df_saida.columns:
+				df_saida["LOJAS_ATIVAS"] = ""
+			cols = [col for col in df_saida.columns if col not in ["VENDA_QUERY", "LOJAS_ATIVAS"]] + ["VENDA_QUERY", "LOJAS_ATIVAS"]
+			df_saida = df_saida[cols]
 		motivo = "Filtros aplicados com sucesso."
+	else:
+		# Caso extremo: df está vazio ou None, saída vazia
+		df_saida = montar_saida_vazia()
+		motivo = "Snapshot vazio ou não carregado."
 
 	df_saida.to_excel(arquivo_saida, index=False)
 
