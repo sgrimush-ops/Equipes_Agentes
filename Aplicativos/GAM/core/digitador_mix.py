@@ -250,7 +250,7 @@ class MixProcessor:
                     if 'M' in code_up: group_status_map['M'] = action
                     if 'P' in code_up: group_status_map['P'] = action
                 
-                lojas_forcar_inativo = ["009", "010", "016" ] #"020", "021", "022", "023","050", "900", "901", "902"]
+                lojas_forcar_inativo = ["009", "010", "016", "020", "021", "022", "023","050", "900", "901", "902"]
                 lista_cds = ["015", "016", "050"]
                 # Grupos de lojas
                 grupos_lojas = {

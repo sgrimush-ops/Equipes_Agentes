@@ -24,7 +24,7 @@ class MinMaxCalibrationWindow(tk.Toplevel):
         
         self.coords_file = BaseAction.get_coords_path('coords_ajuste_min_max.json')
         # Coordinates needed for the min/max adjustment action
-        self.coords = {"aba_local": None, "minimo_loja_1": None}
+        self.coords = {"aba_local": None, "minimo_loja_2": None}
         self.load_existing_coords()
         
         tk.Label(self, text="Calibração do Ajuste Min/Max", font=("Segoe UI", 12, "bold")).pack(pady=10)
@@ -36,16 +36,21 @@ class MinMaxCalibrationWindow(tk.Toplevel):
         self.lbl_aba_local = tk.Label(self, text="Não definido", fg="red")
         self.lbl_aba_local.pack()
         
-        # Mínimo Loja 1
-        self.btn_minimo_loja_1 = tk.Button(self, text="2. Mínimo Loja 1", command=lambda: self.start_capture("minimo_loja_1"), width=30)
-        self.btn_minimo_loja_1.pack(pady=5)
-        self.lbl_minimo_loja_1 = tk.Label(self, text="Não definido", fg="red")
-        self.lbl_minimo_loja_1.pack()
 
+        # Mínimo Loja 2 (primeiro mapeamento)
+        self.btn_minimo_loja_2 = tk.Button(self, text="2. Mínimo Loja 2", command=lambda: self.start_capture("minimo_loja_2"), width=30)
+        self.btn_minimo_loja_2.pack(pady=5)
+        self.lbl_minimo_loja_2 = tk.Label(self, text="Não definido", fg="red")
+        self.lbl_minimo_loja_2.pack()
+
+
+
+        # Botão Salvar e Fechar (deve ser criado apenas aqui)
         self.btn_save = tk.Button(self, text="Salvar e Fechar", command=self.save_coords, state="disabled", bg="#4CAF50", fg="white")
         self.btn_save.pack(pady=15, fill='x', padx=20)
-        
         self.update_initial_view()
+
+
 
     def load_existing_coords(self):
         if os.path.exists(self.coords_file):
@@ -59,7 +64,7 @@ class MinMaxCalibrationWindow(tk.Toplevel):
                 pass
 
     def update_initial_view(self):
-        for key, lbl in [("aba_local", self.lbl_aba_local), ("minimo_loja_1", self.lbl_minimo_loja_1)]:
+        for key, lbl in [("aba_local", self.lbl_aba_local), ("minimo_loja_2", self.lbl_minimo_loja_2)]:
             if self.coords.get(key):
                 x, y = self.coords[key]
                 lbl.config(text=f"Salvo: {x}, {y}", fg="green")
@@ -67,7 +72,7 @@ class MinMaxCalibrationWindow(tk.Toplevel):
             self.btn_save.config(state="normal")
 
     def start_capture(self, key):
-        btns = {"aba_local": self.btn_aba_local, "minimo_loja_1": self.btn_minimo_loja_1}
+        btns = {"aba_local": self.btn_aba_local, "minimo_loja_2": self.btn_minimo_loja_2}
         btn = btns[key]
         btn.config(text="Aponte e CLIQUE", state="disabled")
         threading.Thread(target=self.capture_thread, args=(key, btn, btn.cget("text")), daemon=True).start()
@@ -88,12 +93,10 @@ class MinMaxCalibrationWindow(tk.Toplevel):
 
     def update_ui_after_capture(self, key, x, y, btn, orig_text):
         labels = {"aba_local": ("1. Aba Local", self.lbl_aba_local), 
-                  "minimo_loja_1": ("2. Mínimo Loja 1", self.lbl_minimo_loja_1)}
+              "minimo_loja_2": ("2. Mínimo Loja 2", self.lbl_minimo_loja_2)}
         original_title, lbl = labels[key]
-        
         btn.config(text=original_title, state="normal")
         lbl.config(text=f"Capturado: {x}, {y}", fg="green")
-        
         if all(self.coords.values()):
             self.btn_save.config(state="normal")
 
@@ -316,12 +319,10 @@ class AcaoAjusteMinMax(BaseAction):
             pyautogui.click(coords['aba_local'][0], coords['aba_local'][1])
             time.sleep(0.5)
             
-            # 6. mapear local para um clique para focar no minimo da loja 1;
-            pyautogui.click(coords['minimo_loja_1'][0], coords['minimo_loja_1'][1])
+            # 6. mapear local para um clique para focar no minimo da loja 2;
+            pyautogui.click(coords['minimo_loja_2'][0], coords['minimo_loja_2'][1])
             time.sleep(0.5)
-            # Acionar down e up para garantir o registro do campo na janela
-            pyautogui.press('down')
-            time.sleep(0.1)
+            # Acionar up para garantir o registro do campo na janela
             pyautogui.press('up')
             time.sleep(0.1)
             

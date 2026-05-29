@@ -2,7 +2,7 @@ import pandas as pd
 import glob
 import os
 
-BASE_DIR = r"c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes\Aplicativos"
+BASE_DIR = r"c:\Users\usr\Downloads\Equipes_Agentes\Aplicativos"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def encontrar_query_parquet():
@@ -56,45 +56,71 @@ def rodar_analise():
     grupo = df_ativos.groupby([col_prod, col_desc] if col_desc else [col_prod])[col_emp].apply(list).reset_index()
     grupo.columns = ['Produto', 'Descricao', 'Lojas_Ativas'] if col_desc else ['Produto', 'Lojas_Ativas']
     
-    # Aplicar Filtros
+    # Calcular estoque do CD (empresa 15) e soma da venda das empresas
+    col_estoque = next((c for c in df.columns if 'disponivel' in c.lower()), None)
+    col_venda = next((c for c in df.columns if 'qtd_vendida' in c.lower()), None)
+    col_cd = None
+    # Procurar empresa 15 (CD)
+    if col_emp is not None:
+        cd_mask = df[col_emp].astype(str).str.zfill(3) == '015'
+        if cd_mask.any():
+            col_cd = '015'
+
+
+    # Soma de vendas por produto (tratando como decimal)
+    vendas_prod = None
+    if col_prod and col_venda:
+        # Converter para string, trocar vírgula por ponto e forçar float
+        vendas_tratada = df[col_venda].astype(str).str.replace(',', '.').str.replace(' ', '').str.strip()
+        vendas_tratada = pd.to_numeric(vendas_tratada, errors='coerce').fillna(0)
+        vendas_prod = df.assign(_venda_num=vendas_tratada).groupby(col_prod)['_venda_num'].sum(min_count=1)
+
+    # Estoque do CD por produto
+    estoque_cd = None
+    if col_prod and col_estoque and col_emp:
+        estoque_cd = df[df[col_emp].astype(str).str.zfill(3) == '015'].groupby(col_prod)[col_estoque].sum(min_count=1)
+
     produtos_alvo = []
-    
     for idx, row in grupo.iterrows():
         lojas = set(row['Lojas_Ativas'])
         qtd_total = len(lojas)
-        
         subset_pequenas = lojas.intersection(lojas_pequenas)
         qtd_pequenas = len(subset_pequenas)
-        
-        # Filtro 1: Ativos em EXATAMENTE 3 lojas da rede
         cond1 = (qtd_total == 3)
-        
-        # Filtro 2: Ativos em lojas pequenas, mas não em todas (0 < qtd < 3)
         cond2 = (0 < qtd_pequenas < 3)
-        
         if cond1 or cond2:
+            cod_prod = row['Produto']
+            # Estoque do CD
+            estoque_val = estoque_cd[cod_prod] if estoque_cd is not None and cod_prod in estoque_cd else ''
+            # Soma de vendas
+            venda_val = vendas_prod[cod_prod] if vendas_prod is not None and cod_prod in vendas_prod else ''
             produtos_alvo.append({
-                'Codigo_Produto': row['Produto'],
+                'Codigo_Produto': cod_prod,
                 'Descricao': row['Descricao'] if col_desc else 'Sem Desc',
                 'Qtd_Lojas_Rede': qtd_total,
                 'Filtro_1_Apenas_3_Lojas': 'SIM' if cond1 else 'NAO',
                 'Filtro_2_Pequenas_Incompletas': 'SIM' if cond2 else 'NAO',
-                'Quais_Lojas_Ativas': ", ".join(sorted(lojas))
+                'Quais_Lojas_Ativas': ", ".join(sorted(lojas)),
+                'Estoque_CD': estoque_val,
+                'Venda_Total': venda_val
             })
-            
+
     df_resultado = pd.DataFrame(produtos_alvo)
-    
+
     path_saida = os.path.join(SCRIPT_DIR, "resultado_analise.csv")
     os.makedirs(os.path.dirname(path_saida), exist_ok=True)
-    
+
     if df_resultado.empty:
         print("\nNenhum produto atendeu aos critérios da sua busca.")
     else:
+        # Formatar Venda_Total para vírgula decimal na exportação
+        if 'Venda_Total' in df_resultado.columns:
+            df_resultado['Venda_Total'] = df_resultado['Venda_Total'].map(lambda x: f'{x:.1f}'.replace('.', ',') if pd.notnull(x) else x)
         df_resultado.to_csv(path_saida, sep=';', index=False, encoding='utf-8-sig')
         print(f"\n✅ Análise concluída! Foram encontrados {len(df_resultado)} produtos.")
         print(f"O resultado foi salvo em: {path_saida}")
         print("\nPrimeiras linhas do resultado:")
-        print(df_resultado[['Codigo_Produto', 'Quais_Lojas_Ativas']].head(10))
+        print(df_resultado[['Codigo_Produto', 'Quais_Lojas_Ativas', 'Estoque_CD', 'Venda_Total']].head(10))
 
 if __name__ == "__main__":
     os.system('cls')
