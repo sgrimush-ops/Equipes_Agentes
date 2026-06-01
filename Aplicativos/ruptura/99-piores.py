@@ -25,7 +25,14 @@ def obter_faltantes(df: pd.DataFrame, colunas_obrigatorias: list[str]) -> list[s
 
 def montar_saida_vazia() -> pd.DataFrame:
 	return pd.DataFrame(
-		columns=["CODIGO_PRODUTO", "DESCRICAO_PRODUTO", "EMPRESA", "STATUS"]
+		columns=[
+			"CODIGO_PRODUTO",
+			"DESCRICAO_PRODUTO",
+			"EMPRESA",
+			"STATUS",
+			"DATA_CADASTRO_PRODUTO",
+			"DIAS_DESDE_CADASTRO",
+		]
 	)
 
 
@@ -144,6 +151,27 @@ def main() -> None:
 			df_query = df_query.drop_duplicates()
 			# Garante que os códigos e vendas são numéricos para merge e soma corretos
 			df_query["CODIGO_PRODUTO"] = pd.to_numeric(df_query["CODIGO_PRODUTO"], errors="coerce").astype("Int64")
+			# Busca e normaliza a data de cadastro por produto
+			colunas_data_cadastro = [
+				"DATA_CADASTRO_PRODUTO",
+				"DATA_CADASTRO",
+				"DTAHORINCLUSAO",
+				"DTA_CADASTRO",
+			]
+			col_data_cadastro = next(
+				(col for col in colunas_data_cadastro if col in df_query.columns),
+				None,
+			)
+			if col_data_cadastro:
+				df_cadastro = df_query[["CODIGO_PRODUTO", col_data_cadastro]].copy()
+				df_cadastro["DATA_CADASTRO_PRODUTO"] = pd.to_datetime(
+					df_cadastro[col_data_cadastro], errors="coerce", dayfirst=True
+				)
+				df_cadastro = (
+					df_cadastro.groupby("CODIGO_PRODUTO", as_index=False)["DATA_CADASTRO_PRODUTO"]
+					.min()
+				)
+				df_saida = df_saida.merge(df_cadastro, on="CODIGO_PRODUTO", how="left")
 			if "QTD_VENDIDA" in df_query.columns:
 				df_query["QTD_VENDIDA"] = pd.to_numeric(df_query["QTD_VENDIDA"], errors="coerce").fillna(0)
 			col_venda = "QTD_VENDIDA" if "QTD_VENDIDA" in df_query.columns else None
@@ -176,6 +204,33 @@ def main() -> None:
 				df_saida["LOJAS_ATIVAS"] = ""
 			cols = [col for col in df_saida.columns if col not in ["VENDA_QUERY", "LOJAS_ATIVAS"]] + ["VENDA_QUERY", "LOJAS_ATIVAS"]
 			df_saida = df_saida[cols]
+
+		if "DATA_CADASTRO_PRODUTO" not in df_saida.columns:
+			df_saida["DATA_CADASTRO_PRODUTO"] = ""
+
+		if pd.api.types.is_datetime64_any_dtype(df_saida["DATA_CADASTRO_PRODUTO"]):
+			hoje = pd.Timestamp.today().normalize()
+			df_saida["DIAS_DESDE_CADASTRO"] = (
+				hoje - df_saida["DATA_CADASTRO_PRODUTO"]
+			).dt.days
+			df_saida["DIAS_DESDE_CADASTRO"] = df_saida[
+				"DIAS_DESDE_CADASTRO"
+			].astype("Int64")
+			df_saida["DATA_CADASTRO_PRODUTO"] = df_saida[
+				"DATA_CADASTRO_PRODUTO"
+			].dt.strftime("%d/%m/%Y")
+		else:
+			if "DIAS_DESDE_CADASTRO" not in df_saida.columns:
+				df_saida["DIAS_DESDE_CADASTRO"] = ""
+
+		cols_sem_finais = [
+			col
+			for col in df_saida.columns
+			if col not in ["DATA_CADASTRO_PRODUTO", "DIAS_DESDE_CADASTRO"]
+		]
+		df_saida = df_saida[
+			cols_sem_finais + ["DATA_CADASTRO_PRODUTO", "DIAS_DESDE_CADASTRO"]
+		]
 		motivo = "Filtros aplicados com sucesso."
 	else:
 		# Caso extremo: df está vazio ou None, saída vazia
