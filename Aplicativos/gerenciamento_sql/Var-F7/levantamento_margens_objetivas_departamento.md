@@ -36,11 +36,13 @@ Levantar a margem objetiva por produto/hierarquia de departamento, com código e
 
 **SQL da Lista LS1:**
 ```sql
-SELECT TO_CHAR(SEQCOMPRADOR) || ' - ' || APELIDO AS ITEM
+SELECT '0 - TODOS' AS ITEM FROM DUAL
+UNION ALL
+SELECT TO_CHAR(SEQCOMPRADOR) || ' - ' || COMPRADOR AS ITEM
 FROM MAX_COMPRADOR
-ORDER BY APELIDO
+ORDER BY ITEM
 ```
-> Adicionar manualmente o item `0 - TODOS` como primeira opção ou definir como valor padrão no cadastro da lista.
+> O item `0 - TODOS` ja e retornado pela SQL da lista.
 
 ---
 
@@ -60,7 +62,7 @@ ORDER BY APELIDO
    - Aba: Lista
    - Descrição: `Comprador`
    - Valor padrão: `0 - TODOS`
-   - SQL da lista: `SELECT TO_CHAR(SEQCOMPRADOR) || ' - ' || APELIDO AS ITEM FROM MAX_COMPRADOR ORDER BY APELIDO`
+   - SQL da lista: `SELECT '0 - TODOS' AS ITEM FROM DUAL UNION ALL SELECT TO_CHAR(SEQCOMPRADOR) || ' - ' || COMPRADOR AS ITEM FROM MAX_COMPRADOR ORDER BY ITEM`
 6. Salve as variáveis.
 7. Execute a consulta.
 
@@ -68,7 +70,7 @@ ORDER BY APELIDO
 
 ## Observações
 
-- O filtro de comprador usa o padrão `codigo - apelido` e extrai o código para comparar com `MAP_FAMDIVISAO.SEQCOMPRADOR`.
+- O filtro de comprador usa o padrão `codigo - comprador` e extrai o código para comparar com `MAP_FAMDIVISAO.SEQCOMPRADOR`.
 - Selecionar `0 - TODOS` retorna todos os compradores.
 - O comprador aparece como coluna `COMPRADOR` no grid, entre a hierarquia e o código do produto.
 - Empresas não comerciais já são expurgadas via lista fixa: `IN (1,2,3,4,5,6,7,8,11,12,13,14,15,17,18)`.
