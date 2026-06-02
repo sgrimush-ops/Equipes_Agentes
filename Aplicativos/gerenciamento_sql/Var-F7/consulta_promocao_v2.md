@@ -14,13 +14,13 @@ Listar as promos por loja individual, sem consolidar empresas, com quantidade an
 - `NOME`: sequencia da promocao.
 - `COD`: codigo do produto.
 - `DESCRICAO`: descricao completa do produto.
-- `PRECO`: preco normal.
+- `PRECO`: preco normal formatado como moeda (`R$`).
 - `MGNORMAL`: margem normal formatada.
-- `PROMO`: preco promocional.
+- `PROMO`: preco promocional formatado como moeda (`R$`).
 - `MGPROMOC`: margem promocional formatada.
 - `QTD_ANTERIOR`: quantidade vendida no periodo anterior.
 - `QTD_ATUAL`: quantidade vendida no periodo atual.
-- `VALOR_TOTAL_VENDIDO`: preco promocional multiplicado pela quantidade vendida atual.
+- `VALOR_TOTAL_VENDIDO`: valor financeiro formatado como moeda (`R$`), calculado por preco promocional multiplicado pela quantidade vendida atual.
 
 ## Variaveis para cadastrar em Var - F7
 
@@ -55,7 +55,17 @@ Listar as promos por loja individual, sem consolidar empresas, com quantidade an
 - Instrucao: informe o fim do periodo atual.
 
 ## SQL da lista LS1
-Utilize a lista de ofertas ja cadastrada na tela para preencher o dropdown de `LS1`.
+- Tipo de retorno esperado: codigo da promocao (numerico), compativel com `M.PROMOCAO = :LS1`.
+- SQL sugerida da lista:
+
+```sql
+SELECT DISTINCT
+	P.PROMOCAO AS ITEM
+FROM MRLV_BASEPRODPROMOC P
+WHERE P.CENTRALLOJA = 'C'
+	AND P.PRINCIPAL = 'S'
+ORDER BY 1
+```
 
 ## Passo a passo operacional
 1. Abrir a consulta na tela Consulta Criacao.

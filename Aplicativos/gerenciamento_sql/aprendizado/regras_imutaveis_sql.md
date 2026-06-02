@@ -4,6 +4,7 @@ Este documento registra as descobertas técnicas que garantiram a performance e 
 
 ## 1. Regras de Sintaxe (Performance e Estabilidade)
 - **Proibição de Comentários**: NUNCA usar `--` ou `/* */` dentro dos arquivos `.sql`. O parser do Consinco remove as quebras de linha e os comentários "matam" o restante da query.
+- **Formatação de Valores Financeiros**: Quando a saída precisar exibir valor monetário formatado em reais, usar como padrão `'R$ ' || TO_CHAR(ROUND(NVL(M.PRECONORMAL, 0), 2), 'FM999G999D00') AS PRECO`, preservando prefixo, arredondamento em 2 casas e centavos fixos.
 - **NOT EXISTS para Exclusão**: Para remover departamentos como 'ALMOXARIFADO' ou 'INATIVAR', usar sempre `NOT EXISTS` cruzando `MAP_FAMDIVCATEG` e `MAP_CATEGORIA` Nível 1. É a única forma de garantir exclusão total sem duplicar linhas.
 - **Prevenção de Duplicação por Data**: Ao cruzar tabelas de histórico (como `MRL_PRODVENDADIA`) com tabelas de saldo fixo (`MRL_PRODUTOEMPRESA`), SEMPRE agrupar a tabela de histórico em uma subquery primeiro. Caso contrário, o saldo de estoque será multiplicado pelo número de dias do período.
 - **Case Insensitivity e Acentos**: Sempre usar `UPPER()` nas comparações de texto e `LIKE 'SERVIC%'` para o departamento de Serviços, evitando falhas por acentuação.
