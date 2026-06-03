@@ -62,13 +62,13 @@ SELECT TO_CHAR(B.CODIGO_FORNECEDOR) AS COD_F,
                                                    AND NVL(NF.SEQNF,0) = NVL(N.SEQNF,NVL(NF.SEQNF,0))
                               JOIN MAX_CODGERALOPER CGO ON CGO.CODGERALOPER = NF.CODGERALOPER
                               LEFT JOIN MAX_PARAMETRO MP ON MP.NROEMPRESA = NF.NROEMPRESA AND MP.PARAMETRO = 'CGO_ENTR_BONIF_NFCOMPRA'
-                             WHERE NF.TIPNOTAFISCAL = 'E'
+                             WHERE NF.TIPNOTAFISCAL IN ('E', 'S')
                                AND NF.NROEMPRESA IN (1,2,3,4,5,6,7,8,11,12,13,14,15,16,17,18,50)
                                AND NF.DTAENTRADA >= TRUNC(:DT1)
                                AND NF.DTAENTRADA < TRUNC(:DT2) + 1
                                AND NF.STATUSNF <> 'C'
                                AND NF.NUMERONF IS NOT NULL
-                               AND N.TIPNOTAFISCAL = 'E'
+                               AND N.TIPNOTAFISCAL IN ('E', 'S')
                                AND N.TIPITEM = 'R'
                            ) X
                      GROUP BY X.SEQPRODUTO
