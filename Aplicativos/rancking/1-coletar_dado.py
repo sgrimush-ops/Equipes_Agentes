@@ -1,4 +1,5 @@
-from pathlib import Path
+﻿from pathlib import Path
+import re
 
 import pandas as pd
 
@@ -12,8 +13,15 @@ def br_to_float(value):
 	if text == "":
 		return 0.0
 
-	text = text.replace("R$", "").replace(" ", "")
-	text = text.replace(".", "").replace(",", ".")
+	# Remove moeda, espacos comuns/NBSP e qualquer caractere nao numerico relevante.
+	text = re.sub(r"[^\d,\.\-]", "", text)
+
+	if text in {"", "-", ".", ","}:
+		return 0.0
+
+	# Padrao brasileiro: ponto como milhar e virgula como decimal.
+	if "," in text:
+		text = text.replace(".", "").replace(",", ".")
 
 	try:
 		return float(text)
@@ -23,8 +31,8 @@ def br_to_float(value):
 
 def main():
 	base_dir = Path(__file__).resolve().parent
-	input_path = base_dir.parent / "import_querys" / "ranck.txt"
-	output_path = base_dir / "ranck.xlsx"
+	input_path = base_dir.parent / "import_querys" / "ranking.txt"
+	output_path = base_dir / "ranking.xlsx"
 
 	if not input_path.exists():
 		raise FileNotFoundError(f"Arquivo nao encontrado: {input_path}")
@@ -46,20 +54,21 @@ def main():
 			f"Nao foi possivel ler o arquivo com os encodings suportados: {input_path}",
 		)
 
+	# Evita problemas de mapeamento por espacos ocultos no cabecalho.
+	df.columns = [str(col).strip() for col in df.columns]
+
 	monetary_columns = [col for col in df.columns if col.startswith("VLR_")]
 	for col in monetary_columns:
 		df[col] = df[col].apply(br_to_float)
 
-	numeric_columns = ["QTD_SKU", "QTD_INCINERACAO_ANO_ATUAL"]
-	for col in numeric_columns:
-		if col in df.columns:
-			df[col] = (
-				df[col]
-				.astype(str)
-				.str.replace(".", "", regex=False)
-				.str.replace(",", ".", regex=False)
-			)
-			df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+	if "QTD_SKU" in df.columns:
+		df["QTD_SKU"] = pd.to_numeric(df["QTD_SKU"], errors="coerce").fillna(0).round(0).astype("Int64")
+
+	# Essa coluna chega no TXT como "R$ x.xxx,xx"; precisa passar pelo parser BR.
+	if "QTD_INCINERACAO_ANO_ATUAL" in df.columns:
+		df["QTD_INCINERACAO_ANO_ATUAL"] = (
+			df["QTD_INCINERACAO_ANO_ATUAL"].apply(br_to_float).round(0).astype("Int64")
+		)
 
 	try:
 		df.to_excel(output_path, index=False)
@@ -73,3 +82,4 @@ def main():
 
 if __name__ == "__main__":
 	main()
+
