@@ -167,9 +167,8 @@ def gerar_html(
 	cabecalhos = "\n".join(f"            <th>{col}</th>" for col in df.columns)
 	colunas_js = []
 	primeira_coluna = df.columns[0] if len(df.columns) > 0 else ""
-	colgroup_html = "\n".join(f"\t\t\t\t<col style=\"width:{largura};\">" for largura in larguras_colunas)
 	total_celulas_html = "\n".join(
-		f"\t\t\t\t\t<td>{valor}</td>" for valor in totais_exibicao
+		f"\t\t\t\t\t<th>{valor}</th>" for valor in totais_exibicao
 	)
 
 	for col in df.columns:
@@ -259,7 +258,7 @@ def gerar_html(
 		}}
 
 		.container {{
-			max-width: 1400px;
+			max-width: 98%;
 			margin: 0 auto;
 		}}
 
@@ -318,23 +317,18 @@ def gerar_html(
 			white-space: nowrap;
 		}}
 
-		#tabelaTotais {{
-			width: 100%;
-			table-layout: fixed;
-			border-collapse: collapse;
-			margin-bottom: 10px;
-		}}
-
-		#tabelaTotais td {{
+		table.dataTable thead tr.totais-row th {{
 			background: #ffedd5;
-			border: 1px solid #fed7aa;
+			border-top: 1px solid #fed7aa;
+			border-bottom: 1px solid #fed7aa;
 			font-weight: 800;
 			padding: 8px;
 			text-align: right;
 			white-space: nowrap;
+			color: #7c2d12;
 		}}
 
-		#tabelaTotais td:first-child {{
+		table.dataTable thead tr.totais-row th:first-child {{
 			text-align: left;
 		}}
 
@@ -363,6 +357,37 @@ def gerar_html(
 			.hero {{ padding: 18px; }}
 			.card {{ padding: 10px; }}
 		}}
+
+		/* Forçar orientação de paisagem para impressão/salvar em PDF */
+		@media print {{
+			@page {{
+				size: landscape;
+				margin: 10mm;
+			}}
+			body {{
+				background: none !important;
+				padding: 0 !important;
+			}}
+			.container {{
+				max-width: 100% !important;
+				width: 100% !important;
+			}}
+			.hero {{
+				box-shadow: none !important;
+				border: none !important;
+				padding: 0 0 10px 0 !important;
+				margin-bottom: 10px !important;
+				background: transparent !important;
+			}}
+			.card {{
+				box-shadow: none !important;
+				border: none !important;
+				padding: 0 !important;
+			}}
+			.dataTables_length, .dataTables_filter, .dataTables_paginate, .dataTables_info, .hint {{
+				display: none !important;
+			}}
+		}}
 	</style>
 </head>
 <body>
@@ -374,23 +399,18 @@ def gerar_html(
 
 		<section class="card">
 			<p class="hint">Use o campo de busca para filtrar rapidamente fornecedores, compradores e demais colunas.</p>
-			<table id="tabelaTotais" aria-label="Linha de totais">
-				<colgroup>
-{colgroup_html}
-				</colgroup>
-				<tbody>
-					<tr>
-{total_celulas_html}
-					</tr>
-				</tbody>
-			</table>
-			<table id="tabelaRanck" class="display stripe hover" style="width:100%">
-				<thead>
-					<tr>
+			<div style="overflow-x: auto; width: 100%;">
+				<table id="tabelaRanck" class="display stripe hover" style="width:100%">
+					<thead>
+						<tr>
 {cabecalhos}
-					</tr>
-				</thead>
-			</table>
+						</tr>
+						<tr class="totais-row">
+{total_celulas_html}
+						</tr>
+					</thead>
+				</table>
+			</div>
 		</section>
 	</div>
 
@@ -409,7 +429,8 @@ def gerar_html(
 				pageLength: 25,
 				order: [],
 				autoWidth: false,
-				responsive: true,
+				responsive: false,
+				scrollX: true,
 				language: {{
 					decimal: ',',
 					thousands: '.',

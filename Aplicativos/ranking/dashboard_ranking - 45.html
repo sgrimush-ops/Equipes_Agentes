@@ -37,7 +37,7 @@
 		}
 
 		.container {
-			max-width: 98%;
+			max-width: 1400px;
 			margin: 0 auto;
 		}
 
@@ -96,18 +96,23 @@
 			white-space: nowrap;
 		}
 
-		table.dataTable thead tr.totais-row th {
+		#tabelaTotais {
+			width: 100%;
+			table-layout: fixed;
+			border-collapse: collapse;
+			margin-bottom: 10px;
+		}
+
+		#tabelaTotais td {
 			background: #ffedd5;
-			border-top: 1px solid #fed7aa;
-			border-bottom: 1px solid #fed7aa;
+			border: 1px solid #fed7aa;
 			font-weight: 800;
 			padding: 8px;
 			text-align: right;
 			white-space: nowrap;
-			color: #7c2d12;
 		}
 
-		table.dataTable thead tr.totais-row th:first-child {
+		#tabelaTotais td:first-child {
 			text-align: left;
 		}
 
@@ -136,37 +141,6 @@
 			.hero { padding: 18px; }
 			.card { padding: 10px; }
 		}
-
-		/* Forçar orientação de paisagem para impressão/salvar em PDF */
-		@media print {
-			@page {
-				size: landscape;
-				margin: 10mm;
-			}
-			body {
-				background: none !important;
-				padding: 0 !important;
-			}
-			.container {
-				max-width: 100% !important;
-				width: 100% !important;
-			}
-			.hero {
-				box-shadow: none !important;
-				border: none !important;
-				padding: 0 0 10px 0 !important;
-				margin-bottom: 10px !important;
-				background: transparent !important;
-			}
-			.card {
-				box-shadow: none !important;
-				border: none !important;
-				padding: 0 !important;
-			}
-			.dataTables_length, .dataTables_filter, .dataTables_paginate, .dataTables_info, .hint {
-				display: none !important;
-			}
-		}
 	</style>
 </head>
 <body>
@@ -178,10 +152,41 @@
 
 		<section class="card">
 			<p class="hint">Use o campo de busca para filtrar rapidamente fornecedores, compradores e demais colunas.</p>
-			<div style="overflow-x: auto; width: 100%;">
-				<table id="tabelaRanck" class="display stripe hover" style="width:100%">
-					<thead>
-						<tr>
+			<table id="tabelaTotais" aria-label="Linha de totais">
+				<colgroup>
+				<col style="width:8ch;">
+				<col style="width:42ch;">
+				<col style="width:27ch;">
+				<col style="width:8ch;">
+				<col style="width:12ch;">
+				<col style="width:11ch;">
+				<col style="width:9ch;">
+				<col style="width:9ch;">
+				<col style="width:11ch;">
+				<col style="width:11ch;">
+				<col style="width:14ch;">
+				<col style="width:8ch;">
+				</colgroup>
+				<tbody>
+					<tr>
+					<td>TOTAL</td>
+					<td>TOTAL</td>
+					<td>-</td>
+					<td>14.408</td>
+					<td>87.553.780</td>
+					<td>60.282.855</td>
+					<td>1.151.735</td>
+					<td>386.992</td>
+					<td>17.402.511</td>
+					<td>31.768.525</td>
+					<td>49.171.040,86</td>
+					<td>112.012</td>
+					</tr>
+				</tbody>
+			</table>
+			<table id="tabelaRanck" class="display stripe hover" style="width:100%">
+				<thead>
+					<tr>
             <th>COD</th>
             <th>FORNECEDOR</th>
             <th>COMPRADOR</th>
@@ -194,24 +199,9 @@
             <th>CUSTO_LOJ</th>
             <th>VLR_CUSTO_EMPRESA</th>
             <th>INCINER</th>
-						</tr>
-						<tr class="totais-row">
-					<th>TOTAL</th>
-					<th>TOTAL</th>
-					<th>-</th>
-					<th>14.408</th>
-					<th>87.553.780</th>
-					<th>60.282.855</th>
-					<th>1.151.735</th>
-					<th>386.992</th>
-					<th>17.402.511</th>
-					<th>31.768.525</th>
-					<th>49.171.040,86</th>
-					<th>112.012</th>
-						</tr>
-					</thead>
-				</table>
-			</div>
+					</tr>
+				</thead>
+			</table>
 		</section>
 	</div>
 
@@ -252,8 +242,7 @@
 				pageLength: 25,
 				order: [],
 				autoWidth: false,
-				responsive: false,
-				scrollX: true,
+				responsive: true,
 				language: {
 					decimal: ',',
 					thousands: '.',
