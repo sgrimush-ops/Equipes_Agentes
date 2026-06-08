@@ -269,57 +269,57 @@ class MixProcessor:
                     (lojas_venda_status[loja] == 'I') for loja in lojas_venda_fixas
                 )
 
-                # --- REGRA DE ESCALONAMENTO PARA INATIVAÇÃO DOS GRUPOS ---
-                # 1. Apura status de cada grupo
-                status_grupos = {}
-                for grupo, lojas in grupos_lojas.items():
-                    status_set = set()
-                    for loja in lojas:
-                        st = status_map.get(loja)
-                        if st:
-                            status_set.add(st)
-                    # Prioridade: se houver "A", prevalece sobre "I"
-                    if "A" in status_set:
-                        status_grupos[grupo] = "A"
-                    elif "I" in status_set and len(status_set) > 0:
-                        status_grupos[grupo] = "I"
-                    else:
-                        status_grupos[grupo] = None
-
-                # 2. Escalonamento de inativação
-                # Se GG=I então G, M, P também = I (PP isolado)
-                if status_grupos.get('GG') == 'I':
-                    for grupo in ['GG', 'G', 'M', 'P']:
-                        for loja in grupos_lojas[grupo]:
-                            status_map[loja] = 'I'
-                # Se G=I então M,P=I
-                elif status_grupos.get('G') == 'I':
-                    for grupo in ['M', 'P']:
-                        for loja in grupos_lojas[grupo]:
-                            status_map[loja] = 'I'
-                # Se M=I então P=I
-                elif status_grupos.get('M') == 'I':
-                    for loja in grupos_lojas['P']:
-                        status_map[loja] = 'I'
-
-                # 3. Após escalonamento, aplica status dominante dentro de cada grupo (exceto PP)
-                for grupo, lojas in grupos_lojas.items():
-                    if grupo == 'PP':
-                        continue  # PP é isolada
-                    status_set = set()
-                    for loja in lojas:
-                        st = status_map.get(loja)
-                        if st:
-                            status_set.add(st)
-                    if status_set:
-                        if "A" in status_set:
-                            status_final = "A"
-                        elif "I" in status_set:
-                            status_final = "I"
-                        else:
-                            status_final = list(status_set)[0]
-                        for loja in lojas:
-                            status_map[loja] = status_final
+                # --- REGRA DE ESCALONAMENTO PARA INATIVAÇÃO DOS GRUPOS (SUSPENSA TEMPORARIAMENTE) ---
+                # # 1. Apura status de cada grupo
+                # status_grupos = {}
+                # for grupo, lojas in grupos_lojas.items():
+                #     status_set = set()
+                #     for loja in lojas:
+                #         st = status_map.get(loja)
+                #         if st:
+                #             status_set.add(st)
+                #     # Prioridade: se houver "A", prevalece sobre "I"
+                #     if "A" in status_set:
+                #         status_grupos[grupo] = "A"
+                #     elif "I" in status_set and len(status_set) > 0:
+                #         status_grupos[grupo] = "I"
+                #     else:
+                #         status_grupos[grupo] = None
+                # 
+                # # 2. Escalonamento de inativação
+                # # Se GG=I então G, M, P também = I (PP isolado)
+                # if status_grupos.get('GG') == 'I':
+                #     for grupo in ['GG', 'G', 'M', 'P']:
+                #         for loja in grupos_lojas[grupo]:
+                #             status_map[loja] = 'I'
+                # # Se G=I então M,P=I
+                # elif status_grupos.get('G') == 'I':
+                #     for grupo in ['M', 'P']:
+                #         for loja in grupos_lojas[grupo]:
+                #             status_map[loja] = 'I'
+                # # Se M=I então P=I
+                # elif status_grupos.get('M') == 'I':
+                #     for loja in grupos_lojas['P']:
+                #         status_map[loja] = 'I'
+                # 
+                # # 3. Após escalonamento, aplica status dominante dentro de cada grupo (exceto PP)
+                # for grupo, lojas in grupos_lojas.items():
+                #     if grupo == 'PP':
+                #         continue  # PP é isolada
+                #     status_set = set()
+                #     for loja in lojas:
+                #         st = status_map.get(loja)
+                #         if st:
+                #             status_set.add(st)
+                #     if status_set:
+                #         if "A" in status_set:
+                #             status_final = "A"
+                #         elif "I" in status_set:
+                #             status_final = "I"
+                #         else:
+                #             status_final = list(status_set)[0]
+                #         for loja in lojas:
+                #             status_map[loja] = status_final
 
                 lojas_grandes = ["002", "003", "006", "011", "012", "017", "018"]
                 lojas_medias = ["008", "013", "014"]
@@ -420,13 +420,12 @@ class MixProcessor:
                 time.sleep(0.8)
                 # ...existing code...
                 
-                # Detecção visual do popup antes e depois do ALT+S
+                # Detecção visual do popup antes e depois do ALT+S (Otimizado para detecção em tela cheia)
                 try:
                     popup_template = cv2.imread('captura_tela/popup_consinco.png')
                     if popup_template is not None:
-                        # Região central onde normalmente aparece o popup
-                        px, py, pw, ph = 540, 320, 480, 100
-                        screenshot_popup = pyautogui.screenshot(region=(px, py, pw, ph))
+                        # Captura em tela cheia para evitar bugs de resolução/coordenadas fixas
+                        screenshot_popup = pyautogui.screenshot()
                         screenshot_popup_bgr = cv2.cvtColor(np.array(screenshot_popup), cv2.COLOR_RGB2BGR)
                         res_popup = cv2.matchTemplate(screenshot_popup_bgr, popup_template, cv2.TM_CCOEFF_NORMED)
                         _, max_val_popup, _, _ = cv2.minMaxLoc(res_popup)
@@ -436,8 +435,8 @@ class MixProcessor:
                             print("[MixProcessor] Popup Consinco detectado! Enviando ALT+S...")
                             pyautogui.hotkey('alt', 's')
                             time.sleep(1.0)
-                            # Após ALT+S, verifica se o popup sumiu
-                            screenshot_popup2 = pyautogui.screenshot(region=(px, py, pw, ph))
+                            # Após ALT+S, verifica se o popup sumiu (tela cheia)
+                            screenshot_popup2 = pyautogui.screenshot()
                             screenshot_popup2_bgr = cv2.cvtColor(np.array(screenshot_popup2), cv2.COLOR_RGB2BGR)
                             res_popup2 = cv2.matchTemplate(screenshot_popup2_bgr, popup_template, cv2.TM_CCOEFF_NORMED)
                             _, max_val_popup2, _, _ = cv2.minMaxLoc(res_popup2)
@@ -451,9 +450,9 @@ class MixProcessor:
                                 print("[Gemini] Execução abortada por popup persistente!")
                                 popup_interrompeu = True
                                 break
-                            # Após ALT+S, valida se voltou para tela de digitação do código
-                            x, y, w, h = 900, 60, 160, 60  # Ajuste conforme necessário para sua resolução
-                            screenshot = pyautogui.screenshot(region=(x, y, w, h))
+                            
+                            # Após ALT+S, valida se voltou para tela de digitação do código (tela cheia)
+                            screenshot = pyautogui.screenshot()
                             screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
                             template = cv2.imread('captura_tela/campo_codigo.png')
                             if template is not None:
@@ -471,10 +470,8 @@ class MixProcessor:
                                     break
                             else:
                                 print("[MixProcessor] Template campo_codigo.png não encontrado para validação visual!")
-                            # Se chegou até aqui, popup foi tratado, mas para máxima segurança, interrompe o produto atual
-                            print("[Gemini] Popup tratado, interrompendo processamento deste produto!")
-                            popup_interrompeu = True
-                            break
+                            
+                            print("[Gemini] Popup tratado com sucesso, continuando execução...")
                     else:
                         print("[MixProcessor] Template popup_consinco.png não encontrado para detecção de popup!")
                 except Exception as e:

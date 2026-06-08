@@ -1,0 +1,335 @@
+import os
+import math
+from pathlib import Path
+from datetime import datetime
+import pandas as pd
+#cC:/Users/usr/AppData/Local/Programs/Python/Python314/python.exe 1-min_max.pyd Aplicativos/min_e_max
+# Função para converter arquivo intermediário para CSV
+def converter_para_csv(arquivo_parquet=None):
+    """
+    Lê o arquivo query.parquet e exporta resultado.csv, sem recalcular mínimos/máximos.
+    """
+    if arquivo_parquet is None:
+        arquivo_parquet = Path(__file__).parent.parent / 'query_per.parquet'
+    else:
+        arquivo_parquet = Path(arquivo_parquet)
+    if not arquivo_parquet.exists():
+        print(f"ERRO: O arquivo '{arquivo_parquet}' não foi encontrado.")
+        return
+    print(f"Lendo dados de '{arquivo_parquet.name}'...")
+    try:
+        df = pd.read_parquet(arquivo_parquet)
+    except Exception as e:
+        print(f"Erro ao ler Parquet: {e}")
+        return
+    # Ordena se possível
+    if 'CODIGO_PRODUTO' in df.columns and 'CODIGO_EMPRESA' in df.columns:
+        df = df.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
+    arquivo_saida = Path('resultado.csv')
+    try:
+        df.to_csv(
+            arquivo_saida,
+            sep=';',
+            encoding='utf-8-sig',
+            index=False,
+            decimal=',',
+        )
+        print(f"Exportação concluída: {arquivo_saida.name}")
+
+    except Exception as e:
+        print(f"Erro ao exportar CSV: {e}")
+
+# --- TRAVA DE CONTEXTO ---
+if __name__ == '__main__':
+    try:
+        os.chdir(Path(__file__).parent.resolve())
+    except NameError:
+        pass
+
+def calcular_min_max(row, dias_relatorio):
+    """
+    Função dedicada a calcular as novas propriedades de Estoque Mínimo e Máximo.
+    """
+    try:
+        embalagem = int(row['EMBL_TRANSFERENCIA_NUM'])
+    except:
+        embalagem = 1
+    if embalagem <= 0:
+        embalagem = 1
+        
+    try:
+        venda_periodo = float(row['QTD_VENDIDA_NUM'])
+    except:
+        venda_periodo = 0.0
+
+    venda_media = venda_periodo / dias_relatorio
+
+    # Regra 1: Mínimo = venda média de 4 dias em unidades inteiras.
+    minimo_dias = 4 * venda_media
+
+    if embalagem == 1:
+        # Produto unitário mantém a regra mínima de 6 unidades.
+        min_novo = max(math.ceil(minimo_dias), 6)
+        regra_minimo = 'UNITARIO_PISO_6'
+    else:
+        # Para caixas fechadas, o mínimo não pode ficar abaixo de 60% da embalagem.
+        piso_minimo = math.ceil(embalagem * 0.6)
+        min_novo = max(math.ceil(minimo_dias), piso_minimo)
+        if min_novo == piso_minimo:
+            regra_minimo = 'PISO_60_EMBALAGEM'
+        else:
+            regra_minimo = 'VENDA_4_DIAS'
+
+    # Cálculo do Máximo: baixo volume recebe 1 caixa acima do mínimo.
+    # Alto volume recebe 35% acima do mínimo, com a diferença arredondada
+    # para caixas fechadas.
+    if embalagem == 1 and min_novo == 6 and minimo_dias <= 6:
+        # Produto de emb=1 girando devagar. Fixo estrito de regra 3
+        max_novo = 10
+        regra_maximo = 'UNITARIO_LENTO_FIXO_10'
+    else:
+        embalagens_minimo = min_novo / embalagem
+
+        if embalagem > 1 and embalagens_minimo >= 3:
+            aumento_caixas = math.ceil((min_novo * 0.35) / embalagem)
+            regra_maximo = 'ALTO_VOLUME_35'
+        else:
+            aumento_caixas = 1
+            regra_maximo = 'UMA_CAIXA_ACIMA'
+
+        aumento_caixas = max(aumento_caixas, 1)
+        max_novo = min_novo + (aumento_caixas * embalagem)
+
+    # Ajuste de paridade: se a embalagem for par, o mínimo também deve ser par.
+    # Aplicado APÓS o cálculo do máximo para não interferir na regra dele.
+    if embalagem % 2 == 0 and min_novo % 2 != 0:
+        min_novo += 1
+        regra_minimo += '+PAR'
+
+    # Garante que a diferença (max - min) seja sempre múltiplo da embalagem,
+    # ou seja, corresponda a um número inteiro de caixas fechadas.
+    if embalagem > 1:
+        diff = max_novo - min_novo
+        if diff % embalagem != 0:
+            max_novo = min_novo + math.ceil(diff / embalagem) * embalagem
+
+    return pd.Series([
+        round(venda_media, 2),
+        int(min_novo),
+        int(max_novo),
+        regra_minimo,
+        regra_maximo,
+    ])
+
+
+
+def solicitar_dias_relatorio():
+    print("\n" + "=" * 50)
+    print("          BASE DO RELATORIO DE VENDAS")
+    print("=" * 50)
+    print("Informe quantos dias de venda o relatorio traz.")
+    print("Exemplos: 30 para venda de 30 dias, 60 para venda de 60 dias.")
+    print("=" * 50)
+
+    while True:
+        entrada_dias = input("-> Digite a quantidade de dias do relatorio: ").strip()
+        try:
+            dias_relatorio = int(entrada_dias)
+        except ValueError:
+            print("x Valor invalido. Digite um numero inteiro maior que zero.")
+            continue
+
+        if dias_relatorio <= 0:
+            print("x Valor invalido. Digite um numero inteiro maior que zero.")
+            continue
+
+        return dias_relatorio
+
+def processar_calculos():
+    dias_relatorio = solicitar_dias_relatorio()
+
+    # Caminho corporativo centralizado
+    arquivo_query_per = Path(__file__).parent.parent / 'import_querys' / 'query_per.parquet'
+    
+    if not arquivo_query_per.exists():
+        print(f"Erro fatal: Não foi encontrado o arquivo fonte de dados no caminho corporativo: {arquivo_query_per}")
+        return
+        
+    print(f"Carregando base volumosa corporativa '{arquivo_query_per.name}'...")
+    df = pd.read_parquet(arquivo_query_per)
+    
+    # 0. Filtro de Ativos (Garante que só produtos em linha na loja recebam sugestão)
+    if 'ATIVO_COMPRA' in df.columns:
+        print("Filtrando apenas produtos ATIVOS para as lojas...")
+        df = df[df['ATIVO_COMPRA'] == 'A'].copy()
+    else:
+        print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada. Todos os itens serão considerados ativos!")
+
+    # Remove CDs (empresa 16) do cálculo e exportação
+    if 'CODIGO_EMPRESA' in df.columns:
+        antes = len(df)
+        df = df[df['CODIGO_EMPRESA'] != 16].copy()
+        depois = len(df)
+        print(f"Removidos {antes - depois} registros de CDs (empresa 16) do cálculo e exportação.")
+    else:
+        print("[AVISO] Coluna 'CODIGO_EMPRESA' não encontrada. Não foi possível remover CDs.")
+    
+    # 1. Aplicando Regra Global nº 6 (Saneamento de Inteiros)
+    print("Saneando extração de embalagens e ajustando preenchimentos...")
+    df['EMBL_TRANSFERENCIA_NUM'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
+
+    colunas_venda_possiveis = [
+        'QTD_VENDIDA_PERIODO',
+        'QTD_VENDIDA',
+    ]
+    coluna_venda = next((c for c in colunas_venda_possiveis if c in df.columns), None)
+
+    if not coluna_venda:
+        print(
+            'Erro: coluna de venda nao encontrada. '
+            'Esperado uma entre: QTD_VENDIDA_PERIODO, QTD_VENDIDA.'
+        )
+        return
+
+    if pd.api.types.is_numeric_dtype(df[coluna_venda]):
+        df['QTD_VENDIDA_NUM'] = pd.to_numeric(
+            df[coluna_venda],
+            errors='coerce',
+        ).fillna(0.0)
+    else:
+        venda_txt = (
+            df[coluna_venda]
+            .astype(str)
+            .str.strip()
+            .str.replace(',', '.', regex=False)
+        )
+        df['QTD_VENDIDA_NUM'] = pd.to_numeric(
+            venda_txt,
+            errors='coerce',
+        ).fillna(0.0)
+
+    print(
+        f"Venda media sera calculada como {coluna_venda} / {dias_relatorio} dias."
+    )
+    df['DIAS_RELATORIO_VENDA'] = dias_relatorio
+    
+    # 2. Computar mínimos e máximos por linha
+    print("Rodando cálculos matemáticos matriz...")
+    df[
+        [
+            'VENDA_MEDIA',
+            'NOVO_MINIMO',
+            'NOVO_MAXIMO',
+            'REGRA_MINIMO',
+            'REGRA_MAXIMO',
+        ]
+    ] = df.apply(
+        lambda row: calcular_min_max(row, dias_relatorio),
+        axis=1,
+    )
+    
+    # 3. Não há mais cálculo ou sugestão para CDs (empresa 16) — já removidos acima
+    
+    # 4. Input Terminal
+    print("\n" + "="*50)
+    print("           OPÇÕES DE RELATÓRIO / EXPORTAÇÃO")
+    print("="*50)
+    print("[1] - Gerar APENAS sugestões para AUMENTAR")
+    print("      (Filtra os casos onde o Novo Mínimo Calculado é maior que o Atual (origem))")
+    print("\n[2] - Gerar TOTAL")
+    print("      (Exporta a base total indiscriminada, englobando altas, baixas e manutenção equivalentes)")
+    print("="*50)
+    
+    while True:
+        opcao = input("-> Digite a opção escolhida (1 ou 2): ").strip()
+        if opcao in ['1', '2']:
+            break
+        print("x Opção inválida. Digite 1 ou 2.")
+        
+    if opcao == '1':
+        print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO (Diferença > 5 unidades)...")
+        # Garante que as colunas estejam como inteiro para o filtro
+        df['NOVO_MINIMO'] = pd.to_numeric(df['NOVO_MINIMO'], errors='coerce').fillna(0).astype(int)
+        df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
+        df_resultado = df[df['NOVO_MINIMO'] > (df['QUANTIDADE_ESTOQUE_MINIMO'] + 5)].copy()
+    else:
+        print("\n=> Exportando a totalidade dos produtos analisados...")
+        df_resultado = df.copy()
+
+    # Expurga itens onde sugestão é idêntica ao atual (sem alteração)
+    sem_mudanca = (
+        (df_resultado['NOVO_MINIMO'] == df_resultado['QUANTIDADE_ESTOQUE_MINIMO']) &
+        (df_resultado['NOVO_MAXIMO'] == df_resultado['QUANTIDADE_ESTOQUE_MAXIMO'])
+    )
+    qtd_expurgados = sem_mudanca.sum()
+    if qtd_expurgados:
+        print(f"  → Expurgando {qtd_expurgados} item(ns) sem alteração (novo mín/máx igual ao atual)...")
+        df_resultado = df_resultado[~sem_mudanca].copy()
+
+    print(f"Total de linhas prontas para exportação: {len(df_resultado)}")
+    
+    # 5. Refaz o filtro de ativos para garantir que só exporta produtos ativos
+    if 'ATIVO_COMPRA' in df_resultado.columns:
+        antes = len(df_resultado)
+        df_resultado = df_resultado[df_resultado['ATIVO_COMPRA'] == 'A'].copy()
+        depois = len(df_resultado)
+        print(f"Filtro final de ativos: {antes} → {depois} linhas ativas exportadas.")
+    else:
+        print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada no resultado. Exportando todos os itens!")
+
+    # Garante que a coluna Status sempre traga o valor de STATUS_COMPRA da query.parquet
+    if 'STATUS_COMPRA' in df_resultado.columns:
+        df_resultado['Status'] = df_resultado['STATUS_COMPRA']
+    else:
+        df_resultado['Status'] = 'DESCONHECIDO'
+
+    # Define a ordem final das colunas (estoque disponível como a última coluna)
+    colunas_finais = [
+        'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
+        'CODIGO_EMPRESA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
+        'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
+        'REGRA_MINIMO', 'REGRA_MAXIMO', 'Status', 'QUANTIDADE_DISPONIVEL'
+    ]
+    cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
+    df_export = df_resultado[cols_existentes].copy()
+    # Ordena pelo código do produto e depois pela empresa
+    if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
+        df_export = df_export.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
+    
+    print("Exportando os resultados para 'resultado_per.csv' para conferência humana...")
+    arquivo_saida = Path('resultado_per.csv')
+
+    try:
+        df_export.to_csv(
+            arquivo_saida,
+            sep=';',
+            encoding='utf-8-sig',
+            index=False,
+            decimal=',',
+        )
+    except PermissionError:
+        arquivo_saida = Path(
+            f"resultado_per_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        )
+        print(
+            "Aviso: 'resultado_per.csv' está em uso. "
+            f"Exportando em '{arquivo_saida.name}'."
+        )
+        df_export.to_csv(
+            arquivo_saida,
+            sep=';',
+            encoding='utf-8-sig',
+            index=False,
+            decimal=',',
+        )
+    
+    print("\n[✓] Trabalho finalizado de ponta a ponta com sucesso!")
+
+if __name__ == "__main__":
+    os.system('cls')
+    print("\n" + "="*50)
+    print("       GERENCIADOR DE ESTOQUE MÍNIMO E MÁXIMO")
+    print("="*50)
+    print("Executando cálculo completo (Cálculos + Exportação)...")
+    processar_calculos()
+
