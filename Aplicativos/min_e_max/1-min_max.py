@@ -46,7 +46,7 @@ if __name__ == '__main__':
     except NameError:
         pass
 
-def calcular_min_max(row, dias_relatorio, capacidade_lookup):
+def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_lookup):
     """
     Função dedicada a calcular as novas propriedades de Estoque Mínimo e Máximo.
     """
@@ -74,8 +74,13 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup):
 
     venda_media = venda_periodo / dias_relatorio
 
-    # 1. Obter estoque mínimo de segurança com base nas vendas (Regra 7: 5 dias de venda)
-    minimo_dias = 5 * venda_media
+    # 1. Obter estoque mínimo de segurança com base nas vendas (Regra 7: X dias de venda dependendo do departamento)
+    dept = str(row.get('DEPARTAMENTO', '')).strip().upper()
+    dias_seguranca = 5
+    if dias_seguranca_lookup:
+        dias_seguranca = dias_seguranca_lookup.get(dept, 5)
+
+    minimo_dias = dias_seguranca * venda_media
 
     # 2. Definir o piso mínimo do produto (Regras 4 e 10)
     if embalagem == 1:
@@ -202,7 +207,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup):
             max_novo = min_novo + K * embalagem
 
     if min_novo > min_floor:
-        regra_minimo += '_VENDA_5_DIAS'
+        regra_minimo += f'_VENDA_{dias_seguranca}_DIAS'
 
     cap_out = int(capacity) if (capacity is not None and capacity > 0 and not usa_semelhanca) else None
 
@@ -330,6 +335,23 @@ def processar_calculos():
     else:
         print(f"[AVISO] Arquivo '{capacidade_path.name}' não encontrado no diretório local. A regra de capacidade será ignorada.")
     
+    # Carregar dias_seguranca.json para construir o lookup de segurança por departamento
+    import json
+    dias_seguranca_path = Path(__file__).parent / 'dias_seguranca.json'
+    dias_seguranca_lookup = {}
+    if dias_seguranca_path.exists():
+        print(f"Carregando dias de segurança por departamento de '{dias_seguranca_path.name}'...")
+        try:
+            with open(dias_seguranca_path, 'r', encoding='utf-8') as f:
+                dias_seguranca_lookup = json.load(f)
+            # Normalizar chaves para maiúsculas
+            dias_seguranca_lookup = {k.strip().upper(): v for k, v in dias_seguranca_lookup.items()}
+            print(f"Sucesso: {len(dias_seguranca_lookup)} departamentos mapeados.")
+        except Exception as e:
+            print(f"Erro ao carregar dias_seguranca.json: {e}")
+    else:
+        print(f"[AVISO] Arquivo '{dias_seguranca_path.name}' não encontrado. O padrão de 5 dias será adotado.")
+    
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
     df[
@@ -342,7 +364,7 @@ def processar_calculos():
             'CAPACIDADE_GONDOLA_SUG',
         ]
     ] = df.apply(
-        lambda row: calcular_min_max(row, dias_relatorio, capacidade_lookup),
+        lambda row: calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_lookup),
         axis=1,
     )
     
@@ -353,8 +375,10 @@ def processar_calculos():
     df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
 
-    # Se a sugestão diferir por menos de 3 unidades do original, revertemos para o valor original
-    muda_min = (df['NOVO_MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs() >= 3
+    # Se a sugestão diferir por menos de 3 unidades do original, revertemos para o valor original,
+    # EXCETO se o valor original estiver violando o piso mínimo (60% da embalagem ou 5 para unitários)
+    min_floor = df['EMBL_TRANSFERENCIA_NUM'].apply(lambda emb: 5.0 if emb == 1 else math.ceil(0.60 * emb))
+    muda_min = ((df['NOVO_MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs() >= 3) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
     df.loc[~muda_min, 'NOVO_MINIMO'] = df.loc[~muda_min, 'QUANTIDADE_ESTOQUE_MINIMO']
     
     muda_max = (df['NOVO_MAXIMO'] - df['QUANTIDADE_ESTOQUE_MAXIMO']).abs() >= 3
