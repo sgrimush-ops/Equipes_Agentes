@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
-#cC:/Users/usr/AppData/Local/Programs/Python/Python314/python.exe 1-min_max.pyd Aplicativos/min_e_max
+
 # Função para converter arquivo intermediário para CSV
 def converter_para_csv(arquivo_parquet=None):
     """
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     except NameError:
         pass
 
-def calcular_min_max(row, dias_relatorio):
+def calcular_min_max(row, dias_relatorio, capacidade_lookup):
     """
     Função dedicada a calcular as novas propriedades de Estoque Mínimo e Máximo.
     """
@@ -62,56 +62,149 @@ def calcular_min_max(row, dias_relatorio):
     except:
         venda_periodo = 0.0
 
+    try:
+        codigo_produto = int(float(str(row['CODIGO_PRODUTO']).strip()))
+    except:
+        codigo_produto = -1
+
+    try:
+        codigo_empresa = int(float(str(row['CODIGO_EMPRESA']).strip()))
+    except:
+        codigo_empresa = -1
+
     venda_media = venda_periodo / dias_relatorio
 
-    # Regra 1: Mínimo = venda média de 4 dias em unidades inteiras.
-    minimo_dias = 4 * venda_media
+    # 1. Obter estoque mínimo de segurança com base nas vendas (Regra 7: 5 dias de venda)
+    minimo_dias = 5 * venda_media
 
+    # 2. Definir o piso mínimo do produto (Regras 4 e 10)
     if embalagem == 1:
-        # Produto unitário mantém a regra mínima de 6 unidades.
-        min_novo = max(math.ceil(minimo_dias), 6)
-        regra_minimo = 'UNITARIO_PISO_6'
+        min_floor = 5.0
+        regra_minimo = 'UNITARIO_PISO_5'
     else:
-        # Para caixas fechadas, o mínimo não pode ficar abaixo de 60% da embalagem.
-        piso_minimo = math.ceil(embalagem * 0.6)
-        min_novo = max(math.ceil(minimo_dias), piso_minimo)
-        if min_novo == piso_minimo:
-            regra_minimo = 'PISO_60_EMBALAGEM'
-        else:
-            regra_minimo = 'VENDA_4_DIAS'
+        min_floor = 0.60 * embalagem
+        regra_minimo = 'PISO_60_EMBALAGEM'
 
-    # Cálculo do Máximo: baixo volume recebe 1 caixa acima do mínimo.
-    # Alto volume recebe 35% acima do mínimo, com a diferença arredondada
-    # para caixas fechadas.
-    if embalagem == 1 and min_novo == 6 and minimo_dias <= 6:
-        # Produto de emb=1 girando devagar. Fixo estrito de regra 3
-        max_novo = 10
-        regra_maximo = 'UNITARIO_LENTO_FIXO_10'
+    # Mínimo obrigatório antes do ajuste de paridade
+    min_floor_or_sales = max(minimo_dias, min_floor)
+
+    # 3. Obter capacidade
+    usa_semelhanca = False
+    capacity = capacidade_lookup.get((codigo_produto, codigo_empresa), None)
+    if capacity is None or capacity <= 0:
+        # Tentar obter por semelhança de lojas
+        STORE_TO_GROUP = {
+            1: 'PP',
+            4: 'P', 5: 'P', 7: 'P',
+            8: 'M', 13: 'M', 14: 'M',
+            2: 'G', 6: 'G', 11: 'G', 12: 'G', 17: 'G', 18: 'G',
+            3: 'GG'
+        }
+        GROUP_STORES = {
+            'PP': [1],
+            'P': [4, 5, 7],
+            'M': [8, 13, 14],
+            'G': [2, 6, 11, 12, 17, 18],
+            'GG': [3]
+        }
+        group = STORE_TO_GROUP.get(codigo_empresa, None)
+        if group in ['P', 'M', 'G']:
+            caps = [capacidade_lookup.get((codigo_produto, s)) for s in GROUP_STORES[group] if capacidade_lookup.get((codigo_produto, s), 0) > 0]
+            if caps:
+                capacity = int(round(sum(caps) / len(caps)))
+                usa_semelhanca = True
+        elif group == 'GG':
+            caps = [capacidade_lookup.get((codigo_produto, s)) for s in GROUP_STORES['G'] if capacidade_lookup.get((codigo_produto, s), 0) > 0]
+            if caps:
+                capacity = int(round((sum(caps) / len(caps)) * 1.25))
+                usa_semelhanca = True
+
+    # Regra 8 & 9 & 10: Máximo
+    usar_capacidade = False
+    if capacity is not None and capacity > 0:
+        # Regra 9: Venda média maior que a capacidade -> a venda deve ser respeitada (ignora capacidade)
+        # E se o estoque mínimo for maior ou igual à capacidade, também devemos ignorar a capacidade
+        if venda_media <= capacity and min_floor_or_sales < capacity:
+            usar_capacidade = True
+
+    if usar_capacidade:
+        # Tentar encaixar o mínimo dentro da capacidade respeitando a margem de 30% a 40% (alvo 35%)
+        # K_max é o maior número de embalagens que podemos retirar da capacidade sem violar o mínimo/piso
+        if embalagem == 1:
+            K_max = int(math.floor(capacity - min_floor_or_sales))
+            K_target = int(round(0.35 * capacity))
+        else:
+            K_max = int(math.floor((capacity - min_floor_or_sales) / embalagem))
+            K_target = int(round((0.35 * capacity) / embalagem))
+
+        if K_max >= 1:
+            # Conseguimos respeitar a capacidade como máximo!
+            K = max(1, min(K_max, K_target))
+            if embalagem == 1:
+                min_novo = capacity - K
+            else:
+                min_novo = capacity - K * embalagem
+            max_novo = capacity
+            regra_maximo = 'CAPACIDADE_DIRETA_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_DIRETA'
+        else:
+            # Conflito: para manter o estoque mínimo/piso, precisamos de mais espaço que a capacidade.
+            # O máximo deve subir além da capacidade por pelo menos 1 embalagem.
+            min_novo = math.ceil(min_floor_or_sales)
+            if embalagem == 1:
+                max_novo = min_novo + 1
+            else:
+                max_novo = min_novo + embalagem
+            regra_maximo = 'CAPACIDADE_ESTOURADA_MIN_ALTO_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_ESTOURADA_MIN_ALTO'
     else:
-        embalagens_minimo = min_novo / embalagem
-
-        if embalagem > 1 and embalagens_minimo >= 3:
-            aumento_caixas = math.ceil((min_novo * 0.35) / embalagem)
-            regra_maximo = 'ALTO_VOLUME_35'
+        # Sem capacidade cadastrada, ou capacidade ignorada por conta de venda alta/mínimo alto
+        if capacity is not None and capacity > 0:
+            if venda_media > capacity:
+                regra_maximo = 'CAP_IGNORADA_VENDA_ALTA_SEMELHANCA' if usa_semelhanca else 'CAP_IGNORADA_VENDA_ALTA'
+            else:
+                regra_maximo = 'CAP_IGNORADA_MINIMO_ALTO_SEMELHANCA' if usa_semelhanca else 'CAP_IGNORADA_MINIMO_ALTO'
         else:
-            aumento_caixas = 1
-            regra_maximo = 'UMA_CAIXA_ACIMA'
+            regra_maximo = 'SEM_CAPACIDADE'
 
-        aumento_caixas = max(aumento_caixas, 1)
-        max_novo = min_novo + (aumento_caixas * embalagem)
+        # Formação padrão de estoque de segurança (alvo 35% de diferença do máximo, ou seja, max = min / 0.65)
+        min_novo = math.ceil(min_floor_or_sales)
+        if embalagem == 1:
+            target_diff = math.ceil((0.35 / 0.65) * min_novo)
+            max_novo = min_novo + target_diff
+            max_novo = max(10, max_novo) # Piso de máximo para unitários (Regra 4)
+            regra_maximo += '_ESTOQUE_SEGURANCA'
+        else:
+            target_diff = (0.35 / 0.65) * min_novo
+            K = max(1, math.ceil(target_diff / embalagem))
+            max_novo = min_novo + K * embalagem
+            regra_maximo += '_ESTOQUE_SEGURANCA'
 
-    # Ajuste de paridade: se a embalagem for par, o mínimo também deve ser par.
-    # Aplicado APÓS o cálculo do máximo para não interferir na regra dele.
-    if embalagem % 2 == 0 and min_novo % 2 != 0:
-        min_novo += 1
-        regra_minimo += '+PAR'
+    # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima)
+    if embalagem % 2 == 0:
+        if min_novo % 2 != 0:
+            min_novo += 1
+            regra_minimo += '_PAR'
+    else:
+        if min_novo % 2 == 0:
+            min_novo += 1
+            regra_minimo += '_IMPAR'
 
-    # Garante que a diferença (max - min) seja sempre múltiplo da embalagem,
-    # ou seja, corresponda a um número inteiro de caixas fechadas.
-    if embalagem > 1:
+    # Se o mínimo subiu por conta de paridade ou arredondamento, garantir que o máximo é atualizado
+    # para que a diferença continue múltipla da embalagem
+    if embalagem == 1:
+        if max_novo < min_novo + 1:
+            max_novo = min_novo + 1
+    else:
         diff = max_novo - min_novo
-        if diff % embalagem != 0:
-            max_novo = min_novo + math.ceil(diff / embalagem) * embalagem
+        if diff < embalagem:
+            max_novo = min_novo + embalagem
+        else:
+            K = math.ceil(diff / embalagem)
+            max_novo = min_novo + K * embalagem
+
+    if min_novo > min_floor:
+        regra_minimo += '_VENDA_5_DIAS'
+
+    cap_out = int(capacity) if (capacity is not None and capacity > 0 and not usa_semelhanca) else None
 
     return pd.Series([
         round(venda_media, 2),
@@ -119,9 +212,8 @@ def calcular_min_max(row, dias_relatorio):
         int(max_novo),
         regra_minimo,
         regra_maximo,
+        cap_out,
     ])
-
-
 
 def solicitar_dias_relatorio():
     print("\n" + "=" * 50)
@@ -157,8 +249,9 @@ def processar_calculos():
         
     print(f"Carregando base volumosa corporativa '{arquivo_query.name}'...")
     df = pd.read_parquet(arquivo_query)
+    df.columns = df.columns.astype(str).str.strip()
     
-    # 0. Filtro de Ativos (Garante que só produtos em linha na loja recebam sugestão)
+    # Filtro de Ativos (Garante que só produtos em linha na loja recebam sugestão)
     if 'ATIVO_COMPRA' in df.columns:
         print("Filtrando apenas produtos ATIVOS para as lojas...")
         df = df[df['ATIVO_COMPRA'] == 'A'].copy()
@@ -174,7 +267,7 @@ def processar_calculos():
     else:
         print("[AVISO] Coluna 'CODIGO_EMPRESA' não encontrada. Não foi possível remover CDs.")
     
-    # 1. Aplicando Regra Global nº 6 (Saneamento de Inteiros)
+    # Aplicando Regra Global nº 6 (Saneamento de Inteiros)
     print("Saneando extração de embalagens e ajustando preenchimentos...")
     df['EMBL_TRANSFERENCIA_NUM'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
 
@@ -209,9 +302,33 @@ def processar_calculos():
         ).fillna(0.0)
 
     print(
-        f"Venda media sera calculada como {coluna_venda} / {dias_relatorio} dias."
+        f"Venda media sera calculada as {coluna_venda} / {dias_relatorio} dias."
     )
     df['DIAS_RELATORIO_VENDA'] = dias_relatorio
+
+    # Carregar capacidade.xlsx para construir o lookup de gôndola
+    capacidade_path = Path(__file__).parent / 'capacidade.xlsx'
+    capacidade_lookup = {}
+    if capacidade_path.exists():
+        print(f"Carregando capacidade de gôndola de '{capacidade_path.name}'...")
+        try:
+            df_cap = pd.read_excel(capacidade_path)
+            df_cap.columns = df_cap.columns.astype(str).str.strip()
+            df_cap['CODIGO_PRODUTO_INT'] = pd.to_numeric(df_cap['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int)
+            df_cap['EMPRESA_INT'] = pd.to_numeric(df_cap['EMPRESA'], errors='coerce').fillna(-1).astype(int)
+            df_cap['CAPACIDADE_GONDOLA_VAL'] = pd.to_numeric(df_cap['CAPACIDADE_GONDOLA'], errors='coerce').fillna(0).astype(int)
+            
+            for idx, row_cap in df_cap.iterrows():
+                p_code = row_cap['CODIGO_PRODUTO_INT']
+                e_code = row_cap['EMPRESA_INT']
+                cap_val = row_cap['CAPACIDADE_GONDOLA_VAL']
+                if p_code != -1 and e_code != -1:
+                    capacidade_lookup[(p_code, e_code)] = cap_val
+            print(f"Sucesso: {len(capacidade_lookup)} registros de capacidade mapeados.")
+        except Exception as e:
+            print(f"Erro ao carregar capacidade.xlsx: {e}")
+    else:
+        print(f"[AVISO] Arquivo '{capacidade_path.name}' não encontrado no diretório local. A regra de capacidade será ignorada.")
     
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
@@ -222,13 +339,64 @@ def processar_calculos():
             'NOVO_MAXIMO',
             'REGRA_MINIMO',
             'REGRA_MAXIMO',
+            'CAPACIDADE_GONDOLA_SUG',
         ]
     ] = df.apply(
-        lambda row: calcular_min_max(row, dias_relatorio),
+        lambda row: calcular_min_max(row, dias_relatorio, capacidade_lookup),
         axis=1,
     )
     
-    # 3. Não há mais cálculo ou sugestão para CDs (empresa 15) — já removidos acima
+    # 3. Aplicar Filtro de Diferença Mínima de 3 unidades do original
+    print("Filtrando alterações irrelevantes (< 3 unidades de diferença do original)...")
+    df['NOVO_MINIMO'] = pd.to_numeric(df['NOVO_MINIMO'], errors='coerce').fillna(0).astype(int)
+    df['NOVO_MAXIMO'] = pd.to_numeric(df['NOVO_MAXIMO'], errors='coerce').fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
+
+    # Se a sugestão diferir por menos de 3 unidades do original, revertemos para o valor original
+    muda_min = (df['NOVO_MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs() >= 3
+    df.loc[~muda_min, 'NOVO_MINIMO'] = df.loc[~muda_min, 'QUANTIDADE_ESTOQUE_MINIMO']
+    
+    muda_max = (df['NOVO_MAXIMO'] - df['QUANTIDADE_ESTOQUE_MAXIMO']).abs() >= 3
+    df.loc[~muda_max, 'NOVO_MAXIMO'] = df.loc[~muda_max, 'QUANTIDADE_ESTOQUE_MAXIMO']
+
+    # Re-aplicar regras de paridade e proporcionalidade no resultado final
+    print("Re-aplicando regras de paridade e proporcionalidade no resultado final...")
+    is_even_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 == 0)
+    is_odd_emb = ~is_even_emb
+
+    # 1. Paridade do Mínimo
+    # Embalagem par -> Minimo deve ser par
+    df.loc[is_even_emb & (df['NOVO_MINIMO'] % 2 != 0), 'NOVO_MINIMO'] += 1
+    # Embalagem impar -> Minimo deve ser impar
+    df.loc[is_odd_emb & (df['NOVO_MINIMO'] % 2 == 0), 'NOVO_MINIMO'] += 1
+
+    # 2. Proporcionalidade do Máximo
+    # Para cada linha, recalcular o Maximo para manter a proporcionalidade da embalagem
+    for idx, row in df.iterrows():
+        emb = int(row['EMBL_TRANSFERENCIA_NUM'])
+        n_min = int(row['NOVO_MINIMO'])
+        n_max = int(row['NOVO_MAXIMO'])
+        
+        if emb == 1:
+            if n_max < n_min + 1:
+                df.at[idx, 'NOVO_MAXIMO'] = n_min + 1
+        else:
+            diff = n_max - n_min
+            if diff < emb:
+                df.at[idx, 'NOVO_MAXIMO'] = n_min + emb
+            else:
+                K = math.ceil(diff / emb)
+                df.at[idx, 'NOVO_MAXIMO'] = n_min + K * emb
+
+    # 3. Conversão para inteiros
+    df['NOVO_MINIMO'] = df['NOVO_MINIMO'].astype(int)
+    df['NOVO_MAXIMO'] = df['NOVO_MAXIMO'].astype(int)
+
+    # Filtrar produtos sem alteração (onde tanto o novo min quanto o novo max são iguais aos originais)
+    sem_mudanca = (df['NOVO_MINIMO'] == df['QUANTIDADE_ESTOQUE_MINIMO']) & (df['NOVO_MAXIMO'] == df['QUANTIDADE_ESTOQUE_MAXIMO'])
+    df = df[~sem_mudanca].copy()
+    print(f"Itens sem alteração relevante expurgados. Itens com alteração: {len(df)}")
     
     # 4. Input Terminal
     print("\n" + "="*50)
@@ -237,7 +405,7 @@ def processar_calculos():
     print("[1] - Gerar APENAS sugestões para AUMENTAR")
     print("      (Filtra os casos onde o Novo Mínimo Calculado é maior que o Atual (origem))")
     print("\n[2] - Gerar TOTAL")
-    print("      (Exporta a base total indiscriminada, englobando altas, baixas e manutenção equivalentes)")
+    print("      (Exporta a base total, englobando altas e baixas com alteração relevante)")
     print("="*50)
     
     while True:
@@ -247,24 +415,11 @@ def processar_calculos():
         print("x Opção inválida. Digite 1 ou 2.")
         
     if opcao == '1':
-        print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO (Diferença > 5 unidades)...")
-        # Garante que as colunas estejam como inteiro para o filtro
-        df['NOVO_MINIMO'] = pd.to_numeric(df['NOVO_MINIMO'], errors='coerce').fillna(0).astype(int)
-        df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
-        df_resultado = df[df['NOVO_MINIMO'] > (df['QUANTIDADE_ESTOQUE_MINIMO'] + 5)].copy()
+        print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO...")
+        df_resultado = df[df['NOVO_MINIMO'] > df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
     else:
-        print("\n=> Exportando a totalidade dos produtos analisados...")
+        print("\n=> Exportando todos os produtos com alteração relevante...")
         df_resultado = df.copy()
-
-    # Expurga itens onde sugestão é idêntica ao atual (sem alteração)
-    sem_mudanca = (
-        (df_resultado['NOVO_MINIMO'] == df_resultado['QUANTIDADE_ESTOQUE_MINIMO']) &
-        (df_resultado['NOVO_MAXIMO'] == df_resultado['QUANTIDADE_ESTOQUE_MAXIMO'])
-    )
-    qtd_expurgados = sem_mudanca.sum()
-    if qtd_expurgados:
-        print(f"  → Expurgando {qtd_expurgados} item(ns) sem alteração (novo mín/máx igual ao atual)...")
-        df_resultado = df_resultado[~sem_mudanca].copy()
 
     print(f"Total de linhas prontas para exportação: {len(df_resultado)}")
     
@@ -273,24 +428,22 @@ def processar_calculos():
         antes = len(df_resultado)
         df_resultado = df_resultado[df_resultado['ATIVO_COMPRA'] == 'A'].copy()
         depois = len(df_resultado)
-        print(f"Filtro final de ativos: {antes} → {depois} linhas ativas exportadas.")
+        print(f"Filtro final de ativos: de {antes} para {depois} linhas ativas exportadas.")
     else:
         print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada no resultado. Exportando todos os itens!")
 
-    # Adiciona coluna 'Status' como última coluna, baseada em ATIVO_COMPRA se existir
+    # Adiciona coluna 'Status' como última coluna, baseada em STATUS_COMPRA da query.parquet
     colunas_finais = [
         'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
         'CODIGO_EMPRESA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
         'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
-        'REGRA_MINIMO', 'REGRA_MAXIMO'
+        'REGRA_MINIMO', 'REGRA_MAXIMO', 'CAPACIDADE_GONDOLA_SUG'
     ]
     cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
     df_export = df_resultado[cols_existentes].copy()
-    # Garante que a coluna Status sempre traga o valor de STATUS_COMPRA da query.parquet
+    df_export = df_export.rename(columns={'CAPACIDADE_GONDOLA_SUG': 'capacidade_gondola'})
+    
     if 'STATUS_COMPRA' in df.columns:
-        # Realinha pelo índice original para garantir correspondência
-        status_map = df['STATUS_COMPRA']
-        # Se o índice mudou, faz o merge pelo identificador
         if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
             df_export = df_export.merge(
                 df[['CODIGO_PRODUTO', 'CODIGO_EMPRESA', 'STATUS_COMPRA']],
@@ -301,14 +454,19 @@ def processar_calculos():
             df_export['Status'] = df_export['STATUS_COMPRA']
             df_export = df_export.drop(columns=[c for c in df_export.columns if c.startswith('STATUS_COMPRA') and c != 'Status'])
         else:
-            df_export['Status'] = status_map
+            df_export['Status'] = df['STATUS_COMPRA']
     else:
         df_export['Status'] = 'DESCONHECIDO'
+        
+    # Reordenar colunas para garantir que 'capacidade_gondola' seja a última
+    cols_order = [c for c in df_export.columns if c != 'capacidade_gondola'] + ['capacidade_gondola']
+    df_export = df_export[cols_order]
+        
     # Ordena pelo código do produto e depois pela empresa
     if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
         df_export = df_export.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
     
-    print("Exportando os resultados para 'resultado.csv' para conferência humana...")
+    print("Exportando os resultados para 'resultado.csv'...")
     arquivo_saida = Path('resultado.csv')
 
     try:
@@ -335,7 +493,7 @@ def processar_calculos():
             decimal=',',
         )
     
-    print("\n[✓] Trabalho finalizado de ponta a ponta com sucesso!")
+    print("\n[SUCESSO] Trabalho finalizado com sucesso!")
 
 if __name__ == "__main__":
     os.system('cls')
@@ -344,4 +502,3 @@ if __name__ == "__main__":
     print("="*50)
     print("Executando cálculo completo (Cálculos + Exportação)...")
     processar_calculos()
-
