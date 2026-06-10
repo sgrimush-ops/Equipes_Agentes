@@ -1,8 +1,8 @@
-Consulta: consulta_NF_inceneracao.sql
+Consulta: consulta_NF_incineracao.sql
 
 Objetivo
-- Listar itens de NF de incineracao emitidas com CGO 831.
-- Retornar departamento, codigo do fornecedor, fornecedor principal, codigo do produto, descricao, quantidade da NF e valor do produto na NF.
+- Listar itens de NF de incineracao emitidas com CGO 821 e 831.
+- Retornar departamento, comprador do item, CGO lançado, codigo do fornecedor, fornecedor principal, codigo do produto, descricao, quantidade da NF e valor do produto na NF.
 - Permitir filtro antes do Run por codigo do fornecedor, departamento e periodo inicial/final.
 
 SQL principal
@@ -10,18 +10,20 @@ SQL principal
 SELECT
 	N.NROEMPRESA AS CODIGO_EMPRESA,
 	E.NOMEREDUZIDO AS EMPRESA,
-	N.DTAEMISSAO AS DATA_EMISSAO,
+	TO_CHAR(N.DTAEMISSAO, 'DD/MM/YYYY') AS DATA_EMISSAO,
 	CASE
 		WHEN N.APPORIGEM = 26 THEN N.NUMERONFSE
 		ELSE N.NUMERONF
 	END AS NUMERO_NF,
+	N.CODGERALOPER AS CGO,
 	NVL(DEP.DEPARTAMENTO, 'SEM DEPARTAMENTO') AS DEPARTAMENTO,
+	NVL(COMP.COMPRADOR, 'SEM COMPRADOR') AS COMPRADOR,
 	NVL(FORN.CODIGO_FORNECEDOR, 0) AS CODIGO_FORNECEDOR,
 	NVL(FORN.FORNECEDOR, 'SEM FORNECEDOR') AS FORNECEDOR,
 	I.SEQPRODUTO AS CODIGO_PRODUTO,
 	P.DESCCOMPLETA AS DESCRICAO_PRODUTO,
-	ROUND(NVL(I.QUANTIDADE, 0), 2) AS QUANTIDADE_NF,
-	ROUND(NVL(I.VLRITEM, 0), 2) AS VALOR_PRODUTO_NF
+	'    ' || ROUND(NVL(I.QUANTIDADE, 0), 2) AS QUANTIDADE_NF,
+	'R$     ' || TO_CHAR(ROUND(NVL(I.VLRITEM, 0), 2), 'FM999G999D00') AS VALOR_PRODUTO_NF
 FROM MLFV_BASENFE N
 INNER JOIN MFLV_BASEDFITEM I
 	ON I.NROEMPRESA = N.NROEMPRESA
@@ -60,12 +62,17 @@ LEFT JOIN (
 	GROUP BY F.SEQFAMILIA
 ) FORN
 	ON FORN.SEQFAMILIA = P.SEQFAMILIA
-WHERE N.CODGERALOPER = 831
+LEFT JOIN MAP_FAMDIVISAO FD
+	ON FD.SEQFAMILIA = P.SEQFAMILIA
+   AND FD.NRODIVISAO = 1
+LEFT JOIN MAX_COMPRADOR COMP
+	ON COMP.SEQCOMPRADOR = FD.SEQCOMPRADOR
+WHERE N.CODGERALOPER IN (821, 831)
   AND N.TIPNOTAFISCAL = 'S'
   AND NVL(N.MODELO, '0') <> '65'
   AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
-  AND N.DTAEMISSAO >= TRUNC(:DT1)
-  AND N.DTAEMISSAO < TRUNC(:DT2) + 1
+	AND N.DTAEMISSAO >= TRUNC(:DT1)
+	AND N.DTAEMISSAO < TRUNC(:DT2) + 1
 	AND (NVL(TRIM(:LT2), '0') = '0' OR TO_CHAR(NVL(FORN.CODIGO_FORNECEDOR, 0)) = TRIM(:LT2))
 	AND (NVL(TRIM(:LT3), 'TODOS') = 'TODOS' OR UPPER(NVL(DEP.DEPARTAMENTO, 'SEM DEPARTAMENTO')) = UPPER(TRIM(:LT3)))
 ORDER BY
@@ -121,4 +128,4 @@ Observacao
 - Esse caminho elimina a dependencia de SQL dentro da LS1 e reduz o risco de erro de parser no Consinco.
 - Como a consulta e de NF de descarte, a obtencao do departamento nao restringe cadastro ativo de familia/categoria.
 - A coluna FORNECEDOR foi modelada como fornecedor principal da familia do produto via MAP_FAMFORNEC.
-- Se voce quiser o participante da propria NF em vez do fornecedor principal do cadastro, a SQL deve trocar esse join pelo SEQPESSOA da nota.
+- Se voce quiser o participante da propria NF in vez do fornecedor principal do cadastro, a SQL deve trocar esse join pelo SEQPESSOA da nota.
