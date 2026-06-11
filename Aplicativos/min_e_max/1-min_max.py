@@ -375,21 +375,21 @@ def processar_calculos():
         axis=1,
     )
     
-    # 3. Aplicar Filtro de Diferença Mínima de 3 unidades do original
-    print("Filtrando alterações irrelevantes (< 3 unidades de diferença do original)...")
+    # 3. Aplicar Filtro de Diferença Mínima de 5 unidades ou 10% de variação
+    print("Filtrando alterações irrelevantes (< 5 unidades de diferença ou < 10% de variação)...")
     df['MINIMO'] = pd.to_numeric(df['MINIMO'], errors='coerce').fillna(0).astype(int)
     df['MAXIMO'] = pd.to_numeric(df['MAXIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
 
-    # Se a sugestão diferir por menos de 3 unidades do original, revertemos para o valor original,
+    # Condição de exclusão da linha: (diferença < 5 unidades OU variação < 10%),
     # EXCETO se o valor original estiver violando o piso mínimo (60% da embalagem ou 5 para unitários)
     min_floor = df['EMBL_TRANSFERENCIA_NUM'].apply(lambda emb: 5.0 if emb == 1 else math.ceil(0.60 * emb))
-    muda_min = ((df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs() >= 3) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
-    df.loc[~muda_min, 'MINIMO'] = df.loc[~muda_min, 'QUANTIDADE_ESTOQUE_MINIMO']
-    
-    muda_max = ((df['MAXIMO'] - df['QUANTIDADE_ESTOQUE_MAXIMO']).abs() >= 3)
-    df.loc[~muda_max, 'MAXIMO'] = df.loc[~muda_max, 'QUANTIDADE_ESTOQUE_MAXIMO']
+    diff_min = (df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs()
+    variation = diff_min / df['QUANTIDADE_ESTOQUE_MINIMO'].replace(0, 1)
+
+    manter = ((diff_min >= 5) & (variation >= 0.10)) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
+    df = df[manter].copy()
 
     # Re-aplicar regras de paridade e proporcionalidade no resultado final
     print("Re-aplicando regras de paridade e proporcionalidade no resultado final...")
