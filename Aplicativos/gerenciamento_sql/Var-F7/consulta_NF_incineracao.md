@@ -3,7 +3,7 @@ Consulta: consulta_NF_incineracao.sql
 Objetivo
 - Listar itens de NF de incineracao emitidas com CGO 821 e 831.
 - Retornar departamento, comprador do item, CGO lançado, codigo do fornecedor, fornecedor principal, codigo do produto, descricao, quantidade da NF e valor do produto na NF.
-- Permitir filtro antes do Run por codigo do fornecedor, departamento e periodo inicial/final.
+- Permitir filtro antes do Run por numero da NF (opcional), codigo do fornecedor, departamento e periodo inicial/final.
 
 SQL principal
 ```sql
@@ -67,12 +67,13 @@ LEFT JOIN MAP_FAMDIVISAO FD
    AND FD.NRODIVISAO = 1
 LEFT JOIN MAX_COMPRADOR COMP
 	ON COMP.SEQCOMPRADOR = FD.SEQCOMPRADOR
-WHERE N.CODGERALOPER IN (821, 831)
+WHERE N.CODGERALOPER IN (#NR2)
   AND N.TIPNOTAFISCAL = 'S'
   AND NVL(N.MODELO, '0') <> '65'
   AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
 	AND N.DTAEMISSAO >= TRUNC(:DT1)
 	AND N.DTAEMISSAO < TRUNC(:DT2) + 1
+	AND (:NR1 = 0 OR CASE WHEN N.APPORIGEM = 26 THEN N.NUMERONFSE ELSE N.NUMERONF END = :NR1)
 	AND (NVL(TRIM(:LT2), '0') = '0' OR TO_CHAR(NVL(FORN.CODIGO_FORNECEDOR, 0)) = TRIM(:LT2))
 	AND (NVL(TRIM(:LT3), 'TODOS') = 'TODOS' OR UPPER(NVL(DEP.DEPARTAMENTO, 'SEM DEPARTAMENTO')) = UPPER(TRIM(:LT3)))
 ORDER BY
@@ -95,6 +96,18 @@ DT2
 - Valor padrao: data atual
 - Instrucao: informar a data final da emissao da NF
 
+NR1
+- Tipo: Numérico
+- Descricao: Numero da NF
+- Valor padrao: 0
+- Instrucao: informar o numero da NF para filtrar uma nota especifica ou usar 0 para considerar todas
+
+NR2
+- Tipo: Numérico (na sub-aba Num 2 da aba Numérico)
+- Descricao: Dev-802/Troca-860/Incine-831/Per-821
+- Valor padrao: 831,821
+- Instrucao: informar o(s) CGO(s) desejado(s) separados por vírgula (ex: 831,821) ou apenas um CGO (ex: 831)
+
 LT2
 - Tipo: Literal
 - Descricao: Codigo Fornecedor
@@ -116,9 +129,13 @@ Passo a passo operacional
 6. Definir LT2 com valor padrao 0.
 7. Cadastrar LT3 na aba Literal com descricao Departamento.
 8. Definir LT3 com valor padrao TODOS.
-9. Se quiser filtrar, informar o codigo do fornecedor em LT2 e o nome do departamento em LT3.
-10. Salvar as variaveis.
-11. Executar a consulta e informar os filtros antes do Run.
+9. Cadastrar NR1 na aba Numerico (sub-aba Num 1) com descricao Numero da NF.
+10. Definir NR1 com valor padrao 0.
+11. Cadastrar NR2 na aba Numerico (sub-aba Num 2) com descricao Dev-802/Troca-860/Incine-831/Per-821.
+12. Definir NR2 com valor padrao 831,821.
+13. Se quiser filtrar, informar os filtros correspondentes.
+14. Salvar as variaveis.
+15. Executar a consulta e informar os filtros antes do Run.
 
 Observacao
 - Os filtros visuais antes do Run nao nascem apenas do SQL; eles dependem do cadastro das variaveis em Var - F7.
