@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 import re
 
 import pandas as pd
@@ -65,7 +65,11 @@ def main():
 		df["QTD_SKU"] = pd.to_numeric(df["QTD_SKU"], errors="coerce").fillna(0).round(0).astype("Int64")
 
 	# Essa coluna chega no TXT como "R$ x.xxx,xx"; precisa passar pelo parser BR.
-	if "QTD_INCINERACAO_ANO_ATUAL" in df.columns:
+	if "QTD_INCINERACAO_ANO" in df.columns:
+		df["QTD_INCINERACAO_ANO"] = (
+			df["QTD_INCINERACAO_ANO"].apply(br_to_float).round(0).astype("Int64")
+		)
+	elif "QTD_INCINERACAO_ANO_ATUAL" in df.columns:
 		df["QTD_INCINERACAO_ANO_ATUAL"] = (
 			df["QTD_INCINERACAO_ANO_ATUAL"].apply(br_to_float).round(0).astype("Int64")
 		)

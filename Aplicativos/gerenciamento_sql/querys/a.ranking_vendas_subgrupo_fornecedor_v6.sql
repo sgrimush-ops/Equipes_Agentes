@@ -117,8 +117,8 @@ SELECT TO_CHAR(B.CODIGO_FORNECEDOR) AS COD_F,
                        AND N.TIPNOTAFISCAL = 'S'
                        AND NVL(N.MODELO,'0') <> '65'
                        AND N.NROEMPRESA IN (1,2,3,4,5,6,7,8,9,11,12,13,14,15,16,17,18,50)
-                       AND N.DTAEMISSAO >= TRUNC(SYSDATE,'YYYY')
-                       AND N.DTAEMISSAO < TRUNC(SYSDATE) + 1
+                       AND N.DTAEMISSAO >= TRUNC(:DT1,'YYYY')
+                       AND N.DTAEMISSAO < TRUNC(:DT2) + 1
                      GROUP BY I.SEQPRODUTO
                    ) INCI ON INCI.SEQPRODUTO = A.SEQPRODUTO
          WHERE ((:LS1 = '0 - TODOS') OR NVL(FD.SEQCOMPRADOR, 0) = TO_NUMBER(SUBSTR(:LS1, 1, INSTR(:LS1, ' - ') - 1)))

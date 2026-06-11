@@ -4,10 +4,10 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 
-# Função para converter arquivo intermediário para CSV
+# Função para converter arquivo intermediário para Excel
 def converter_para_csv(arquivo_parquet=None):
     """
-    Lê o arquivo query.parquet e exporta resultado.csv, sem recalcular mínimos/máximos.
+    Lê o arquivo query.parquet e exporta ajustepp.xlsx, sem recalcular mínimos/máximos.
     """
     if arquivo_parquet is None:
         arquivo_parquet = Path(__file__).parent.parent / 'query.parquet'
@@ -22,17 +22,24 @@ def converter_para_csv(arquivo_parquet=None):
     except Exception as e:
         print(f"Erro ao ler Parquet: {e}")
         return
+    
+    # Renomear CODIGO_EMPRESA para EMPRESA se existir
+    if 'CODIGO_EMPRESA' in df.columns:
+        df = df.rename(columns={'CODIGO_EMPRESA': 'EMPRESA'})
+
+    # Saneamento de embalagens
+    if 'EMBL_TRANSFERENCIA' in df.columns:
+        df['EMBL_TRANSFERENCIA'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
+
     # Ordena se possível
-    if 'CODIGO_PRODUTO' in df.columns and 'CODIGO_EMPRESA' in df.columns:
-        df = df.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
-    arquivo_saida = Path('resultado.csv')
+    if 'CODIGO_PRODUTO' in df.columns and 'EMPRESA' in df.columns:
+        df = df.sort_values(by=['CODIGO_PRODUTO', 'EMPRESA'], ascending=[True, True])
+    
+    arquivo_saida = Path('ajustepp.xlsx')
     try:
-        df.to_csv(
+        df.to_excel(
             arquivo_saida,
-            sep=';',
-            encoding='utf-8-sig',
             index=False,
-            decimal=',',
         )
         print(f"Exportação concluída: {arquivo_saida.name}")
 
@@ -357,8 +364,8 @@ def processar_calculos():
     df[
         [
             'VENDA_MEDIA',
-            'NOVO_MINIMO',
-            'NOVO_MAXIMO',
+            'MINIMO',
+            'MAXIMO',
             'REGRA_MINIMO',
             'REGRA_MAXIMO',
             'CAPACIDADE_GONDOLA_SUG',
@@ -370,19 +377,19 @@ def processar_calculos():
     
     # 3. Aplicar Filtro de Diferença Mínima de 3 unidades do original
     print("Filtrando alterações irrelevantes (< 3 unidades de diferença do original)...")
-    df['NOVO_MINIMO'] = pd.to_numeric(df['NOVO_MINIMO'], errors='coerce').fillna(0).astype(int)
-    df['NOVO_MAXIMO'] = pd.to_numeric(df['NOVO_MAXIMO'], errors='coerce').fillna(0).astype(int)
+    df['MINIMO'] = pd.to_numeric(df['MINIMO'], errors='coerce').fillna(0).astype(int)
+    df['MAXIMO'] = pd.to_numeric(df['MAXIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
 
     # Se a sugestão diferir por menos de 3 unidades do original, revertemos para o valor original,
     # EXCETO se o valor original estiver violando o piso mínimo (60% da embalagem ou 5 para unitários)
     min_floor = df['EMBL_TRANSFERENCIA_NUM'].apply(lambda emb: 5.0 if emb == 1 else math.ceil(0.60 * emb))
-    muda_min = ((df['NOVO_MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs() >= 3) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
-    df.loc[~muda_min, 'NOVO_MINIMO'] = df.loc[~muda_min, 'QUANTIDADE_ESTOQUE_MINIMO']
+    muda_min = ((df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs() >= 3) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
+    df.loc[~muda_min, 'MINIMO'] = df.loc[~muda_min, 'QUANTIDADE_ESTOQUE_MINIMO']
     
-    muda_max = (df['NOVO_MAXIMO'] - df['QUANTIDADE_ESTOQUE_MAXIMO']).abs() >= 3
-    df.loc[~muda_max, 'NOVO_MAXIMO'] = df.loc[~muda_max, 'QUANTIDADE_ESTOQUE_MAXIMO']
+    muda_max = ((df['MAXIMO'] - df['QUANTIDADE_ESTOQUE_MAXIMO']).abs() >= 3)
+    df.loc[~muda_max, 'MAXIMO'] = df.loc[~muda_max, 'QUANTIDADE_ESTOQUE_MAXIMO']
 
     # Re-aplicar regras de paridade e proporcionalidade no resultado final
     print("Re-aplicando regras de paridade e proporcionalidade no resultado final...")
@@ -391,34 +398,34 @@ def processar_calculos():
 
     # 1. Paridade do Mínimo
     # Embalagem par -> Minimo deve ser par
-    df.loc[is_even_emb & (df['NOVO_MINIMO'] % 2 != 0), 'NOVO_MINIMO'] += 1
+    df.loc[is_even_emb & (df['MINIMO'] % 2 != 0), 'MINIMO'] += 1
     # Embalagem impar -> Minimo deve ser impar
-    df.loc[is_odd_emb & (df['NOVO_MINIMO'] % 2 == 0), 'NOVO_MINIMO'] += 1
+    df.loc[is_odd_emb & (df['MINIMO'] % 2 == 0), 'MINIMO'] += 1
 
     # 2. Proporcionalidade do Máximo
     # Para cada linha, recalcular o Maximo para manter a proporcionalidade da embalagem
     for idx, row in df.iterrows():
         emb = int(row['EMBL_TRANSFERENCIA_NUM'])
-        n_min = int(row['NOVO_MINIMO'])
-        n_max = int(row['NOVO_MAXIMO'])
+        n_min = int(row['MINIMO'])
+        n_max = int(row['MAXIMO'])
         
         if emb == 1:
             if n_max < n_min + 1:
-                df.at[idx, 'NOVO_MAXIMO'] = n_min + 1
+                df.at[idx, 'MAXIMO'] = n_min + 1
         else:
             diff = n_max - n_min
             if diff < emb:
-                df.at[idx, 'NOVO_MAXIMO'] = n_min + emb
+                df.at[idx, 'MAXIMO'] = n_min + emb
             else:
                 K = math.ceil(diff / emb)
-                df.at[idx, 'NOVO_MAXIMO'] = n_min + K * emb
+                df.at[idx, 'MAXIMO'] = n_min + K * emb
 
     # 3. Conversão para inteiros
-    df['NOVO_MINIMO'] = df['NOVO_MINIMO'].astype(int)
-    df['NOVO_MAXIMO'] = df['NOVO_MAXIMO'].astype(int)
+    df['MINIMO'] = df['MINIMO'].astype(int)
+    df['MAXIMO'] = df['MAXIMO'].astype(int)
 
     # Filtrar produtos sem alteração (onde tanto o novo min quanto o novo max são iguais aos originais)
-    sem_mudanca = (df['NOVO_MINIMO'] == df['QUANTIDADE_ESTOQUE_MINIMO']) & (df['NOVO_MAXIMO'] == df['QUANTIDADE_ESTOQUE_MAXIMO'])
+    sem_mudanca = (df['MINIMO'] == df['QUANTIDADE_ESTOQUE_MINIMO']) & (df['MAXIMO'] == df['QUANTIDADE_ESTOQUE_MAXIMO'])
     df = df[~sem_mudanca].copy()
     print(f"Itens sem alteração relevante expurgados. Itens com alteração: {len(df)}")
     
@@ -440,7 +447,7 @@ def processar_calculos():
         
     if opcao == '1':
         print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO...")
-        df_resultado = df[df['NOVO_MINIMO'] > df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
+        df_resultado = df[df['MINIMO'] > df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
     else:
         print("\n=> Exportando todos os produtos com alteração relevante...")
         df_resultado = df.copy()
@@ -459,13 +466,16 @@ def processar_calculos():
     # Adiciona coluna 'Status' como última coluna, baseada em STATUS_COMPRA da query.parquet
     colunas_finais = [
         'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
-        'CODIGO_EMPRESA', 'NOVO_MINIMO', 'NOVO_MAXIMO',
+        'CODIGO_EMPRESA', 'MINIMO', 'MAXIMO',
         'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
         'REGRA_MINIMO', 'REGRA_MAXIMO', 'CAPACIDADE_GONDOLA_SUG'
     ]
     cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
     df_export = df_resultado[cols_existentes].copy()
-    df_export = df_export.rename(columns={'CAPACIDADE_GONDOLA_SUG': 'capacidade_gondola'})
+    
+    # Converter EMBL_TRANSFERENCIA para numérico e inteiro na exportação
+    if 'EMBL_TRANSFERENCIA' in df_export.columns and 'EMBL_TRANSFERENCIA_NUM' in df_resultado.columns:
+        df_export['EMBL_TRANSFERENCIA'] = df_resultado['EMBL_TRANSFERENCIA_NUM'].astype(int)
     
     if 'STATUS_COMPRA' in df.columns:
         if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
@@ -481,43 +491,56 @@ def processar_calculos():
             df_export['Status'] = df['STATUS_COMPRA']
     else:
         df_export['Status'] = 'DESCONHECIDO'
+
+    # Renomear colunas para conformidade com o robô de min/max (EMPRESA e capacidade_gondola)
+    df_export = df_export.rename(columns={
+        'CAPACIDADE_GONDOLA_SUG': 'capacidade_gondola',
+        'CODIGO_EMPRESA': 'EMPRESA'
+    })
         
     # Reordenar colunas para garantir que 'capacidade_gondola' seja a última
     cols_order = [c for c in df_export.columns if c != 'capacidade_gondola'] + ['capacidade_gondola']
     df_export = df_export[cols_order]
         
     # Ordena pelo código do produto e depois pela empresa
-    if 'CODIGO_PRODUTO' in df_export.columns and 'CODIGO_EMPRESA' in df_export.columns:
-        df_export = df_export.sort_values(by=['CODIGO_PRODUTO', 'CODIGO_EMPRESA'], ascending=[True, True])
+    if 'CODIGO_PRODUTO' in df_export.columns and 'EMPRESA' in df_export.columns:
+        df_export = df_export.sort_values(by=['CODIGO_PRODUTO', 'EMPRESA'], ascending=[True, True])
     
-    print("Exportando os resultados para 'resultado.csv'...")
-    arquivo_saida = Path('resultado.csv')
+    print("Exportando os resultados para 'ajustepp.xlsx'...")
+    arquivo_saida = Path('ajustepp.xlsx')
 
     try:
-        df_export.to_csv(
+        df_export.to_excel(
             arquivo_saida,
-            sep=';',
-            encoding='utf-8-sig',
             index=False,
-            decimal=',',
         )
     except PermissionError:
         arquivo_saida = Path(
-            f"resultado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            f"resultado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         )
         print(
-            "Aviso: 'resultado.csv' está em uso. "
+            "Aviso: 'ajustepp.xlsx' está em uso. "
             f"Exportando em '{arquivo_saida.name}'."
         )
-        df_export.to_csv(
+        df_export.to_excel(
             arquivo_saida,
-            sep=';',
-            encoding='utf-8-sig',
             index=False,
-            decimal=',',
         )
     
     print("\n[SUCESSO] Trabalho finalizado com sucesso!")
+# mover ajustepp.xlsx para a pasta bd_entrada, dentro da pasta GAM
+    pasta_destino = Path(__file__).parent.parent / 'GAM' / 'bd_entrada'
+    if not pasta_destino.exists():
+        pasta_destino.mkdir(parents=True)
+    destino_final = pasta_destino / arquivo_saida.name
+    try:
+        if destino_final.exists():
+            destino_final.unlink()
+        arquivo_saida.rename(destino_final)
+        print(f"Arquivo '{arquivo_saida.name}' movido para '{destino_final}'.")
+    except Exception as e:
+        print(f"Erro ao mover arquivo para destino final: {e}")
+        print(f"O arquivo permanece em '{arquivo_saida}'.")
 
 if __name__ == "__main__":
     os.system('cls')
