@@ -25,7 +25,7 @@ def principal():
 
     # Saneamento (Regra 65)
     cols_saneamento = ['QUANTIDADE_DISPONIVEL', 'EMBL_COMPRA', 'EMBL_TRANSFERENCIA', 
-                       'QTD_PEND_PEDCOMPRA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA']
+                       'QTD_PEND_PEDCOMPRA', 'QTD_PEND_PEDTRANSF', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA']
     
     for col in cols_saneamento:
         if col in df.columns:
@@ -39,20 +39,38 @@ def principal():
     df['is_rup_cd'] = (df['CODIGO_EMPRESA'] == 15) & ((df['QUANTIDADE_DISPONIVEL'] <= 0) | (df['QUANTIDADE_DISPONIVEL'] < df['EMBL_TRANSFERENCIA']))
     df['is_rup_loja'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0)
     df['is_rup_neg'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] < 0)
-    df['is_rup_pend'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
-    df['is_est_pend'] = (df['QUANTIDADE_DISPONIVEL'] > 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
+    if 'QTD_PEND_PEDTRANSF' in df.columns:
+        df['is_rup_pend'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0) & ((df['QTD_PEND_PEDCOMPRA'] > 0) | (df['QTD_PEND_PEDTRANSF'] > 0))
+        df['is_est_pend'] = (df['QUANTIDADE_DISPONIVEL'] > 0) & ((df['QTD_PEND_PEDCOMPRA'] > 0) | (df['QTD_PEND_PEDTRANSF'] > 0))
+    else:
+        df['is_rup_pend'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
+        df['is_est_pend'] = (df['QUANTIDADE_DISPONIVEL'] > 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
 
     print("Agregando métricas por Produto e Empresa...")
-    df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
-        ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
-        PEDIDOS=('QTD_PEND_PEDCOMPRA', 'sum'),
-        VENDA=('QTD_VENDIDA', 'sum'),
-        RUP_CD=('is_rup_cd', 'max'),
-        RUP_LOJA=('is_rup_loja', 'max'),
-        RUP_NEG=('is_rup_neg', 'max'),
-        RUP_PEND=('is_rup_pend', 'max'),
-        EST_PEND=('is_est_pend', 'max')
-    ).reset_index()
+    if 'QTD_PEND_PEDTRANSF' in df.columns:
+        df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
+            ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
+            PEDIDOS_COMPRA=('QTD_PEND_PEDCOMPRA', 'sum'),
+            PEDIDOS_TRANSF=('QTD_PEND_PEDTRANSF', 'sum'),
+            VENDA=('QTD_VENDIDA', 'sum'),
+            RUP_CD=('is_rup_cd', 'max'),
+            RUP_LOJA=('is_rup_loja', 'max'),
+            RUP_NEG=('is_rup_neg', 'max'),
+            RUP_PEND=('is_rup_pend', 'max'),
+            EST_PEND=('is_est_pend', 'max')
+        ).reset_index()
+        df_grouped['PEDIDOS'] = df_grouped['PEDIDOS_COMPRA'] + df_grouped['PEDIDOS_TRANSF']
+    else:
+        df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
+            ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
+            PEDIDOS=('QTD_PEND_PEDCOMPRA', 'sum'),
+            VENDA=('QTD_VENDIDA', 'sum'),
+            RUP_CD=('is_rup_cd', 'max'),
+            RUP_LOJA=('is_rup_loja', 'max'),
+            RUP_NEG=('is_rup_neg', 'max'),
+            RUP_PEND=('is_rup_pend', 'max'),
+            EST_PEND=('is_est_pend', 'max')
+        ).reset_index()
 
     print("Consolidando JSON por Produto...")
     produtos_dict = {}

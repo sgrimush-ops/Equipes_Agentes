@@ -88,6 +88,7 @@ class AcaoPrepararSuplay(BaseAction):
         # Mapeamento para as colunas do novo query.parquet (Sincronizado com SQL Mestre)
         col_disp = 'QUANTIDADE_DISPONIVEL'
         col_pend = 'QTD_PEND_PEDCOMPRA'
+        col_pend_transf = 'QTD_PEND_PEDTRANSF'
         col_min  = 'QUANTIDADE_ESTOQUE_MINIMO'
         col_max  = 'QUANTIDADE_ESTOQUE_MAXIMO'
         col_emb  = 'EMBL_TRANSFERENCIA'
@@ -106,15 +107,17 @@ class AcaoPrepararSuplay(BaseAction):
             df = df.dropna(subset=[col_empresa])
             df[col_empresa] = self._parse_numeric_series(df[col_empresa], default=0)
         
-        for col in [col_disp, col_pend, col_min, col_max]:
+        for col in [col_disp, col_pend, col_pend_transf, col_min, col_max]:
             if col in df.columns:
                 df[col] = self._parse_numeric_series(df[col], default=0)
+            else:
+                df[col] = 0.0
 
         df['disp_calc'] = df[col_disp].apply(lambda x: x if x > 0 else 0)
 
         def calcular_pedir(row):
             disp = row['disp_calc']
-            pend = row[col_pend]
+            pend = row[col_pend] + row[col_pend_transf]
             minimo = row[col_min]
             maximo = row[col_max]
             emb = row[col_emb]

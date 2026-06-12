@@ -22,7 +22,10 @@ def compute_metrics(df_subset, comprador_nome):
         
     c_rup = df_subset['QUANTIDADE_DISPONIVEL'] <= 0
     c_neg = df_subset['QUANTIDADE_DISPONIVEL'] < 0
-    c_pend = df_subset['QTD_PEND_PEDCOMPRA'] > 0
+    if 'QTD_PEND_PEDTRANSF' in df_subset.columns:
+        c_pend = (df_subset['QTD_PEND_PEDCOMPRA'] > 0) | (df_subset['QTD_PEND_PEDTRANSF'] > 0)
+    else:
+        c_pend = df_subset['QTD_PEND_PEDCOMPRA'] > 0
     c_est = df_subset['QUANTIDADE_DISPONIVEL'] > 0
 
     df_temp = pd.DataFrame({'LOJA_RAW': df_subset['CODIGO_EMPRESA']})
@@ -65,7 +68,7 @@ def principal():
 
     # Saneamento (Regra 65)
     cols_saneamento = ['QUANTIDADE_DISPONIVEL', 'EMBL_COMPRA', 'EMBL_TRANSFERENCIA', 
-                       'QTD_PEND_PEDCOMPRA', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO']
+                       'QTD_PEND_PEDCOMPRA', 'QTD_PEND_PEDTRANSF', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO']
     
     for col in cols_saneamento:
         if col in df.columns:

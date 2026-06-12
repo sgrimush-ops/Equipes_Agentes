@@ -123,31 +123,9 @@ def calcular_min_max(row, dias_relatorio):
 
 
 
-def solicitar_dias_relatorio():
-    print("\n" + "=" * 50)
-    print("          BASE DO RELATORIO DE VENDAS")
-    print("=" * 50)
-    print("Informe quantos dias de venda o relatorio traz.")
-    print("Exemplos: 30 para venda de 30 dias, 60 para venda de 60 dias.")
-    print("=" * 50)
 
-    while True:
-        entrada_dias = input("-> Digite a quantidade de dias do relatorio: ").strip()
-        try:
-            dias_relatorio = int(entrada_dias)
-        except ValueError:
-            print("x Valor invalido. Digite um numero inteiro maior que zero.")
-            continue
-
-        if dias_relatorio <= 0:
-            print("x Valor invalido. Digite um numero inteiro maior que zero.")
-            continue
-
-        return dias_relatorio
 
 def processar_calculos():
-    dias_relatorio = solicitar_dias_relatorio()
-
     # Caminho corporativo centralizado
     arquivo_query_per = Path(__file__).parent.parent / 'import_querys' / 'query_per.parquet'
     
@@ -157,6 +135,20 @@ def processar_calculos():
         
     print(f"Carregando base volumosa corporativa '{arquivo_query_per.name}'...")
     df = pd.read_parquet(arquivo_query_per)
+
+    # Determinar automaticamente os dias de pesquisa a partir da coluna no Parquet
+    if 'DIAS_PESQUISA' in df.columns and not df.empty:
+        try:
+            dias_relatorio = int(df['DIAS_PESQUISA'].dropna().iloc[0])
+            if dias_relatorio <= 0:
+                dias_relatorio = 90
+            print(f"Detectada coluna 'DIAS_PESQUISA' no Parquet. Utilizando automaticamente: {dias_relatorio} dias.")
+        except Exception:
+            dias_relatorio = 90
+            print(f"Aviso: Falha ao ler 'DIAS_PESQUISA'. Utilizando padrão de {dias_relatorio} dias.")
+    else:
+        dias_relatorio = 90
+        print(f"Aviso: Coluna 'DIAS_PESQUISA' não encontrada no Parquet. Utilizando padrão de {dias_relatorio} dias.")
     
     # 0. Filtro de Ativos (Garante que só produtos em linha na loja recebam sugestão)
     if 'ATIVO_COMPRA' in df.columns:
@@ -322,8 +314,7 @@ def processar_calculos():
             index=False,
             decimal=',',
         )
-    
-    print("\n[✓] Trabalho finalizado de ponta a ponta com sucesso!")
+    print("\n[SUCESSO] Trabalho finalizado de ponta a ponta com sucesso!")
 
 if __name__ == "__main__":
     os.system('cls')

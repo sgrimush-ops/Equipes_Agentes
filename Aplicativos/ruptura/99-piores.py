@@ -111,18 +111,34 @@ def main() -> None:
 			f"(faltando: {', '.join(faltantes)})."
 		)
 	elif df is not None and not df.empty:
-		for col in ["QUANTIDADE_DISPONIVEL", "QTD_PEND_PEDCOMPRA", "QTD_VENDIDA"]:
+		cols_to_convert = ["QUANTIDADE_DISPONIVEL", "QTD_PEND_PEDCOMPRA", "QTD_VENDIDA"]
+		if "QTD_PEND_PEDTRANSF" in df.columns:
+			cols_to_convert.append("QTD_PEND_PEDTRANSF")
+
+		for col in cols_to_convert:
 			df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
 		# Consolida por produto para avaliar o cenário global no snapshot mais recente.
-		df_produto = (
-			df.groupby(["CODIGO_PRODUTO", "DESCRICAO_PRODUTO"], as_index=False)
-			.agg(
-				ESTOQUE_TOTAL=("QUANTIDADE_DISPONIVEL", "sum"),
-				PEDIDOS_PENDENTES=("QTD_PEND_PEDCOMPRA", "sum"),
-				QTD_VENDIDA=("QTD_VENDIDA", "sum"),
+		if "QTD_PEND_PEDTRANSF" in df.columns:
+			df_produto = (
+				df.groupby(["CODIGO_PRODUTO", "DESCRICAO_PRODUTO"], as_index=False)
+				.agg(
+					ESTOQUE_TOTAL=("QUANTIDADE_DISPONIVEL", "sum"),
+					PEDIDOS_COMPRA=("QTD_PEND_PEDCOMPRA", "sum"),
+					PEDIDOS_TRANSF=("QTD_PEND_PEDTRANSF", "sum"),
+					QTD_VENDIDA=("QTD_VENDIDA", "sum"),
+				)
 			)
-		)
+			df_produto["PEDIDOS_PENDENTES"] = df_produto["PEDIDOS_COMPRA"] + df_produto["PEDIDOS_TRANSF"]
+		else:
+			df_produto = (
+				df.groupby(["CODIGO_PRODUTO", "DESCRICAO_PRODUTO"], as_index=False)
+				.agg(
+					ESTOQUE_TOTAL=("QUANTIDADE_DISPONIVEL", "sum"),
+					PEDIDOS_PENDENTES=("QTD_PEND_PEDCOMPRA", "sum"),
+					QTD_VENDIDA=("QTD_VENDIDA", "sum"),
+				)
+			)
 
 		filtro = (
 			(df_produto["ESTOQUE_TOTAL"] <= 0)
