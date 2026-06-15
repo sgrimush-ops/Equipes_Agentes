@@ -12,6 +12,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `regras_imutaveis_sql.md`: regras que nao devem ser quebradas em queries do Consinco.
 - `aprendizado_erro_sql.md`: licoes de validacao de dicionario, tipos e joins.
 - `aprendizado_filtros_categorias_embalagem.md`: filtros seguros de categoria, divisao e embalagem.
+- `aprendizado_compras_transferencias_segregadas.md`: separacao e segregacao tecnica de compras de fornecedores (recebimento) e transferencias internas (CD e expedicao).
 
 ## Arquitetura do Consinco e do BI
 - `arquitetura_monitor_consico_totvs.md`: fluxo real das telas Consinco e uso de `SEQCONSULTA`.
