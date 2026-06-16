@@ -23,6 +23,9 @@ def principal():
     print("Carregando dados para painel detalhado...")
     df = pd.read_parquet(arquivo_entrada)
 
+    if 'QTD_VENDIDA' not in df.columns and 'QTD_VENDIDA_PERIODO' in df.columns:
+        df['QTD_VENDIDA'] = df['QTD_VENDIDA_PERIODO']
+
     # Saneamento (Regra 65)
     cols_saneamento = ['QUANTIDADE_DISPONIVEL', 'EMBL_COMPRA', 'EMBL_TRANSFERENCIA', 
                        'QTD_PEND_PEDCOMPRA', 'QTD_PEND_PEDTRANSF', 'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO', 'QTD_VENDIDA']
@@ -63,7 +66,7 @@ def principal():
     else:
         df_grouped = df.groupby(['COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'CODIGO_EMPRESA']).agg(
             ESTOQUE=('QUANTIDADE_DISPONIVEL', 'sum'),
-            PEDIDOS=('QTD_PEND_PEDCOMPRA', 'sum'),
+            PEDIDOS_COMPRA=('QTD_PEND_PEDCOMPRA', 'sum'),
             VENDA=('QTD_VENDIDA', 'sum'),
             RUP_CD=('is_rup_cd', 'max'),
             RUP_LOJA=('is_rup_loja', 'max'),
@@ -71,6 +74,8 @@ def principal():
             RUP_PEND=('is_rup_pend', 'max'),
             EST_PEND=('is_est_pend', 'max')
         ).reset_index()
+        df_grouped['PEDIDOS_TRANSF'] = 0.0
+        df_grouped['PEDIDOS'] = df_grouped['PEDIDOS_COMPRA']
 
     print("Consolidando JSON por Produto...")
     produtos_dict = {}
@@ -83,14 +88,16 @@ def principal():
                 'DESCRICAO_PRODUTO': row['DESCRICAO_PRODUTO'],
                 'LOJAS_MAP': {},
                 'ESTOQUE_CD': 0,
-                'PEDIDOS_CD': 0,
+                'PEDIDOS_CD_TRANSF': 0,
+                'PEDIDOS_CD_COMPRA': 0,
                 'RUPTURA_CD': False
             }
         
         empresa = int(row['CODIGO_EMPRESA'])
         metrics = {
             'est': float(row['ESTOQUE']),
-            'ped': float(row['PEDIDOS']),
+            'ped_tran': float(row['PEDIDOS_TRANSF']),
+            'ped_comp': float(row['PEDIDOS_COMPRA']),
             'vda': float(row['VENDA']),
             'r_l': bool(row['RUP_LOJA']),
             'r_n': bool(row['RUP_NEG']),
@@ -100,7 +107,8 @@ def principal():
         
         if empresa == 15:
             produtos_dict[key]['ESTOQUE_CD'] = metrics['est']
-            produtos_dict[key]['PEDIDOS_CD'] = metrics['ped']
+            produtos_dict[key]['PEDIDOS_CD_TRANSF'] = metrics['ped_tran']
+            produtos_dict[key]['PEDIDOS_CD_COMPRA'] = metrics['ped_comp']
             produtos_dict[key]['RUPTURA_CD'] = bool(row['RUP_CD'])
         else:
             produtos_dict[key]['LOJAS_MAP'][str(empresa)] = metrics
@@ -186,7 +194,8 @@ def principal():
                             <th id="col-dinamica">LOJAS</th>
                             <th class="cd-column">Estoque CD 15</th>
                             <th id="header-estoque">Estoque Local</th>
-                            <th id="header-pedidos">Pedidos Local</th>
+                            <th id="header-pedidos-transf">Pedidos Trans (Local)</th>
+                            <th id="header-pedidos-forn">Pedidos Forn (Local)</th>
                             <th id="header-venda">Qtd. Vendida (Local)</th>
                         </tr>
                     </thead>
@@ -213,7 +222,8 @@ def principal():
             
             // Atualizar headers da tabela
             document.getElementById("header-estoque").innerText = (loja === "TODAS") ? "Estoque TOTAL (Rede)" : "Estoque na Loja " + loja;
-            document.getElementById("header-pedidos").innerText = (loja === "TODAS") ? "Pedidos TOTAL (Rede)" : "Pedidos na Loja " + loja;
+            document.getElementById("header-pedidos-transf").innerText = (loja === "TODAS") ? "Pedidos Trans (Rede)" : "Pedidos Trans Loja " + loja;
+            document.getElementById("header-pedidos-forn").innerText = (loja === "TODAS") ? "Pedidos Forn (Rede)" : "Pedidos Forn Loja " + loja;
             document.getElementById("header-venda").innerText = (loja === "TODAS") ? "Qtd. Vendida (Rede)" : "Qtd. Vendida Loja " + loja;
 
             if (!visaoAtual) {
@@ -276,7 +286,7 @@ def principal():
             const exibe = dFinal.slice(0, 2000);
 
             exibe.forEach(row => {
-                let est_loc = 0, ped_loc = 0, vda_loc = 0;
+                let est_loc = 0, ped_transf_loc = 0, ped_forn_loc = 0, vda_loc = 0;
                 let lojas_list = "";
                 const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'ESTOQUE_PEND': 'e_p'};
                 const flag = flagMap[visaoAtual] || 'r_l';
@@ -285,14 +295,16 @@ def principal():
                     Object.keys(row.LOJAS_MAP).forEach(lId => {
                         const m = row.LOJAS_MAP[lId];
                         est_loc += m.est;
-                        ped_loc += m.ped;
+                        ped_transf_loc += (m.ped_tran || 0);
+                        ped_forn_loc += (m.ped_comp || 0);
                         vda_loc += m.vda;
                         if (m[flag]) lojas_list += (lojas_list ? ", " : "") + lId;
                     });
                 } else {
-                    const m = row.LOJAS_MAP[lojaSel] || {est:0, ped:0, vda:0};
+                    const m = row.LOJAS_MAP[lojaSel] || {est:0, ped_tran:0, ped_comp:0, vda:0};
                     est_loc = m.est;
-                    ped_loc = m.ped;
+                    ped_transf_loc = m.ped_tran || 0;
+                    ped_forn_loc = m.ped_comp || 0;
                     vda_loc = m.vda;
                     lojas_list = lojaSel;
                 }
@@ -303,14 +315,15 @@ def principal():
                     <td><span class="fw-bold text-muted" title="${lojas_list}">${lojas_list.length > 30 ? lojas_list.substring(0,27)+'...' : lojas_list}</span></td>
                     <td class="cd-column">${fmtNum(row.ESTOQUE_CD)}</td>
                     <td class="${est_loc < 0 ? 'text-danger fw-bold' : ''}">${fmtNum(est_loc)}</td>
-                    <td>${fmtNum(ped_loc)}</td>
+                    <td>${fmtNum(ped_transf_loc)}</td>
+                    <td>${fmtNum(ped_forn_loc)}</td>
                     <td class="text-primary fw-bold">${fmtNum(vda_loc)}</td>
                 </tr>`;
             });
             
             document.getElementById("tabela-body").innerHTML = tbody;
             if (dFinal.length > 2000) {
-                document.getElementById("tabela-body").innerHTML += `<tr><td colspan="7" class="text-center text-muted p-3">Exibindo apenas os 2000 itens com maior venda para melhor performance. Refine o filtro para ver mais.</td></tr>`;
+                document.getElementById("tabela-body").innerHTML += `<tr><td colspan="8" class="text-center text-muted p-3">Exibindo apenas os 2000 itens com maior venda para melhor performance. Refine o filtro para ver mais.</td></tr>`;
             }
         }
         window.onload = aplicarFiltros;
@@ -360,7 +373,8 @@ def principal():
             lojas_est_ped = [l for l, m in p['LOJAS_MAP'].items() if m['e_p']]
             
             est_loc = sum(m['est'] for m in p['LOJAS_MAP'].values())
-            ped_loc = sum(m['ped'] for m in p['LOJAS_MAP'].values())
+            ped_transf_loc = sum(m.get('ped_tran', 0) for m in p['LOJAS_MAP'].values())
+            ped_forn_loc = sum(m.get('ped_comp', 0) for m in p['LOJAS_MAP'].values())
             vda_loc = sum(m['vda'] for m in p['LOJAS_MAP'].values())
             
             rows_excel.append({
@@ -368,13 +382,15 @@ def principal():
                 'Descrição': p['DESCRICAO_PRODUTO'],
                 'Ruptura CD?': 'SIM' if p['RUPTURA_CD'] else 'NÃO',
                 'Estoque CD': p['ESTOQUE_CD'],
-                'Pedidos CD': p['PEDIDOS_CD'],
+                'Ped. Transf CD': p.get('PEDIDOS_CD_TRANSF', 0),
+                'Ped. Forn CD': p.get('PEDIDOS_CD_COMPRA', 0),
                 'Lojas c/ Ruptura': ", ".join(lojas_rup),
                 'Lojas c/ Est. Negativo': ", ".join(lojas_neg),
                 'Lojas c/ Rup. Pendente': ", ".join(lojas_pend),
                 'Lojas c/ Est e Pedido': ", ".join(lojas_est_ped),
                 'Estoque Local (Rede)': est_loc,
-                'Pedidos Local (Rede)': ped_loc,
+                'Ped. Transf Local (Rede)': ped_transf_loc,
+                'Ped. Forn Local (Rede)': ped_forn_loc,
                 'Qtd. Vendida (Rede)': vda_loc
             })
             

@@ -27,20 +27,26 @@ def compute_metrics(df_subset, loja_nome):
     # Ruptura CD considera estoque 0 ou abaixo da embalagem de transferência
     c_rup_cd = (df_subset['QUANTIDADE_DISPONIVEL'] <= 0) | (df_subset['QUANTIDADE_DISPONIVEL'] < df_subset['EMBL_TRANSFERENCIA'])
     c_neg = df_subset['QUANTIDADE_DISPONIVEL'] < 0
+    
+    c_pend_forn = df_subset['QTD_PEND_PEDCOMPRA'] > 0
     if 'QTD_PEND_PEDTRANSF' in df_subset.columns:
-        c_pend = (df_subset['QTD_PEND_PEDCOMPRA'] > 0) | (df_subset['QTD_PEND_PEDTRANSF'] > 0)
+        c_pend_transf = df_subset['QTD_PEND_PEDTRANSF'] > 0
     else:
-        c_pend = df_subset['QTD_PEND_PEDCOMPRA'] > 0
+        c_pend_transf = pd.Series(False, index=df_subset.index)
+        
     c_est = df_subset['QUANTIDADE_DISPONIVEL'] > 0
 
     df_temp = pd.DataFrame({'COMPRADOR': df_subset['COMPRADOR']})
     df_temp['Base_CD'] = df_subset['CODIGO_PRODUTO'].where(c_cd)
     df_temp['Ruptura_CD'] = df_subset['CODIGO_PRODUTO'].where(c_cd & c_rup_cd)
+    df_temp['Rup_CD_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_cd & c_rup_cd & c_pend_forn)
     df_temp['Base_Loja'] = df_subset['CODIGO_PRODUTO'].where(c_loja)
     df_temp['Ruptura_Loja'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja)
-    df_temp['Rup_Loja_Neg'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_neg)
-    df_temp['Rup_Loja_Pend'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja & c_pend)
-    df_temp['Est_Pend'] = df_subset['CODIGO_PRODUTO'].where(c_est & c_pend)
+    df_temp['Rup_Loja_Neg'] = df_subset['CODIGO_PRODUTO'].where(c_neg)
+    df_temp['Rup_Loja_Pend_Transf'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja & c_pend_transf)
+    df_temp['Rup_Loja_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja & c_pend_forn)
+    df_temp['Est_Pend_Transf'] = df_subset['CODIGO_PRODUTO'].where(c_est & c_pend_transf)
+    df_temp['Est_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_est & c_pend_forn)
 
     resumo = df_temp.groupby('COMPRADOR').nunique().reset_index()
 
@@ -52,11 +58,14 @@ def compute_metrics(df_subset, loja_nome):
         'COMPRADOR': 'TOTAL GERAL',
         'Base_CD': total_cd,
         'Ruptura_CD': resumo['Ruptura_CD'].sum(), 
+        'Rup_CD_Pend_Forn': resumo['Rup_CD_Pend_Forn'].sum(),
         'Base_Loja': total_loja,
         'Ruptura_Loja': resumo['Ruptura_Loja'].sum(),
         'Rup_Loja_Neg': resumo['Rup_Loja_Neg'].sum(),
-        'Rup_Loja_Pend': resumo['Rup_Loja_Pend'].sum(),
-        'Est_Pend': resumo['Est_Pend'].sum(),
+        'Rup_Loja_Pend_Transf': resumo['Rup_Loja_Pend_Transf'].sum(),
+        'Rup_Loja_Pend_Forn': resumo['Rup_Loja_Pend_Forn'].sum(),
+        'Est_Pend_Transf': resumo['Est_Pend_Transf'].sum(),
+        'Est_Pend_Forn': resumo['Est_Pend_Forn'].sum(),
     }
     
     total_df = pd.DataFrame([total_dict])
@@ -100,10 +109,19 @@ def principal():
     
     # Cálculos Percentuais — linhas individuais (por comprador dentro de cada loja)
     final_df['% Ruptura CD'] = (final_df['Ruptura_CD'] / final_df['Base_CD'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Rup. CD Pend. Forn'] = (final_df['Rup_CD_Pend_Forn'] / final_df['Base_CD'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Ruptura Loja'] = (final_df['Ruptura_Loja'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja Neg.'] = (final_df['Rup_Loja_Neg'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
-    final_df['% Rup. Loja Pend.'] = (final_df['Rup_Loja_Pend'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
-    final_df['% Est. c/ Ped.'] = (final_df['Est_Pend'] / (final_df['Base_CD'] + final_df['Base_Loja']).replace(0, np.nan) * 100).fillna(0)
+    
+    # CD 15 (LOJA == '15') utiliza Base_CD como denominador para estoque negativo
+    mask_cd15 = final_df['LOJA'] == '15'
+    if mask_cd15.any():
+        final_df.loc[mask_cd15, '% Rup. Loja Neg.'] = (final_df.loc[mask_cd15, 'Rup_Loja_Neg'] / final_df.loc[mask_cd15, 'Base_CD'].replace(0, np.nan) * 100).fillna(0)
+
+    final_df['% Rup. Loja Pend. Transf'] = (final_df['Rup_Loja_Pend_Transf'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Rup. Loja Pend. Forn'] = (final_df['Rup_Loja_Pend_Forn'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Est. c/ Ped. Transf'] = (final_df['Est_Pend_Transf'] / (final_df['Base_CD'] + final_df['Base_Loja']).replace(0, np.nan) * 100).fillna(0)
+    final_df['% Est. c/ Ped. Forn'] = (final_df['Est_Pend_Forn'] / (final_df['Base_CD'] + final_df['Base_Loja']).replace(0, np.nan) * 100).fillna(0)
 
     # Visão "TODAS": nunique() deduplica entre lojas, gerando % inflados.
     # Recalcular linhas de compradores e TOTAL GERAL como soma das lojas individuais.
@@ -123,20 +141,30 @@ def principal():
 
         soma_base_loja = final_df.loc[mask_comp_lojas, 'Base_Loja'].sum()
         soma_rup_loja = final_df.loc[mask_comp_lojas, 'Ruptura_Loja'].sum()
-        soma_neg = final_df.loc[mask_comp_lojas, 'Rup_Loja_Neg'].sum()
-        soma_pend = final_df.loc[mask_comp_lojas, 'Rup_Loja_Pend'].sum()
-        soma_est_pend = final_df.loc[mask_comp_lojas, 'Est_Pend'].sum()
+        soma_neg = final_df.loc[mask_comp_lojas & (final_df['LOJA'] != '15'), 'Rup_Loja_Neg'].sum()
+        soma_pend_transf = final_df.loc[mask_comp_lojas, 'Rup_Loja_Pend_Transf'].sum()
+        soma_pend_forn = final_df.loc[mask_comp_lojas, 'Rup_Loja_Pend_Forn'].sum()
+        soma_est_transf = final_df.loc[mask_comp_lojas, 'Est_Pend_Transf'].sum()
+        soma_est_forn = final_df.loc[mask_comp_lojas, 'Est_Pend_Forn'].sum()
+        soma_pend_cd_forn = final_df.loc[mask_comp_lojas, 'Rup_CD_Pend_Forn'].sum()
+        soma_base_cd = final_df.loc[mask_comp_lojas, 'Base_CD'].sum()
 
         final_df.loc[mask_comp_todas, 'Base_Loja'] = soma_base_loja
         final_df.loc[mask_comp_todas, 'Ruptura_Loja'] = soma_rup_loja
         final_df.loc[mask_comp_todas, 'Rup_Loja_Neg'] = soma_neg
-        final_df.loc[mask_comp_todas, 'Rup_Loja_Pend'] = soma_pend
-        final_df.loc[mask_comp_todas, 'Est_Pend'] = soma_est_pend
+        final_df.loc[mask_comp_todas, 'Rup_Loja_Pend_Transf'] = soma_pend_transf
+        final_df.loc[mask_comp_todas, 'Rup_Loja_Pend_Forn'] = soma_pend_forn
+        final_df.loc[mask_comp_todas, 'Est_Pend_Transf'] = soma_est_transf
+        final_df.loc[mask_comp_todas, 'Est_Pend_Forn'] = soma_est_forn
+        final_df.loc[mask_comp_todas, 'Rup_CD_Pend_Forn'] = soma_pend_cd_forn
 
         if soma_base_loja > 0:
             final_df.loc[mask_comp_todas, '% Ruptura Loja'] = soma_rup_loja / soma_base_loja * 100
             final_df.loc[mask_comp_todas, '% Rup. Loja Neg.'] = soma_neg / soma_base_loja * 100
-            final_df.loc[mask_comp_todas, '% Rup. Loja Pend.'] = soma_pend / soma_base_loja * 100
+            final_df.loc[mask_comp_todas, '% Rup. Loja Pend. Transf'] = soma_pend_transf / soma_base_loja * 100
+            final_df.loc[mask_comp_todas, '% Rup. Loja Pend. Forn'] = soma_pend_forn / soma_base_loja * 100
+        if soma_base_cd > 0:
+            final_df.loc[mask_comp_todas, '% Rup. CD Pend. Forn'] = soma_pend_cd_forn / soma_base_cd * 100
 
     # TOTAL GERAL na visão TODAS: soma ponderada de todos os compradores (já corrigidos)
     mask_total_todas = mask_todas & mask_total
@@ -145,28 +173,37 @@ def principal():
         soma_base = final_df.loc[mask_comp_todas_nontotal, 'Base_Loja'].sum()
         soma_rup = final_df.loc[mask_comp_todas_nontotal, 'Ruptura_Loja'].sum()
         soma_neg = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Neg'].sum()
-        soma_pend = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Pend'].sum()
-        soma_est_pend = final_df.loc[mask_comp_todas_nontotal, 'Est_Pend'].sum()
+        soma_pend_transf = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Pend_Transf'].sum()
+        soma_pend_forn = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Pend_Forn'].sum()
+        soma_est_transf = final_df.loc[mask_comp_todas_nontotal, 'Est_Pend_Transf'].sum()
+        soma_est_forn = final_df.loc[mask_comp_todas_nontotal, 'Est_Pend_Forn'].sum()
         soma_base_cd = final_df.loc[mask_comp_todas_nontotal, 'Base_CD'].sum()
         soma_rup_cd = final_df.loc[mask_comp_todas_nontotal, 'Ruptura_CD'].sum()
+        soma_pend_cd_forn = final_df.loc[mask_comp_todas_nontotal, 'Rup_CD_Pend_Forn'].sum()
 
         final_df.loc[mask_total_todas, 'Base_Loja'] = soma_base
         final_df.loc[mask_total_todas, 'Ruptura_Loja'] = soma_rup
         final_df.loc[mask_total_todas, 'Rup_Loja_Neg'] = soma_neg
-        final_df.loc[mask_total_todas, 'Rup_Loja_Pend'] = soma_pend
-        final_df.loc[mask_total_todas, 'Est_Pend'] = soma_est_pend
+        final_df.loc[mask_total_todas, 'Rup_Loja_Pend_Transf'] = soma_pend_transf
+        final_df.loc[mask_total_todas, 'Rup_Loja_Pend_Forn'] = soma_pend_forn
+        final_df.loc[mask_total_todas, 'Est_Pend_Transf'] = soma_est_transf
+        final_df.loc[mask_total_todas, 'Est_Pend_Forn'] = soma_est_forn
         final_df.loc[mask_total_todas, 'Base_CD'] = soma_base_cd
         final_df.loc[mask_total_todas, 'Ruptura_CD'] = soma_rup_cd
+        final_df.loc[mask_total_todas, 'Rup_CD_Pend_Forn'] = soma_pend_cd_forn
 
         if soma_base > 0:
             final_df.loc[mask_total_todas, '% Ruptura Loja'] = soma_rup / soma_base * 100
             final_df.loc[mask_total_todas, '% Rup. Loja Neg.'] = soma_neg / soma_base * 100
-            final_df.loc[mask_total_todas, '% Rup. Loja Pend.'] = soma_pend / soma_base * 100
+            final_df.loc[mask_total_todas, '% Rup. Loja Pend. Transf'] = soma_pend_transf / soma_base * 100
+            final_df.loc[mask_total_todas, '% Rup. Loja Pend. Forn'] = soma_pend_forn / soma_base * 100
         if soma_base_cd > 0:
             final_df.loc[mask_total_todas, '% Ruptura CD'] = soma_rup_cd / soma_base_cd * 100
+            final_df.loc[mask_total_todas, '% Rup. CD Pend. Forn'] = soma_pend_cd_forn / soma_base_cd * 100
         total_base_est = soma_base_cd + soma_base
         if total_base_est > 0:
-            final_df.loc[mask_total_todas, '% Est. c/ Ped.'] = soma_est_pend / total_base_est * 100
+            final_df.loc[mask_total_todas, '% Est. c/ Ped. Transf'] = soma_est_transf / total_base_est * 100
+            final_df.loc[mask_total_todas, '% Est. c/ Ped. Forn'] = soma_est_forn / total_base_est * 100
 
     # Exportar para JSON (Estratégia No-Server < 10MB)
     dados_json = json.dumps(final_df.to_dict(orient='records'))
@@ -253,15 +290,21 @@ def principal():
                             <th>Base CD</th>
                             <th>Ruptura CD</th>
                             <th>% Ruptura CD</th>
+                            <th>Rup. CD Pend. Forn</th>
+                            <th>% Rup. CD Pend. Forn</th>
                             <th>Base Loja</th>
                             <th>Ruptura Loja</th>
                             <th>% Ruptura Loja</th>
                             <th>Est. Neg. Loja</th>
                             <th>% Est. Neg. Loja</th>
-                            <th>Rup. Loja Pend.</th>
-                            <th>% Rup. Loja Pend.</th>
-                            <th>Est. com Ped.</th>
-                            <th>% Est. com Ped.</th>
+                            <th>Rup. Loja Pend. Transf</th>
+                            <th>% Rup. Loja Pend. Transf</th>
+                            <th>Rup. Loja Pend. Forn</th>
+                            <th>% Rup. Loja Pend. Forn</th>
+                            <th>Est. c/ Ped. Transf</th>
+                            <th>% Est. c/ Ped. Transf</th>
+                            <th>Est. c/ Ped. Forn</th>
+                            <th>% Est. c/ Ped. Forn</th>
                         </tr>
                     </thead>
                     <tbody id="tabela-body">
@@ -277,6 +320,7 @@ def principal():
                             <ul class="list-unstyled">
                                 <li class="mb-2"><strong>Base CD:</strong> Número total de produtos únicos que fazem parte do mix comercial do comprador no Centro de Distribuição (Empresa 15).</li>
                                 <li class="mb-2"><span class="badge" style="background-color: #FF0000;">Ruptura CD</span> <strong>(%)</strong>: Produtos da Base CD que estão sistemicamente zerados ou com saldo inferior a 1 Embalagem de Transferência.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FF7F50;">Rup. CD Pend. Forn</span> <strong>(%)</strong>: Produtos da Base CD em ruptura, com Pedido de Fornecedor.</li>
                                 <li class="mb-2"><strong>Base Loja:</strong> Número total de produtos únicos que o comprador atende e que deveriam estar ativos nas filiais.</li>
                                 <li class="mb-2"><span class="badge" style="background-color: #FFA500; color: white;">Ruptura Loja</span> <strong>(%)</strong>: Produtos da Base Loja que estão com estoque zerado na gôndola/filial.</li>
                             </ul>
@@ -284,8 +328,10 @@ def principal():
                         <div class="col-md-6" style="font-size: 0.95rem;">
                             <ul class="list-unstyled">
                                 <li class="mb-2"><span class="badge" style="background-color: #800080;">Estoque Neg. Loja</span> <strong>(%)</strong>: Produtos da Base Loja com saldo sistêmico menor que zero.</li>
-                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend.</span> <strong>(%)</strong>: Produtos da Base Loja zerados, mas com Pedidos de Compra emitidos.</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #008000;">Est. com Pedido</span> <strong>(%)</strong>: Produtos com saldo positivo que possuem trânsito de compras ativo.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend. Transf</span> <strong>(%)</strong>: Produtos da Base Loja zerados, com Pedido de Transferência.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend. Forn</span> <strong>(%)</strong>: Produtos da Base Loja zerados, com Pedido de Fornecedor.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #008000;">Est. c/ Ped. Transf</span> <strong>(%)</strong>: Produtos com estoque positivo que possuem pedido de transferência pendente.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #008000;">Est. c/ Ped. Forn</span> <strong>(%)</strong>: Produtos com estoque positivo que possuem pedido de fornecedor pendente.</li>
                             </ul>
                         </div>
                     </div>
@@ -353,15 +399,21 @@ def principal():
                     <td>${fmt(row.Base_CD)}</td>
                     <td>${fmt(row.Ruptura_CD)}</td>
                     <td style="color:#FF0000;font-weight:bold;">${fmt(row['% Ruptura CD'], true)}</td>
+                    <td>${fmt(row.Rup_CD_Pend_Forn)}</td>
+                    <td style="color:#FF7F50;font-weight:bold;">${fmt(row['% Rup. CD Pend. Forn'], true)}</td>
                     <td>${fmt(row.Base_Loja)}</td>
                     <td>${fmt(row.Ruptura_Loja)}</td>
                     <td style="color:#FFA500;font-weight:bold;">${fmt(pctRupturaLoja, true)}</td>
                     <td>${fmt(row.Rup_Loja_Neg)}</td>
                     <td style="color:#800080;font-weight:bold;">${fmt(row['% Rup. Loja Neg.'], true)}</td>
-                    <td>${fmt(row.Rup_Loja_Pend)}</td>
-                    <td style="color:#d4a017;font-weight:bold;">${fmt(row['% Rup. Loja Pend.'], true)}</td>
-                    <td>${fmt(row.Est_Pend)}</td>
-                    <td style="color:#008000;font-weight:bold;">${fmt(row['% Est. c/ Ped.'], true)}</td>
+                    <td>${fmt(row.Rup_Loja_Pend_Transf)}</td>
+                    <td style="color:#d4a017;font-weight:bold;">${fmt(row['% Rup. Loja Pend. Transf'], true)}</td>
+                    <td>${fmt(row.Rup_Loja_Pend_Forn)}</td>
+                    <td style="color:#d4a017;font-weight:bold;">${fmt(row['% Rup. Loja Pend. Forn'], true)}</td>
+                    <td>${fmt(row.Est_Pend_Transf)}</td>
+                    <td style="color:#008000;font-weight:bold;">${fmt(row['% Est. c/ Ped. Transf'], true)}</td>
+                    <td>${fmt(row.Est_Pend_Forn)}</td>
+                    <td style="color:#008000;font-weight:bold;">${fmt(row['% Est. c/ Ped. Forn'], true)}</td>
                 </tr>`;
             });
             document.getElementById("tabela-body").innerHTML = html;
@@ -374,11 +426,14 @@ def principal():
             let plotData = [
                 {name: 'Base CD', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d.Base_CD), marker: {color: '#00008B'}, type: 'bar', text: ts(data,'Base_CD'), textposition: 'auto', offsetgroup: '1', yaxis: 'y2'},
                 {name: 'Ruptura CD', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura CD']), marker: {color: '#FF0000'}, type: 'bar', text: tsp(data,'% Ruptura CD'), textposition: 'auto', offsetgroup: '2', yaxis: 'y'},
-                {name: 'Base Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d.Base_Loja), marker: {color: '#ADD8E6'}, type: 'bar', text: ts(data,'Base_Loja'), textposition: 'auto', offsetgroup: '3', yaxis: 'y2'},
-                {name: 'Ruptura Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '4', yaxis: 'y'},
-                {name: 'Estoque Neg. Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
-                {name: 'Rup. Loja Pend.', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend.']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend.'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
-                {name: 'Est. com Ped.', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped.']), marker: {color: '#008000'}, type: 'bar', text: tsp(data,'% Est. c/ Ped.'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'}
+                {name: 'Rup. CD Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. CD Pend. Forn']), marker: {color: '#FF7F50'}, type: 'bar', text: tsp(data,'% Rup. CD Pend. Forn'), textposition: 'auto', offsetgroup: '3', yaxis: 'y'},
+                {name: 'Base Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d.Base_Loja), marker: {color: '#ADD8E6'}, type: 'bar', text: ts(data,'Base_Loja'), textposition: 'auto', offsetgroup: '4', yaxis: 'y2'},
+                {name: 'Ruptura Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
+                {name: 'Estoque Neg. Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Transf']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Transf'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Forn']), marker: {color: '#FFD700'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Forn'), textposition: 'auto', offsetgroup: '8', yaxis: 'y'},
+                {name: 'Est. c/ Ped. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped. Transf']), marker: {color: '#00CC96'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Transf'), textposition: 'auto', offsetgroup: '9', yaxis: 'y'},
+                {name: 'Est. c/ Ped. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped. Forn']), marker: {color: '#008000'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Forn'), textposition: 'auto', offsetgroup: '10', yaxis: 'y'}
             ];
 
             let layout = {

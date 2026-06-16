@@ -22,18 +22,23 @@ def compute_metrics(df_subset, comprador_nome):
         
     c_rup = df_subset['QUANTIDADE_DISPONIVEL'] <= 0
     c_neg = df_subset['QUANTIDADE_DISPONIVEL'] < 0
+    
+    c_pend_forn = df_subset['QTD_PEND_PEDCOMPRA'] > 0
     if 'QTD_PEND_PEDTRANSF' in df_subset.columns:
-        c_pend = (df_subset['QTD_PEND_PEDCOMPRA'] > 0) | (df_subset['QTD_PEND_PEDTRANSF'] > 0)
+        c_pend_transf = df_subset['QTD_PEND_PEDTRANSF'] > 0
     else:
-        c_pend = df_subset['QTD_PEND_PEDCOMPRA'] > 0
+        c_pend_transf = pd.Series(False, index=df_subset.index)
+        
     c_est = df_subset['QUANTIDADE_DISPONIVEL'] > 0
 
     df_temp = pd.DataFrame({'LOJA_RAW': df_subset['CODIGO_EMPRESA']})
     df_temp['Base_Loja'] = df_subset['CODIGO_PRODUTO']
     df_temp['Ruptura_Loja'] = df_subset['CODIGO_PRODUTO'].where(c_rup)
     df_temp['Rup_Loja_Neg'] = df_subset['CODIGO_PRODUTO'].where(c_neg)
-    df_temp['Rup_Loja_Pend'] = df_subset['CODIGO_PRODUTO'].where(c_rup & c_pend)
-    df_temp['Est_Pend'] = df_subset['CODIGO_PRODUTO'].where(c_est & c_pend)
+    df_temp['Rup_Loja_Pend_Transf'] = df_subset['CODIGO_PRODUTO'].where(c_rup & c_pend_transf)
+    df_temp['Rup_Loja_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_rup & c_pend_forn)
+    df_temp['Est_Pend_Transf'] = df_subset['CODIGO_PRODUTO'].where(c_est & c_pend_transf)
+    df_temp['Est_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_est & c_pend_forn)
 
     resumo = df_temp.groupby('LOJA_RAW').nunique().reset_index()
 
@@ -43,8 +48,10 @@ def compute_metrics(df_subset, comprador_nome):
         'Base_Loja': df_subset['CODIGO_PRODUTO'].nunique(),
         'Ruptura_Loja': df_subset.loc[c_rup, 'CODIGO_PRODUTO'].nunique(),
         'Rup_Loja_Neg': df_subset.loc[c_neg, 'CODIGO_PRODUTO'].nunique(),
-        'Rup_Loja_Pend': df_subset.loc[c_rup & c_pend, 'CODIGO_PRODUTO'].nunique(),
-        'Est_Pend': df_subset.loc[c_est & c_pend, 'CODIGO_PRODUTO'].nunique(),
+        'Rup_Loja_Pend_Transf': df_subset.loc[c_rup & c_pend_transf, 'CODIGO_PRODUTO'].nunique(),
+        'Rup_Loja_Pend_Forn': df_subset.loc[c_rup & c_pend_forn, 'CODIGO_PRODUTO'].nunique(),
+        'Est_Pend_Transf': df_subset.loc[c_est & c_pend_transf, 'CODIGO_PRODUTO'].nunique(),
+        'Est_Pend_Forn': df_subset.loc[c_est & c_pend_forn, 'CODIGO_PRODUTO'].nunique(),
     }
     
     total_df = pd.DataFrame([total_dict])
@@ -94,8 +101,10 @@ def principal():
     # Cálculos Percentuais — linhas individuais (por loja)
     final_df['% Ruptura Loja'] = (final_df['Ruptura_Loja'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja Neg.'] = (final_df['Rup_Loja_Neg'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
-    final_df['% Rup. Loja Pend.'] = (final_df['Rup_Loja_Pend'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
-    final_df['% Est. c/ Ped.'] = (final_df['Est_Pend'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Rup. Loja Pend. Transf'] = (final_df['Rup_Loja_Pend_Transf'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Rup. Loja Pend. Forn'] = (final_df['Rup_Loja_Pend_Forn'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Est. c/ Ped. Transf'] = (final_df['Est_Pend_Transf'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Est. c/ Ped. Forn'] = (final_df['Est_Pend_Forn'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
 
     # TOTAL GERAL: recalcular valores e percentuais como soma ponderada das lojas
     # (nunique global deduplica entre lojas e gera % inconsistente com as linhas individuais)
@@ -111,20 +120,26 @@ def principal():
         soma_base = final_df.loc[mask_lojas, 'Base_Loja'].sum()
         soma_rup = final_df.loc[mask_lojas, 'Ruptura_Loja'].sum()
         soma_neg = final_df.loc[mask_lojas, 'Rup_Loja_Neg'].sum()
-        soma_pend = final_df.loc[mask_lojas, 'Rup_Loja_Pend'].sum()
-        soma_est_pend = final_df.loc[mask_lojas, 'Est_Pend'].sum()
+        soma_pend_transf = final_df.loc[mask_lojas, 'Rup_Loja_Pend_Transf'].sum()
+        soma_pend_forn = final_df.loc[mask_lojas, 'Rup_Loja_Pend_Forn'].sum()
+        soma_est_transf = final_df.loc[mask_lojas, 'Est_Pend_Transf'].sum()
+        soma_est_forn = final_df.loc[mask_lojas, 'Est_Pend_Forn'].sum()
 
         final_df.loc[mask_total_comp, 'Base_Loja'] = soma_base
         final_df.loc[mask_total_comp, 'Ruptura_Loja'] = soma_rup
         final_df.loc[mask_total_comp, 'Rup_Loja_Neg'] = soma_neg
-        final_df.loc[mask_total_comp, 'Rup_Loja_Pend'] = soma_pend
-        final_df.loc[mask_total_comp, 'Est_Pend'] = soma_est_pend
+        final_df.loc[mask_total_comp, 'Rup_Loja_Pend_Transf'] = soma_pend_transf
+        final_df.loc[mask_total_comp, 'Rup_Loja_Pend_Forn'] = soma_pend_forn
+        final_df.loc[mask_total_comp, 'Est_Pend_Transf'] = soma_est_transf
+        final_df.loc[mask_total_comp, 'Est_Pend_Forn'] = soma_est_forn
 
         if soma_base > 0:
             final_df.loc[mask_total_comp, '% Ruptura Loja'] = soma_rup / soma_base * 100
             final_df.loc[mask_total_comp, '% Rup. Loja Neg.'] = soma_neg / soma_base * 100
-            final_df.loc[mask_total_comp, '% Rup. Loja Pend.'] = soma_pend / soma_base * 100
-            final_df.loc[mask_total_comp, '% Est. c/ Ped.'] = soma_est_pend / soma_base * 100
+            final_df.loc[mask_total_comp, '% Rup. Loja Pend. Transf'] = soma_pend_transf / soma_base * 100
+            final_df.loc[mask_total_comp, '% Rup. Loja Pend. Forn'] = soma_pend_forn / soma_base * 100
+            final_df.loc[mask_total_comp, '% Est. c/ Ped. Transf'] = soma_est_transf / soma_base * 100
+            final_df.loc[mask_total_comp, '% Est. c/ Ped. Forn'] = soma_est_forn / soma_base * 100
 
     # Exportar para JSON (Estratégia No-Server < 10MB)
     dados_json = json.dumps(final_df.to_dict(orient='records'))
@@ -198,10 +213,14 @@ def principal():
                             <th>% Ruptura Loja</th>
                             <th>Est. Neg. Loja</th>
                             <th>% Est. Neg. Loja</th>
-                            <th>Rup. Loja Pend.</th>
-                            <th>% Rup. Loja Pend.</th>
-                            <th>Est. com Ped.</th>
-                            <th>% Est. com Ped.</th>
+                            <th>Rup. Loja Pend. Transf</th>
+                            <th>% Rup. Loja Pend. Transf</th>
+                            <th>Rup. Loja Pend. Forn</th>
+                            <th>% Rup. Loja Pend. Forn</th>
+                            <th>Est. c/ Ped. Transf</th>
+                            <th>% Est. c/ Ped. Transf</th>
+                            <th>Est. c/ Ped. Forn</th>
+                            <th>% Est. c/ Ped. Forn</th>
                         </tr>
                     </thead>
                     <tbody id="tabela-body">
@@ -222,8 +241,10 @@ def principal():
                         </div>
                         <div class="col-md-6" style="font-size: 0.95rem;">
                             <ul class="list-unstyled">
-                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend.</span> <strong>(%)</strong>: Produtos da filial que estão sem estoque, porém possuem trânsito / pedido de compra pendente na rede.</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #008000;">Est. com Pedido</span> <strong>(%)</strong>: Produtos com saldo positivo na filial que também possuem pedido pendente de reposição.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend. Transf</span> <strong>(%)</strong>: Produtos da filial zerados, com Pedido de Transferência.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend. Forn</span> <strong>(%)</strong>: Produtos da filial zerados, com Pedido de Fornecedor.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #008000;">Est. c/ Ped. Transf</span> <strong>(%)</strong>: Produtos positivos na filial com pedido de transferência pendente.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #008000;">Est. c/ Ped. Forn</span> <strong>(%)</strong>: Produtos positivos na filial com pedido de fornecedor pendente.</li>
                             </ul>
                         </div>
                     </div>
@@ -294,10 +315,14 @@ def principal():
                     <td style="color:#FFA500;font-weight:bold;">${fmt(pctRupturaLoja, true)}</td>
                     <td>${fmt(row.Rup_Loja_Neg)}</td>
                     <td style="color:#800080;font-weight:bold;">${fmt(row['% Rup. Loja Neg.'], true)}</td>
-                    <td>${fmt(row.Rup_Loja_Pend)}</td>
-                    <td style="color:#d4a017;font-weight:bold;">${fmt(row['% Rup. Loja Pend.'], true)}</td>
-                    <td>${fmt(row.Est_Pend)}</td>
-                    <td style="color:#008000;font-weight:bold;">${fmt(row['% Est. c/ Ped.'], true)}</td>
+                    <td>${fmt(row.Rup_Loja_Pend_Transf)}</td>
+                    <td style="color:#d4a017;font-weight:bold;">${fmt(row['% Rup. Loja Pend. Transf'], true)}</td>
+                    <td>${fmt(row.Rup_Loja_Pend_Forn)}</td>
+                    <td style="color:#d4a017;font-weight:bold;">${fmt(row['% Rup. Loja Pend. Forn'], true)}</td>
+                    <td>${fmt(row.Est_Pend_Transf)}</td>
+                    <td style="color:#008000;font-weight:bold;">${fmt(row['% Est. c/ Ped. Transf'], true)}</td>
+                    <td>${fmt(row.Est_Pend_Forn)}</td>
+                    <td style="color:#008000;font-weight:bold;">${fmt(row['% Est. c/ Ped. Forn'], true)}</td>
                 </tr>`;
             });
             document.getElementById("tabela-body").innerHTML = html;
@@ -311,8 +336,10 @@ def principal():
                 {name: 'Base Loja', x: data.map(d=>d.LOJA), y: data.map(d=>d.Base_Loja), marker: {color: '#ADD8E6'}, type: 'bar', text: ts(data,'Base_Loja'), textposition: 'auto', offsetgroup: '1', yaxis: 'y2'},
                 {name: 'Ruptura Loja', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '2', yaxis: 'y'},
                 {name: 'Estoque Neg. Loja', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '3', yaxis: 'y'},
-                {name: 'Rup. Loja Pend.', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Rup. Loja Pend.']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend.'), textposition: 'auto', offsetgroup: '4', yaxis: 'y'},
-                {name: 'Est. com Ped.', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Est. c/ Ped.']), marker: {color: '#008000'}, type: 'bar', text: tsp(data,'% Est. c/ Ped.'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'}
+                {name: 'Rup. Loja Pend. Transf', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Rup. Loja Pend. Transf']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Transf'), textposition: 'auto', offsetgroup: '4', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Forn', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Rup. Loja Pend. Forn']), marker: {color: '#FFD700'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Forn'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
+                {name: 'Est. c/ Ped. Transf', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Est. c/ Ped. Transf']), marker: {color: '#00CC96'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Transf'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
+                {name: 'Est. c/ Ped. Forn', x: data.map(d=>d.LOJA), y: data.map(d=>d['% Est. c/ Ped. Forn']), marker: {color: '#008000'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Forn'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'}
             ];
 
             let layout = {

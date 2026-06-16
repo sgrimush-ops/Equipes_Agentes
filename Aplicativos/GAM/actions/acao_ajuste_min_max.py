@@ -176,7 +176,13 @@ class AcaoAjusteMinMax(BaseAction):
         # Precarrega os templates do popup uma unica vez para reduzir custo por item.
         imagens_para_procurar = [
             'captura_tela/aviso_icone.png',
-            'captura_tela/aviso_crop_nativo.png'
+            'captura_tela/aviso_crop_nativo.png',
+            'captura_tela/popup_consinco.png',
+            'captura_tela/popup_consinco_icone_perfect.png',
+            'captura_tela/popup_consinco_icone_clean.png',
+            'captura_tela/popup_consinco_icone.png',
+            'captura_tela/popup_consinco_icone_super_clean.png',
+            'captura_tela/aviso.png'
         ]
         templates_cv2 = []
         for img_path in imagens_para_procurar:
@@ -222,6 +228,22 @@ class AcaoAjusteMinMax(BaseAction):
             time.sleep(0.3)
             pyautogui.press('enter')
             time.sleep(0.5)
+
+        def tratar_popup_seguro(timeout_detect=0.2, contexto_log=""):
+            if detectar_aviso_popup(timeout_segundos=timeout_detect):
+                if update_callback:
+                    update_callback({'log': f'Popup detectado {contexto_log}. Confirmando Sim (S)...'})
+                confirmar_popup_sim()
+                
+                # Segunda validação: verificar se sumiu
+                if detectar_aviso_popup(timeout_segundos=1.0):
+                    msg_erro = f'Popup persistente detectado {contexto_log} após tentativa de confirmação. Operação abortada por segurança!'
+                    if update_callback:
+                        update_callback({'error': msg_erro})
+                    if stop_event:
+                        stop_event.set()
+                    return False
+            return True
 
         CF_UNICODETEXT = 13
 
@@ -302,10 +324,8 @@ class AcaoAjusteMinMax(BaseAction):
             time.sleep(0.5)
             
             # Se a limpeza abrir popup de caracteres especiais, confirmar com Sim.
-            if detectar_aviso_popup(timeout_segundos=1.5):
-                if update_callback:
-                    update_callback({'log': 'Popup de limpeza detectado. Confirmando Sim (S)...'})
-                confirmar_popup_sim()
+            if not tratar_popup_seguro(timeout_detect=0.2, contexto_log="após F2 (limpeza)"):
+                return
             
             # 3. vai digitar o código do produto;
             pyautogui.write(str(int(codigo_produto)))
@@ -313,7 +333,11 @@ class AcaoAjusteMinMax(BaseAction):
             
             # 4. comando "F8";
             pyautogui.press('f8')
-            time.sleep(2) # Dar tempo para carregar a tela do produto
+            time.sleep(1.2) # Dar tempo para carregar a tela do produto
+            
+            # Se a busca carregar produto com acentuação e abrir popup, confirmar com Sim.
+            if not tratar_popup_seguro(timeout_detect=0.2, contexto_log="após F8 (carregar produto)"):
+                return
             
             # 5. mapear a aba local, para isso vamos usar um clique;
             pyautogui.click(coords['aba_local'][0], coords['aba_local'][1])
@@ -382,16 +406,11 @@ class AcaoAjusteMinMax(BaseAction):
 
             # Finalizar essa etapa com a gravação "F4"
             pyautogui.press('f4')
-            time.sleep(1) # Dar tempo para processar o save
+            time.sleep(1.0) # Dar tempo para processar o save
 
-            # Verificar se ocorreu popup de aviso apos a gravacao e confirmar com Sim.
-            try:
-                if detectar_aviso_popup(timeout_segundos=2.0):
-                    if update_callback:
-                        update_callback({'log': 'Aviso detectado apos F4. Confirmando Sim (S)...'})
-                    confirmar_popup_sim()
-            except Exception:
-                pass
+            # Verificar se ocorreu popup de aviso após a gravação e confirmar com Sim.
+            if not tratar_popup_seguro(timeout_detect=0.2, contexto_log="após F4 (gravação)"):
+                return
 
         if update_callback:
             update_callback({'status': 'Concluído', 'finished': True, 'log': 'Todos os produtos processados com sucesso.'})
