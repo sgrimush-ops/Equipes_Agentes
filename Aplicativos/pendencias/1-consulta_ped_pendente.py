@@ -84,12 +84,12 @@ def consolidar_chave_negocio(df):
     return out
 
 
-def processar_pedidos_pendentes():
+def processar_pedidos_pendente():
     # Descobre o diretório real da pasta base 'Aplicativos'.
     base_dir = Path(__file__).resolve().parent.parent
 
     # Caminho do arquivo de origem (a query recém criada)
-    arquivo_origem = base_dir / 'import_querys' / 'ped_pendentes.txt'
+    arquivo_origem = base_dir / 'import_querys' / 'ped_pendente.txt'
 
     # Pasta de destino e arquivo
     pasta_destino = base_dir / 'pendencias' / 'bd_saida'
@@ -97,7 +97,7 @@ def processar_pedidos_pendentes():
 
     data_hoje = datetime.now().strftime('%d_%m_%Y')
     arquivo_csv_saida = (
-        pasta_destino / f'ped_pendentes_formatado_{data_hoje}.csv'
+        pasta_destino / f'ped_pendente_formatado_{data_hoje}.csv'
     )
 
     print(
@@ -143,7 +143,7 @@ def processar_pedidos_pendentes():
         )
         print(
             "💡 Verifique se a query SQL foi devidamente "
-            "extraida/puxada com o nome 'ped_pendentes.txt'."
+            "extraida/puxada com o nome 'ped_pendente.txt'."
         )
         return False
     except Exception as e:
@@ -154,7 +154,7 @@ def processar_pedidos_pendentes():
 if __name__ == '__main__':
     # Garante execução a partir da pasta local do script.
     os.chdir(Path(__file__).parent.resolve())
-    sucesso = processar_pedidos_pendentes()
+    sucesso = processar_pedidos_pendente()
     if sucesso:
         script_dashboard = Path(__file__).parent / '2-dashboard_pendencias.py'
         print(

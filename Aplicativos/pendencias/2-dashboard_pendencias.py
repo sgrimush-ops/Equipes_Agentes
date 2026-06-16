@@ -37,7 +37,7 @@ def compilar_visao(nome_visao, curr_df, is_global=False):
     fig_dia = make_subplots(specs=[[{"secondary_y": True}]])
     
     fig_dia.add_trace(
-        go.Bar(x=df_dia['DATA'], y=df_dia['CAIXAS'], name="Volume Caixas (Pendentes)", opacity=0.7, marker_color='#E74C3C'),
+        go.Bar(x=df_dia['DATA'], y=df_dia['CAIXAS'], name="Volume Caixas (pendente)", opacity=0.7, marker_color='#E74C3C'),
         secondary_y=False,
     )
     
@@ -114,7 +114,7 @@ def compilar_visao(nome_visao, curr_df, is_global=False):
             <div style="font-size:24px; font-weight:bold; color:#F1C40F;">{formatar_kpi(qtd_pedidos)}</div>
         </div>
         <div style="flex:1; min-width:150px; background:rgba(255,255,255,0.1); padding:15px; border-radius:8px; text-align:center;">
-            <div style="font-size:12px; color:#BDC3C7; text-transform:uppercase;">Itens Pendentes</div>
+            <div style="font-size:12px; color:#BDC3C7; text-transform:uppercase;">Itens pendente</div>
             <div style="font-size:24px; font-weight:bold; color:#E74C3C;">{formatar_kpi(qtd_itens)}</div>
         </div>
         <div style="flex:1; min-width:150px; background:rgba(255,255,255,0.1); padding:15px; border-radius:8px; text-align:center;">
@@ -153,9 +153,9 @@ def gerar_dashboard():
     base_dir = Path(__file__).resolve().parent
     pasta_entrada = base_dir / 'bd_saida'
     
-    arquivos = glob.glob(str(pasta_entrada / 'ped_pendentes_formatado_*.csv'))
+    arquivos = glob.glob(str(pasta_entrada / 'ped_pendente_formatado_*.csv'))
     if not arquivos:
-        print("❌ Nenhum arquivo ped_pendentes_formatado_*.csv encontrado em bd_saida!")
+        print("❌ Nenhum arquivo ped_pendente_formatado_*.csv encontrado em bd_saida!")
         return
         
     arquivo_recente = max(arquivos, key=os.path.getctime)

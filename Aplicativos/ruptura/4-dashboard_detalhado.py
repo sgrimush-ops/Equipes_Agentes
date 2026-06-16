@@ -90,6 +90,7 @@ def principal():
                 'ESTOQUE_CD': 0,
                 'PEDIDOS_CD_TRANSF': 0,
                 'PEDIDOS_CD_COMPRA': 0,
+                'VENDA_CD': 0,
                 'RUPTURA_CD': False
             }
         
@@ -109,6 +110,7 @@ def principal():
             produtos_dict[key]['ESTOQUE_CD'] = metrics['est']
             produtos_dict[key]['PEDIDOS_CD_TRANSF'] = metrics['ped_tran']
             produtos_dict[key]['PEDIDOS_CD_COMPRA'] = metrics['ped_comp']
+            produtos_dict[key]['VENDA_CD'] = metrics['vda']
             produtos_dict[key]['RUPTURA_CD'] = bool(row['RUP_CD'])
         else:
             produtos_dict[key]['LOJAS_MAP'][str(empresa)] = metrics
@@ -121,10 +123,13 @@ def principal():
     for c in compradores:
         options_compradores += f'<option value="{c}">{c}</option>'
 
-    lojas = sorted([int(x) for x in df['CODIGO_EMPRESA'].dropna().unique() if x != 15])
+    lojas = sorted([int(x) for x in df['CODIGO_EMPRESA'].dropna().unique()])
     options_lojas = '<option value="TODAS">TODAS AS LOJAS</option>'
     for l in lojas:
-        options_lojas += f'<option value="{l}">Loja {l}</option>'
+        if l == 15:
+            options_lojas += f'<option value="{l}">Loja {l} (CD)</option>'
+        else:
+            options_lojas += f'<option value="{l}">Loja {l}</option>'
 
     html_template = """
     <!DOCTYPE html>
@@ -256,6 +261,14 @@ def principal():
 
             function match(prod) {
                 if (visaoAtual === 'RUPTURA_CD') return prod.RUPTURA_CD;
+                if (lojaSel === "15") {
+                    const has_neg = prod.ESTOQUE_CD < 0;
+                    const has_pend = prod.PEDIDOS_CD_COMPRA > 0 || prod.PEDIDOS_CD_TRANSF > 0;
+                    if (visaoAtual === 'RUPTURA_LOJA') return prod.RUPTURA_CD;
+                    if (visaoAtual === 'RUPTURA_NEG') return has_neg;
+                    if (visaoAtual === 'RUPTURA_PEND') return prod.RUPTURA_CD && has_pend;
+                    if (visaoAtual === 'ESTOQUE_PEND') return (!prod.RUPTURA_CD) && has_pend;
+                }
                 const lojasMap = prod.LOJAS_MAP;
                 const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'ESTOQUE_PEND': 'e_p'};
                 const flag = flagMap[visaoAtual];
@@ -270,8 +283,11 @@ def principal():
             dFinal.sort((a, b) => {
                 let vA = 0, vB = 0;
                 if (lojaSel === "TODAS") {
-                    vA = Object.values(a.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0);
-                    vB = Object.values(b.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0);
+                    vA = Object.values(a.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0) + (a.VENDA_CD || 0);
+                    vB = Object.values(b.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0) + (b.VENDA_CD || 0);
+                } else if (lojaSel === "15") {
+                    vA = a.VENDA_CD || 0;
+                    vB = b.VENDA_CD || 0;
                 } else {
                     vA = a.LOJAS_MAP[lojaSel] ? a.LOJAS_MAP[lojaSel].vda : 0;
                     vB = b.LOJAS_MAP[lojaSel] ? b.LOJAS_MAP[lojaSel].vda : 0;
@@ -300,6 +316,26 @@ def principal():
                         vda_loc += m.vda;
                         if (m[flag]) lojas_list += (lojas_list ? ", " : "") + lId;
                     });
+                    ped_forn_loc += (row.PEDIDOS_CD_COMPRA || 0);
+                    vda_loc += (row.VENDA_CD || 0);
+                    
+                    if (visaoAtual === 'RUPTURA_CD' && row.RUPTURA_CD) {
+                        lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
+                    } else if (visaoAtual === 'RUPTURA_LOJA' && row.RUPTURA_CD) {
+                        lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
+                    } else if (visaoAtual === 'RUPTURA_NEG' && row.ESTOQUE_CD < 0) {
+                        lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
+                    } else if (visaoAtual === 'RUPTURA_PEND' && row.RUPTURA_CD && (row.PEDIDOS_CD_COMPRA > 0 || row.PEDIDOS_CD_TRANSF > 0)) {
+                        lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
+                    } else if (visaoAtual === 'ESTOQUE_PEND' && (!row.RUPTURA_CD) && (row.PEDIDOS_CD_COMPRA > 0 || row.PEDIDOS_CD_TRANSF > 0)) {
+                        lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
+                    }
+                } else if (lojaSel === "15") {
+                    est_loc = row.ESTOQUE_CD || 0;
+                    ped_transf_loc = row.PEDIDOS_CD_TRANSF || 0;
+                    ped_forn_loc = row.PEDIDOS_CD_COMPRA || 0;
+                    vda_loc = row.VENDA_CD || 0;
+                    lojas_list = "15 (CD)";
                 } else {
                     const m = row.LOJAS_MAP[lojaSel] || {est:0, ped_tran:0, ped_comp:0, vda:0};
                     est_loc = m.est;

@@ -424,16 +424,14 @@ def principal():
             let tsp = (arr, c) => arr.map(d => Math.round(d[c] * 10) / 10 + '%');
 
             let plotData = [
-                {name: 'Base CD', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d.Base_CD), marker: {color: '#00008B'}, type: 'bar', text: ts(data,'Base_CD'), textposition: 'auto', offsetgroup: '1', yaxis: 'y2'},
-                {name: 'Ruptura CD', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura CD']), marker: {color: '#FF0000'}, type: 'bar', text: tsp(data,'% Ruptura CD'), textposition: 'auto', offsetgroup: '2', yaxis: 'y'},
-                {name: 'Rup. CD Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. CD Pend. Forn']), marker: {color: '#FF7F50'}, type: 'bar', text: tsp(data,'% Rup. CD Pend. Forn'), textposition: 'auto', offsetgroup: '3', yaxis: 'y'},
-                {name: 'Base Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d.Base_Loja), marker: {color: '#ADD8E6'}, type: 'bar', text: ts(data,'Base_Loja'), textposition: 'auto', offsetgroup: '4', yaxis: 'y2'},
-                {name: 'Ruptura Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
-                {name: 'Estoque Neg. Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
-                {name: 'Rup. Loja Pend. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Transf']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Transf'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'},
-                {name: 'Rup. Loja Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Forn']), marker: {color: '#FFD700'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Forn'), textposition: 'auto', offsetgroup: '8', yaxis: 'y'},
-                {name: 'Est. c/ Ped. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped. Transf']), marker: {color: '#00CC96'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Transf'), textposition: 'auto', offsetgroup: '9', yaxis: 'y'},
-                {name: 'Est. c/ Ped. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped. Forn']), marker: {color: '#008000'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Forn'), textposition: 'auto', offsetgroup: '10', yaxis: 'y'}
+                {name: 'Ruptura CD', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura CD']), marker: {color: '#FF0000'}, type: 'bar', text: tsp(data,'% Ruptura CD'), textposition: 'auto', offsetgroup: '1', yaxis: 'y'},
+                {name: 'Rup. CD Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. CD Pend. Forn']), marker: {color: '#FF7F50'}, type: 'bar', text: tsp(data,'% Rup. CD Pend. Forn'), textposition: 'auto', offsetgroup: '2', yaxis: 'y'},
+                {name: 'Ruptura Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '3', yaxis: 'y'},
+                {name: 'Estoque Neg. Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '4', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Transf']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Transf'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Forn']), marker: {color: '#FFD700'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Forn'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
+                {name: 'Est. c/ Ped. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped. Transf']), marker: {color: '#00CC96'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Transf'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'},
+                {name: 'Est. c/ Ped. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Est. c/ Ped. Forn']), marker: {color: '#008000'}, type: 'bar', text: tsp(data,'% Est. c/ Ped. Forn'), textposition: 'auto', offsetgroup: '8', yaxis: 'y'}
             ];
 
             let layout = {
@@ -444,8 +442,7 @@ def principal():
                 template: "plotly_white",
                 height: 500,
                 margin: {l: 20, r: 20, t: 50, b: 20},
-                yaxis: {title: "Percentual (%)", side: 'left', range: [0, 100]},
-                yaxis2: {title: "Quantidade Mix", side: 'right', overlaying: 'y', showgrid: false}
+                yaxis: {title: "Percentual (%)", side: 'left'}
             };
 
             Plotly.react('chart-container', plotData, layout, {displayModeBar: false, responsive: true});
