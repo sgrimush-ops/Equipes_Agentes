@@ -41,3 +41,30 @@ WHERE Y.STATUSCOMPRA = 'A'
   AND Y.NROEMPRESA IN (3, 15, 50)
   AND UPPER(C.CATEGORIA) LIKE '%LIVRARIA%'
 ```
+
+## 5. Ligações de Categorias Duplicadas (Árvores Hierárquicas)
+*   **Sintoma:** Um produto (como Coca-Cola ou Água) retorna múltiplas linhas no mesmo nível (ex: mostrando `A CLASSIFICAR` no Nível 1 junto com `BEBIDAS`).
+*   **Causa:** O ERP Consinco mantém múltiplas árvores hierárquicas ativas simultaneamente na tabela `MAP_FAMDIVCATEG` (comercial/mercadológica, logística, fiscal, etc.). Se não for filtrado o tipo de categoria, a consulta trará todas as árvores (e as árvores não configuradas retornam para o padrão do sistema `A CLASSIFICAR`).
+*   **Solução:**
+    *   Filtrar sempre por tipo de categoria comercial (Mercadológica) usando `MAP_CATEGORIA.TIPCATEGORIA = 'M'`.
+    *   Filtrar por associação ativa usando `MAP_FAMDIVCATEG.STATUS = 'A'`.
+    *   Para expurgar o departamento de `ALMOXARIFADO` sem excluir produtos duplo-categorizados (comerciais que também possuem ligação com o almoxarifado), a cláusula `NOT EXISTS` deve garantir que o produto seja excluído apenas se a sua única associação de nível 1 for o `ALMOXARIFADO`.
+*   **Exemplo de Exclusão Robusta de Almoxarifado:**
+    ```sql
+    AND NOT EXISTS (
+          SELECT 1
+            FROM MAP_FAMDIVCATEG XF
+            JOIN MAP_CATEGORIA YF ON XF.SEQCATEGORIA = YF.SEQCATEGORIA
+           WHERE XF.SEQFAMILIA = A.SEQFAMILIA
+             AND YF.NIVELHIERARQUIA = 1
+             AND UPPER(YF.CATEGORIA) = 'ALMOXARIFADO'
+             AND NOT EXISTS (
+                   SELECT 1
+                     FROM MAP_FAMDIVCATEG XF2
+                     JOIN MAP_CATEGORIA YF2 ON XF2.SEQCATEGORIA = YF2.SEQCATEGORIA
+                    WHERE XF2.SEQFAMILIA = A.SEQFAMILIA
+                      AND YF2.NIVELHIERARQUIA = 1
+                      AND UPPER(YF2.CATEGORIA) <> 'ALMOXARIFADO'
+               )
+      )
+    ```

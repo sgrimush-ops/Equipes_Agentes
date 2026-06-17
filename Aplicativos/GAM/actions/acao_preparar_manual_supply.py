@@ -117,7 +117,8 @@ class AcaoPrepararSuplay(BaseAction):
 
         def calcular_pedir(row):
             disp = row['disp_calc']
-            pend = row[col_pend] + row[col_pend_transf]
+            # O GAM olha apenas pendências de transferência para esta ação
+            pend = row[col_pend_transf]
             minimo = row[col_min]
             maximo = row[col_max]
             emb = row[col_emb]

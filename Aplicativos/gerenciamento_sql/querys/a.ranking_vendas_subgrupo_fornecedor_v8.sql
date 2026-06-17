@@ -49,7 +49,7 @@ SELECT TO_CHAR(B.CODIGO_FORNECEDOR) AS COD_F,
                       AND NVL(V1.STATUSNF, 'A') != 'C'
                      AND V1.DTAEMISSAO >= TRUNC(:DT1)
                      AND V1.DTAEMISSAO < TRUNC(:DT2) + 1
-                     AND V1.NROEMPRESA IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,20,21,22,23,50,900,901,902)
+                     AND V1.NROEMPRESA IN (1,2,3,4,5,6,7,8,11,12,13,14,15,16,17,18,50)
                      AND ((:LS1 = '0 - TODOS') OR NVL(FDX.SEQCOMPRADOR, 0) = TO_NUMBER(SUBSTR(:LS1, 1, INSTR(:LS1, ' - ') - 1)))
                      AND (:NR1 = '0' OR FPX.SEQFORNECEDOR = TO_NUMBER(:NR1))
                      GROUP BY V2.SEQPRODUTO
@@ -131,12 +131,24 @@ SELECT TO_CHAR(B.CODIGO_FORNECEDOR) AS COD_F,
            AND (:NR1 = '0' OR FP.CODIGO_FORNECEDOR = TO_NUMBER(:NR1))
            AND (VF.SEQPRODUTO IS NOT NULL OR E.SEQPRODUTO IS NOT NULL OR INCI.SEQPRODUTO IS NOT NULL)
            AND NOT EXISTS (
-                 SELECT 1
-                   FROM MAP_FAMDIVCATEG XF
-                   JOIN MAP_CATEGORIA YF ON XF.SEQCATEGORIA = YF.SEQCATEGORIA
-                  WHERE XF.SEQFAMILIA = A.SEQFAMILIA
-                    AND YF.NIVELHIERARQUIA = 1
-                    AND UPPER(YF.CATEGORIA) IN ('ALMOXARIFADO')
+                  SELECT 1
+                    FROM MAP_FAMDIVCATEG XF
+                    JOIN MAP_CATEGORIA YF ON XF.SEQCATEGORIA = YF.SEQCATEGORIA
+                   WHERE XF.SEQFAMILIA = A.SEQFAMILIA
+                     AND XF.STATUS = 'A'
+                     AND YF.NIVELHIERARQUIA = 1
+                     AND YF.TIPCATEGORIA = 'M'
+                     AND UPPER(YF.CATEGORIA) = 'ALMOXARIFADO'
+                     AND NOT EXISTS (
+                           SELECT 1
+                             FROM MAP_FAMDIVCATEG XF2
+                             JOIN MAP_CATEGORIA YF2 ON XF2.SEQCATEGORIA = YF2.SEQCATEGORIA
+                            WHERE XF2.SEQFAMILIA = A.SEQFAMILIA
+                              AND XF2.STATUS = 'A'
+                              AND YF2.NIVELHIERARQUIA = 1
+                              AND YF2.TIPCATEGORIA = 'M'
+                              AND UPPER(YF2.CATEGORIA) <> 'ALMOXARIFADO'
+                       )
               )
        ) B
  WHERE NVL(UPPER(TRIM(:LT2)),'D') IN ('D','C')
