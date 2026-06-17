@@ -64,7 +64,7 @@ class AcaoPrepararSuplay(BaseAction):
         if stop_event and stop_event.is_set(): return
 
         try:
-            parquet_path = Path('c:/Users/usr/Downloads/Equipes_Agentes/Aplicativos/import_querys/query.parquet')
+            parquet_path = Path('import_querys/query.parquet')
             if parquet_path.exists():
                 if update_callback:
                     update_callback({'log': "Lendo arquivo query.parquet..."})
@@ -184,20 +184,20 @@ class AcaoPrepararSuplay(BaseAction):
         arquivo_saida = 'bd_saida/digitar.csv'
 
         try:
+            # Aplicar filtro de Estq_CD_cx >= Pedir antes de salvar
+            if 'Estq_CD_cx' in df_resultado.columns and 'Pedir' in df_resultado.columns:
+                df_resultado['Estq_CD_cx'] = pd.to_numeric(df_resultado['Estq_CD_cx'], errors='coerce').fillna(0)
+                df_resultado['Pedir'] = pd.to_numeric(df_resultado['Pedir'], errors='coerce').fillna(0)
+                df_resultado = df_resultado[df_resultado['Estq_CD_cx'] >= df_resultado['Pedir']]
+            
             df_resultado.to_csv(arquivo_saida, index=False, sep=';', encoding='utf-8-sig', decimal=',')
             msg = f"Arquivo '{arquivo_saida}' gerado com sucesso com {len(df_resultado)} linhas!"
             if update_callback:
                 update_callback({'status': 'Concluído', 'finished': True, 'log': msg})
 
-            # Executar o script de filtro final
-            import subprocess
-            filtro_path = str(Path(__file__).parent.parent / 'bd_saida' / 'estq_cd_maior_q_.py')
-            subprocess.run(['python', filtro_path], check=True)
-            if update_callback:
-                update_callback({'log': 'Filtro estq_cd_maior_q_.py executado com sucesso.'})
         except Exception as e:
             if update_callback:
-                update_callback({'error': f"Erro ao salvar '{arquivo_saida}' ou executar filtro: {e}"})
+                update_callback({'error': f"Erro ao salvar '{arquivo_saida}': {e}"})
 
     def has_calibration(self) -> bool:
         return False

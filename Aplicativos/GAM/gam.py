@@ -357,7 +357,10 @@ class MacroAutomationApp:
 if __name__ == "__main__":
     from pathlib import Path
     try:
-        os.chdir(Path(__file__).parent.resolve())
+        if getattr(sys, 'frozen', False):
+            os.chdir(os.path.dirname(sys.executable))
+        else:
+            os.chdir(Path(__file__).parent.resolve())
     except NameError:
         pass
     root = tk.Tk()
