@@ -64,7 +64,7 @@ class AcaoPrepararSuplay(BaseAction):
         if stop_event and stop_event.is_set(): return
 
         try:
-            parquet_path = Path('import_querys/query.parquet')
+            parquet_path = Path('../import_querys/query.parquet')
             if parquet_path.exists():
                 if update_callback:
                     update_callback({'log': "Lendo arquivo query.parquet..."})
@@ -181,16 +181,20 @@ class AcaoPrepararSuplay(BaseAction):
         # Ordenar pelo código da empresa (e produto para desempate)
         df_resultado = df_resultado.sort_values(by=[col_empresa, 'CODIGO_PRODUTO'])
 
-        arquivo_saida = 'bd_saida/digitar.csv'
+        arquivo_saida = 'bd_saida/digitar.xlsx'
 
         try:
-            # Aplicar filtro de Estq_CD_cx >= Pedir antes de salvar
+            # Aplicar filtro de Estq_CD_cx >= Pedir e >= 5 caixas antes de salvar
             if 'Estq_CD_cx' in df_resultado.columns and 'Pedir' in df_resultado.columns:
                 df_resultado['Estq_CD_cx'] = pd.to_numeric(df_resultado['Estq_CD_cx'], errors='coerce').fillna(0)
                 df_resultado['Pedir'] = pd.to_numeric(df_resultado['Pedir'], errors='coerce').fillna(0)
-                df_resultado = df_resultado[df_resultado['Estq_CD_cx'] >= df_resultado['Pedir']]
+                df_resultado = df_resultado[(df_resultado['Estq_CD_cx'] >= df_resultado['Pedir']) & (df_resultado['Estq_CD_cx'] >= 5)]
             
-            df_resultado.to_csv(arquivo_saida, index=False, sep=';', encoding='utf-8-sig', decimal=',')
+            # Aplicar Saneamento Global: CODIGO_PRODUTO sem vírgula/decimal (forçar Inteiro -> String)
+            if 'CODIGO_PRODUTO' in df_resultado.columns:
+                df_resultado['CODIGO_PRODUTO'] = pd.to_numeric(df_resultado['CODIGO_PRODUTO'], errors='coerce').fillna(0).astype(int).astype(str)
+            
+            df_resultado.to_excel(arquivo_saida, index=False)
             msg = f"Arquivo '{arquivo_saida}' gerado com sucesso com {len(df_resultado)} linhas!"
             if update_callback:
                 update_callback({'status': 'Concluído', 'finished': True, 'log': msg})

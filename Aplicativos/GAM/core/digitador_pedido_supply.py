@@ -41,11 +41,11 @@ class OrderProcessorSupply:
         
         try:
             # Carregar dados
-            df = pd.read_csv('bd_saida/digitar.csv', sep=';', encoding='utf-8-sig', dtype=str)
+            df = pd.read_excel('bd_saida/digitar.xlsx', dtype=str)
             
             col_codigo = 'CODIGO_PRODUTO'
             if 'CODIGO_PRODUTO' not in df.columns:
-                msg = "Coluna 'CODIGO_PRODUTO' não encontrada na planilha 'digitar.csv'."
+                msg = "Coluna 'CODIGO_PRODUTO' não encontrada na planilha 'digitar.xlsx'."
                 if update_callback: update_callback({'error': msg})
                 else: print(msg)
                 return
@@ -55,13 +55,13 @@ class OrderProcessorSupply:
 
             # Checks columns
             if 'CODIGO_EMPRESA' not in df.columns:
-                msg = "Coluna 'CODIGO_EMPRESA' não encontrada na planilha 'digitar.csv'."
+                msg = "Coluna 'CODIGO_EMPRESA' não encontrada na planilha 'digitar.xlsx'."
                 if update_callback: update_callback({'error': msg})
                 else: print(msg)
                 return
 
             if 'Pedir' not in df.columns:
-                msg = "Coluna 'Pedir' não encontrada na planilha 'digitar.csv'."
+                msg = "Coluna 'Pedir' não encontrada na planilha 'digitar.xlsx'."
                 if update_callback: update_callback({'error': msg})
                 else: print(msg)
                 return

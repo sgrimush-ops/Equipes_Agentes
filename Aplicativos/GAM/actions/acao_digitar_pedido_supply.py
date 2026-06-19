@@ -14,7 +14,7 @@ class AcaoDigitarPedidoSupply(BaseAction):
         
     @property
     def description(self) -> str:
-        return "Executa o robô de digitação de pedidos usando bd_saida/digitar.csv."
+        return "Executa o robô de digitação de pedidos usando bd_saida/digitar.xlsx."
         
     def execute(self, update_callback=None, stop_event=None, pause_event=None):
         if update_callback:
