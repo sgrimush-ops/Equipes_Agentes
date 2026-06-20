@@ -21,7 +21,11 @@ df = pd.read_excel(ARQUIVO_ENTRADA, dtype={'EMPRESA': int})
 df = df[df['DEPARTAMENTO'].str.upper().isin(DEPARTAMENTOS_ALVO)].copy()
 
 # Mantém apenas as colunas necessárias
-df = df[['CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMPRESA']].copy()
+df = df[['CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMPRESA', 'ESTOQUE', 'PEDIDOS_PENDENTES']].copy()
+
+# Captura o estoque do CD (Empresa 15) para mapear em todas as lojas
+estoque_cd_series = df[df['EMPRESA'] == EMPRESA_CD].set_index('CODIGO_PRODUTO')['ESTOQUE']
+df['ESTOQUE_CD'] = df['CODIGO_PRODUTO'].map(estoque_cd_series).fillna(0)
 
 # ---------------------------------------------------------------------------
 # Identifica o conjunto de lojas (todas as empresas exceto o CD)
@@ -65,10 +69,18 @@ df['ACAO'] = df.apply(calcular_acao, axis=1)
 df = df.sort_values(['ACAO', 'DEPARTAMENTO', 'CODIGO_PRODUTO', 'EMPRESA'] if 'DEPARTAMENTO' in df.columns
                     else ['ACAO', 'CODIGO_PRODUTO', 'EMPRESA']).reset_index(drop=True)
 
+# Remove as linhas do CD (Empresa 15) conforme solicitado
+df = df[df['EMPRESA'] != EMPRESA_CD].copy()
+
+# Renomear e ordenar as colunas finais
+df = df.rename(columns={'ESTOQUE': 'ESTOQUE_LOJA'})
+colunas_finais = ['CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMPRESA', 'ACAO', 'ESTOQUE_LOJA', 'ESTOQUE_CD', 'PEDIDOS_PENDENTES']
+df = df[colunas_finais]
+
 # ---------------------------------------------------------------------------
 print(f'\nResumo da coluna ACAO:')
 print(df['ACAO'].value_counts().to_string())
 print(f'\nTotal de linhas: {len(df):,}')
 
 df.to_excel(ARQUIVO_SAIDA, index=False)
-print(f'\n✅ Arquivo gerado: {ARQUIVO_SAIDA.name}')
+print(f'\n[OK] Arquivo gerado: {ARQUIVO_SAIDA.name}')
