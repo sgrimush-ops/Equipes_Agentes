@@ -18,6 +18,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 ## Arquitetura do Consinco e do BI
 - `arquitetura_monitor_consico_totvs.md`: fluxo real das telas Consinco e uso de `SEQCONSULTA`.
 - `aprendizado_curva_abc_lucratividade.md`: como o Consinco calcula ABC, lucratividade e margem com funcoes nativas e tabelas BI.
+- `aprendizado_configuracoes_comerciais_fornecedor.md`: estrutura das regras de negocio, prazos de pagamento, forma de pagamento e restricoes sintaticas (Inline View vs CTE) em consultas do modulo de fornecedores.
 
 ## Modelos de Consulta e Calculo
 - `referencia_abc_vendas_consico.sql`: exemplo de query ABC de vendas.
