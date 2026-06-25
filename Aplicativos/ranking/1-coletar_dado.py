@@ -57,6 +57,8 @@ def main():
 	# Evita problemas de mapeamento por espacos ocultos no cabecalho.
 	df.columns = [str(col).strip() for col in df.columns]
 
+	df.rename(columns={"VLR_TROCA_COMPRA": "VLR_TROCA"}, inplace=True)
+
 	monetary_columns = [col for col in df.columns if col.startswith("VLR_")]
 	for col in monetary_columns:
 		df[col] = df[col].apply(br_to_float)
