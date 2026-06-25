@@ -15,6 +15,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_compras_transferencias_segregadas.md`: separacao e segregacao tecnica de compras de fornecedores (recebimento) e transferencias internas (CD e expedicao).
 - `aprendizado_pendencias_transferencia_recebimento_fantasma.md`: logica de performance, joins (SEQNF vs SEQNOTAFISCAL) e tratamento de notas de transferencia pendentes ("Ped Receber") antigas.
 - `aprendizado_auditoria_compras_devolucoes_trocas.md`: tratamento de trocas/devolucoes como deducoes, capturas unificadas (Entrada vs Saida) e filtros globais em rankings.
+- `aprendizado_estoque_em_transito.md`: desmistificacao da coluna QTDTRANSITO enganosa e a rota correta via MSU_PSITEMRECEBER para encontrar estoques rodando no caminhao.
 
 ## Arquitetura do Consinco e do BI
 - `arquitetura_monitor_consico_totvs.md`: fluxo real das telas Consinco e uso de `SEQCONSULTA`.

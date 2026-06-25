@@ -18,6 +18,14 @@ def processar_sem_venda(
     df = pd.read_parquet(origem_parquet)
     
     # Preencher vazios para evitar erros de comparacao
+    if 'DATA_CADASTRO_PRODUTO' in df.columns:
+        # Converter para data e calcular dias ate hoje
+        df['DATA_CADASTRO_OBJ'] = pd.to_datetime(df['DATA_CADASTRO_PRODUTO'], format='%d/%m/%Y', errors='coerce')
+        df['DIAS_CADASTRO'] = (pd.Timestamp.today().normalize() - df['DATA_CADASTRO_OBJ']).dt.days
+        df['DIAS_CADASTRO'] = df['DIAS_CADASTRO'].fillna(0).astype(int)
+    else:
+        df['DIAS_CADASTRO'] = 0
+
     if 'QTD_VENDIDA_PERIODO' in df.columns:
         df['QTD_VENDIDA_PERIODO'] = pd.to_numeric(df['QTD_VENDIDA_PERIODO'], errors='coerce').fillna(0)
     else:
@@ -28,8 +36,19 @@ def processar_sem_venda(
     else:
         df['QUANTIDADE_DISPONIVEL'] = 0
     
+    # Calcular estoque do CD (empresas 15, 16 e 50) agrupado por produto
+    df_cd = df[df['CODIGO_EMPRESA'].isin([15, 16, 50])].copy()
+    estoque_cd = df_cd.groupby('CODIGO_PRODUTO')['QUANTIDADE_DISPONIVEL'].sum().reset_index(name='ESTOQUE_CD')
+    
     # Filtrar Sem Venda: Nao teve vendas mas TEM estoque fisico maior que zero na loja
     df_sem_venda = df[(df['QTD_VENDIDA_PERIODO'] <= 0) & (df['QUANTIDADE_DISPONIVEL'] > 0)].copy()
+    
+    # Adicionar o estoque do CD na base
+    df_sem_venda = df_sem_venda.merge(estoque_cd, on='CODIGO_PRODUTO', how='left')
+    df_sem_venda['ESTOQUE_CD'] = df_sem_venda['ESTOQUE_CD'].fillna(0)
+    
+    # Excluir as linhas referentes ao CD
+    df_sem_venda = df_sem_venda[~df_sem_venda['CODIGO_EMPRESA'].isin([15, 16, 50])]
     
     # Somar Pedidos Pendentes
     qtd_compra = pd.to_numeric(df_sem_venda['QTD_PEND_PEDCOMPRA'], errors='coerce').fillna(0) if 'QTD_PEND_PEDCOMPRA' in df_sem_venda.columns else 0
@@ -45,9 +64,9 @@ def processar_sem_venda(
     
     # Ordenar colunas (colunas faltantes como DATA_CADASTRO foram ignoradas conf. aprovado)
     colunas_finais = [
-        'DEPARTAMENTO', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 
-        'EMPRESA', 'STATUS', 'ESTOQUE', 'PEDIDOS_PENDENTES', 
-        'QTD_VENDIDA_PERIODO'
+        'DEPARTAMENTO', 'COMPRADOR', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 
+        'DIAS_CADASTRO', 'EMPRESA', 'STATUS', 'ESTOQUE', 'PEDIDOS_PENDENTES', 
+        'QTD_VENDIDA_PERIODO', 'ESTOQUE_CD'
     ]
     
     colunas_existentes = [c for c in colunas_finais if c in df_final.columns]
