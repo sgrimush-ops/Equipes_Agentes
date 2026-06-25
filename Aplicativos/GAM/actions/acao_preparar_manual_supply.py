@@ -89,6 +89,7 @@ class AcaoPrepararSuplay(BaseAction):
         col_disp = 'QUANTIDADE_DISPONIVEL'
         col_pend = 'QTD_PEND_PEDCOMPRA'
         col_pend_transf = 'QTD_PEND_PEDTRANSF'
+        col_transito = 'QTD_EM_TRANSITO'
         col_min  = 'QUANTIDADE_ESTOQUE_MINIMO'
         col_max  = 'QUANTIDADE_ESTOQUE_MAXIMO'
         col_emb  = 'EMBL_TRANSFERENCIA'
@@ -107,7 +108,7 @@ class AcaoPrepararSuplay(BaseAction):
             df = df.dropna(subset=[col_empresa])
             df[col_empresa] = self._parse_numeric_series(df[col_empresa], default=0)
         
-        for col in [col_disp, col_pend, col_pend_transf, col_min, col_max]:
+        for col in [col_disp, col_pend, col_pend_transf, col_transito, col_min, col_max]:
             if col in df.columns:
                 df[col] = self._parse_numeric_series(df[col], default=0)
             else:
@@ -117,14 +118,15 @@ class AcaoPrepararSuplay(BaseAction):
 
         def calcular_pedir(row):
             disp = row['disp_calc']
-            # O GAM olha apenas pendências de transferência para esta ação
             pend = row[col_pend_transf]
+            transito = row[col_transito]
             minimo = row[col_min]
             maximo = row[col_max]
             emb = row[col_emb]
             
-            if (disp + pend) < minimo:
-                valor = (maximo - (disp + pend)) / emb
+            estoque_virtual = disp + pend + transito
+            if estoque_virtual < minimo:
+                valor = (maximo - estoque_virtual) / emb
                 return valor if valor > 0 else 0
             else:
                 return 0

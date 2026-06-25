@@ -53,7 +53,8 @@ def processar_sem_venda(
     # Somar Pedidos Pendentes
     qtd_compra = pd.to_numeric(df_sem_venda['QTD_PEND_PEDCOMPRA'], errors='coerce').fillna(0) if 'QTD_PEND_PEDCOMPRA' in df_sem_venda.columns else 0
     qtd_transf = pd.to_numeric(df_sem_venda['QTD_PEND_PEDTRANSF'], errors='coerce').fillna(0) if 'QTD_PEND_PEDTRANSF' in df_sem_venda.columns else 0
-    df_sem_venda['PEDIDOS_PENDENTES'] = qtd_compra + qtd_transf
+    qtd_transito = pd.to_numeric(df_sem_venda['QTD_EM_TRANSITO'], errors='coerce').fillna(0) if 'QTD_EM_TRANSITO' in df_sem_venda.columns else 0
+    df_sem_venda['PEDIDOS_PENDENTES'] = qtd_compra + qtd_transf + qtd_transito
     
     # Renomear colunas para manter padrao antigo
     df_final = df_sem_venda.rename(columns={
