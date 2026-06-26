@@ -75,6 +75,22 @@ def rodar_analise():
         vendas_tratada = pd.to_numeric(vendas_tratada, errors='coerce').fillna(0)
         vendas_prod = df.assign(_venda_num=vendas_tratada).groupby(col_prod)['_venda_num'].sum(min_count=1)
 
+    # Soma de Pedidos ao Fornecedor
+    col_ped_compra = next((c for c in df.columns if 'pedcompra' in c.lower()), None)
+    ped_forn_prod = None
+    if col_prod and col_ped_compra:
+        ped_forn_tratada = df[col_ped_compra].astype(str).str.replace(',', '.').str.replace(' ', '').str.strip()
+        ped_forn_tratada = pd.to_numeric(ped_forn_tratada, errors='coerce').fillna(0)
+        ped_forn_prod = df.assign(_ped_forn_num=ped_forn_tratada).groupby(col_prod)['_ped_forn_num'].sum(min_count=1)
+
+    # Soma de Pedidos ao CD (Transferência)
+    col_ped_transf = next((c for c in df.columns if 'pedtransf' in c.lower()), None)
+    ped_cd_prod = None
+    if col_prod and col_ped_transf:
+        ped_cd_tratada = df[col_ped_transf].astype(str).str.replace(',', '.').str.replace(' ', '').str.strip()
+        ped_cd_tratada = pd.to_numeric(ped_cd_tratada, errors='coerce').fillna(0)
+        ped_cd_prod = df.assign(_ped_cd_num=ped_cd_tratada).groupby(col_prod)['_ped_cd_num'].sum(min_count=1)
+
     # Estoque do CD por produto
     estoque_cd = None
     if col_prod and col_estoque and col_emp:
@@ -94,6 +110,11 @@ def rodar_analise():
             estoque_val = estoque_cd[cod_prod] if estoque_cd is not None and cod_prod in estoque_cd else ''
             # Soma de vendas
             venda_val = vendas_prod[cod_prod] if vendas_prod is not None and cod_prod in vendas_prod else ''
+            
+            # Pedidos Pendentes
+            ped_forn_val = ped_forn_prod[cod_prod] if ped_forn_prod is not None and cod_prod in ped_forn_prod else ''
+            ped_cd_val = ped_cd_prod[cod_prod] if ped_cd_prod is not None and cod_prod in ped_cd_prod else ''
+            
             produtos_alvo.append({
                 'Codigo_Produto': cod_prod,
                 'Descricao': row['Descricao'] if col_desc else 'Sem Desc',
@@ -102,21 +123,20 @@ def rodar_analise():
                 'Filtro_2_Pequenas_Incompletas': 'SIM' if cond2 else 'NAO',
                 'Quais_Lojas_Ativas': ", ".join(sorted(lojas)),
                 'Estoque_CD': estoque_val,
-                'Venda_Total': venda_val
+                'Venda_Total': venda_val,
+                'Pedidos_Fornecedor': ped_forn_val,
+                'Pedidos_CD': ped_cd_val
             })
 
     df_resultado = pd.DataFrame(produtos_alvo)
 
-    path_saida = os.path.join(SCRIPT_DIR, "resultado_analise.csv")
+    path_saida = os.path.join(SCRIPT_DIR, "resultado_analise.xlsx")
     os.makedirs(os.path.dirname(path_saida), exist_ok=True)
 
     if df_resultado.empty:
         print("\nNenhum produto atendeu aos critérios da sua busca.")
     else:
-        # Formatar Venda_Total para vírgula decimal na exportação
-        if 'Venda_Total' in df_resultado.columns:
-            df_resultado['Venda_Total'] = df_resultado['Venda_Total'].map(lambda x: f'{x:.1f}'.replace('.', ',') if pd.notnull(x) else x)
-        df_resultado.to_csv(path_saida, sep=';', index=False, encoding='utf-8-sig')
+        df_resultado.to_excel(path_saida, index=False)
         print(f"\n✅ Análise concluída! Foram encontrados {len(df_resultado)} produtos.")
         print(f"O resultado foi salvo em: {path_saida}")
         print("\nPrimeiras linhas do resultado:")
