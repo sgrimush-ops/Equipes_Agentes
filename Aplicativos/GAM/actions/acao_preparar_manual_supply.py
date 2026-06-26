@@ -119,12 +119,13 @@ class AcaoPrepararSuplay(BaseAction):
         def calcular_pedir(row):
             disp = row['disp_calc']
             pend = row[col_pend_transf]
+            pend_compra = row[col_pend]
             transito = row[col_transito]
             minimo = row[col_min]
             maximo = row[col_max]
             emb = row[col_emb]
             
-            estoque_virtual = disp + pend + transito
+            estoque_virtual = disp + pend + pend_compra + transito
             if estoque_virtual < minimo:
                 valor = (maximo - estoque_virtual) / emb
                 return valor if valor > 0 else 0

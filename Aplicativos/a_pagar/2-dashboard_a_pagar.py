@@ -103,26 +103,40 @@ def compilar_visao(nome_visao, curr_df, id_visao, is_single_comprador=False, is_
     dias_semana = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
     if is_todos_compradores:
-        # Agrega apenas por Data (barras sólidas sem quebrar por comprador)
-        df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT'], as_index=False)['VALOR_PROJETADO'].sum()
+        # Agrega por Data e Origem (para separar cores)
+        df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT', 'ORIGEM'], as_index=False)['VALOR_PROJETADO'].sum()
         df_chart = df_chart.sort_values('DATA_VENCIMENTO_DT')
         
+        # Calcula Total do Dia e Formatação para Tooltip
+        df_totais = df_chart.groupby('DATA_VENCIMENTO_DT', as_index=False)['VALOR_PROJETADO'].sum()
+        df_totais = df_totais.rename(columns={'VALOR_PROJETADO': 'TOTAL_DIA'})
+        df_chart = pd.merge(df_chart, df_totais, on='DATA_VENCIMENTO_DT')
+        
         df_chart['Data Formatada'] = df_chart['DATA_VENCIMENTO_DT'].apply(lambda x: f"{x.strftime('%d/%m/%Y')} ({dias_semana[x.weekday()]})" if pd.notnull(x) else "Sem Data")
-        df_chart['Total Formatado'] = df_chart['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        df_chart['Valor Formatado'] = df_chart['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        df_chart['Total Formatado'] = df_chart['TOTAL_DIA'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+        
+        # Mapeia os nomes limpos para a legenda
+        df_chart['Origem_Nome'] = df_chart['ORIGEM'].map({'1-TITULO_REAL': 'Real', '2-PROJECAO_PEDIDO': 'Projetado'})
+        df_chart['Origem_Nome'] = df_chart['Origem_Nome'].fillna('Outros')
 
         fig = px.bar(
             df_chart, 
             x='DATA_VENCIMENTO_DT', 
             y='VALOR_PROJETADO', 
-            custom_data=['Data Formatada', 'Total Formatado'],
+            color='Origem_Nome',
+            color_discrete_map={'Real': '#4facfe', 'Projetado': '#ff9800'},
+            custom_data=['Data Formatada', 'Valor Formatado', 'Total Formatado'],
             title=f"Evolução Diária - {nome_visao}",
             template='plotly_dark',
-            color_discrete_sequence=['#4facfe']
+            barmode='stack'
         )
         
         fig.update_traces(
             hovertemplate="<b>Data:</b> %{customdata[0]}<br>" +
-                          "<b>TOTAL DO DIA:</b> %{customdata[1]}<extra></extra>",
+                          "<b>Tipo:</b> %{data.name}<br>" +
+                          "<b>Valor:</b> %{customdata[1]}<br>" +
+                          "<b>TOTAL DO DIA:</b> %{customdata[2]}<extra></extra>",
             marker_line_width=0
         )
     else:
