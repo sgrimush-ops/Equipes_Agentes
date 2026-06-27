@@ -102,76 +102,42 @@ def compilar_visao(nome_visao, curr_df, id_visao, is_single_comprador=False, is_
 
     dias_semana = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
-    if is_todos_compradores:
-        # Agrega por Data e Origem (para separar cores)
-        df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT', 'ORIGEM'], as_index=False)['VALOR_PROJETADO'].sum()
-        df_chart = df_chart.sort_values('DATA_VENCIMENTO_DT')
-        
-        # Calcula Total do Dia e Formatação para Tooltip
-        df_totais = df_chart.groupby('DATA_VENCIMENTO_DT', as_index=False)['VALOR_PROJETADO'].sum()
-        df_totais = df_totais.rename(columns={'VALOR_PROJETADO': 'TOTAL_DIA'})
-        df_chart = pd.merge(df_chart, df_totais, on='DATA_VENCIMENTO_DT')
-        
-        df_chart['Data Formatada'] = df_chart['DATA_VENCIMENTO_DT'].apply(lambda x: f"{x.strftime('%d/%m/%Y')} ({dias_semana[x.weekday()]})" if pd.notnull(x) else "Sem Data")
-        df_chart['Valor Formatado'] = df_chart['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        df_chart['Total Formatado'] = df_chart['TOTAL_DIA'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        
-        # Mapeia os nomes limpos para a legenda
-        df_chart['Origem_Nome'] = df_chart['ORIGEM'].map({'1-TITULO_REAL': 'Real', '2-PROJECAO_PEDIDO': 'Projetado'})
-        df_chart['Origem_Nome'] = df_chart['Origem_Nome'].fillna('Outros')
+    # Agrega por Data e Origem (para separar cores em todos os cenários)
+    df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT', 'ORIGEM'], as_index=False)['VALOR_PROJETADO'].sum()
+    df_chart = df_chart.sort_values('DATA_VENCIMENTO_DT')
+    
+    # Calcula Total do Dia e Formatação para Tooltip
+    df_totais = df_chart.groupby('DATA_VENCIMENTO_DT', as_index=False)['VALOR_PROJETADO'].sum()
+    df_totais = df_totais.rename(columns={'VALOR_PROJETADO': 'TOTAL_DIA'})
+    df_chart = pd.merge(df_chart, df_totais, on='DATA_VENCIMENTO_DT')
+    
+    df_chart['Data Formatada'] = df_chart['DATA_VENCIMENTO_DT'].apply(lambda x: f"{x.strftime('%d/%m/%Y')} ({dias_semana[x.weekday()]})" if pd.notnull(x) else "Sem Data")
+    df_chart['Valor Formatado'] = df_chart['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+    df_chart['Total Formatado'] = df_chart['TOTAL_DIA'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+    
+    # Mapeia os nomes limpos para a legenda
+    df_chart['Origem_Nome'] = df_chart['ORIGEM'].map({'1-TITULO_REAL': 'Real', '2-PROJECAO_PEDIDO': 'Projetado'})
+    df_chart['Origem_Nome'] = df_chart['Origem_Nome'].fillna('Outros')
 
-        fig = px.bar(
-            df_chart, 
-            x='DATA_VENCIMENTO_DT', 
-            y='VALOR_PROJETADO', 
-            color='Origem_Nome',
-            color_discrete_map={'Real': '#4facfe', 'Projetado': '#ff9800'},
-            custom_data=['Data Formatada', 'Valor Formatado', 'Total Formatado'],
-            title=f"Evolução Diária - {nome_visao}",
-            template='plotly_dark',
-            barmode='stack'
-        )
-        
-        fig.update_traces(
-            hovertemplate="<b>Data:</b> %{customdata[0]}<br>" +
-                          "<b>Tipo:</b> %{data.name}<br>" +
-                          "<b>Valor:</b> %{customdata[1]}<br>" +
-                          "<b>TOTAL DO DIA:</b> %{customdata[2]}<extra></extra>",
-            marker_line_width=0
-        )
-    else:
-        # Gráfico quebrado por comprador
-        df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT', 'COMPRADOR'], as_index=False)['VALOR_PROJETADO'].sum()
-        df_chart = df_chart.sort_values('DATA_VENCIMENTO_DT')
-        
-        # Calcula Total do Dia e Formatação para Tooltip
-        df_totais = df_chart.groupby('DATA_VENCIMENTO_DT', as_index=False)['VALOR_PROJETADO'].sum()
-        df_totais = df_totais.rename(columns={'VALOR_PROJETADO': 'TOTAL_DIA'})
-        df_chart = pd.merge(df_chart, df_totais, on='DATA_VENCIMENTO_DT')
-        
-        df_chart['Data Formatada'] = df_chart['DATA_VENCIMENTO_DT'].apply(lambda x: f"{x.strftime('%d/%m/%Y')} ({dias_semana[x.weekday()]})" if pd.notnull(x) else "Sem Data")
-        df_chart['Valor Formatado'] = df_chart['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-        df_chart['Total Formatado'] = df_chart['TOTAL_DIA'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-
-        fig = px.bar(
-            df_chart, 
-            x='DATA_VENCIMENTO_DT', 
-            y='VALOR_PROJETADO', 
-            color='COMPRADOR',
-            custom_data=['Data Formatada', 'Valor Formatado', 'Total Formatado'],
-            title=f"Evolução Diária - {nome_visao}",
-            template='plotly_dark',
-            barmode='stack',
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        
-        fig.update_traces(
-            hovertemplate="<b>Data:</b> %{customdata[0]}<br>" +
-                          "<b>Comprador:</b> %{data.name}<br>" +
-                          "<b>Gasto deste Comprador:</b> %{customdata[1]}<br>" +
-                          "<b>TOTAL DO DIA:</b> %{customdata[2]}<extra></extra>",
-            marker_line_width=0
-        )
+    fig = px.bar(
+        df_chart, 
+        x='DATA_VENCIMENTO_DT', 
+        y='VALOR_PROJETADO', 
+        color='Origem_Nome',
+        color_discrete_map={'Real': '#4facfe', 'Projetado': '#ff9800'},
+        custom_data=['Data Formatada', 'Valor Formatado', 'Total Formatado'],
+        title=f"Evolução Diária - {nome_visao}",
+        template='plotly_dark',
+        barmode='stack'
+    )
+    
+    fig.update_traces(
+        hovertemplate="<b>Data:</b> %{customdata[0]}<br>" +
+                      "<b>Tipo:</b> %{data.name}<br>" +
+                      "<b>Valor:</b> %{customdata[1]}<br>" +
+                      "<b>TOTAL DO DIA:</b> %{customdata[2]}<extra></extra>",
+        marker_line_width=0
+    )
     
     fig.update_layout(
         xaxis_title="Data de Vencimento",
@@ -180,86 +146,20 @@ def compilar_visao(nome_visao, curr_df, id_visao, is_single_comprador=False, is_
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="Inter", size=14, color="#e0e0e0"),
         margin=dict(l=40, r=40, t=60, b=40),
-        legend_title_text='Comprador' if not (is_single_comprador or is_todos_compradores) else '',
-        showlegend=not is_single_comprador and not is_todos_compradores
+        legend_title_text='',
+        showlegend=True
     )
-    
-    if is_single_comprador:
-        fig.update_layout(showlegend=False)
-        
-    # Configurar eixo X para traços semanais e datas centralizadas
-    min_date = curr_df['DATA_VENCIMENTO_DT'].min()
-    max_date = curr_df['DATA_VENCIMENTO_DT'].max()
-    if pd.notnull(min_date) and pd.notnull(max_date):
-        monday = min_date - pd.Timedelta(days=min_date.weekday())
-        
-        tickvals = []
-        ticktext = []
-        
-        curr_mon = monday
-        while curr_mon <= max_date + pd.Timedelta(days=7):
-            # A linha divisória da semana fica no Domingo 12:00 (Borda esquerda da barra de Segunda)
-            vline_dt = curr_mon - pd.Timedelta(hours=12)
-            fig.add_vline(
-                x=vline_dt, 
-                line_width=1, 
-                line_dash="dash", 
-                line_color="rgba(255, 255, 255, 0.2)"
-            )
-            
-            # O texto fica exatamente no centro do período de 7 dias (Quinta-feira 00:00)
-            center_dt = vline_dt + pd.Timedelta(days=3.5)
-            tickvals.append(center_dt)
-            ticktext.append(curr_mon.strftime('%d/%m/%Y'))
-            
-            curr_mon += pd.Timedelta(days=7)
-
-        fig.update_xaxes(
-            tickmode='array',
-            tickvals=tickvals,
-            ticktext=ticktext,
-            tickangle=0,
-            showgrid=False # Grade nativa desligada pois usamos add_vline
-        )
+    # Configurar eixo X para datas verticais sob cada coluna (intervalo de 2 dias)
+    fig.update_xaxes(
+        tickformat="%d/%m/%Y",
+        tickangle=-90,
+        dtick=172800000, # 172800000 ms = 2 dias (intercala dia sim, dia não)
+        showgrid=False
+    )
     
     grafico_html = fig.to_html(full_html=False, include_plotlyjs=False)
     
-    # Tabela (Composição Real vs Projetado)
-    if is_single_comprador and 'FORNECEDOR' in curr_df.columns:
-        col_label = 'FORNECEDOR'
-        table_title = f"Detalhamento por Fornecedor (Comprador: {curr_df['COMPRADOR'].iloc[0]})"
-    else:
-        col_label = 'COMPRADOR'
-        table_title = "Resumo Geral por Comprador"
-
-    df_pivot = curr_df.pivot_table(index=col_label, columns='ORIGEM', values='VALOR_PROJETADO', aggfunc='sum', fill_value=0).reset_index()
-    
-    if '1-TITULO_REAL' not in df_pivot.columns:
-        df_pivot['1-TITULO_REAL'] = 0.0
-    if '2-PROJECAO_PEDIDO' not in df_pivot.columns:
-        df_pivot['2-PROJECAO_PEDIDO'] = 0.0
-        
-    df_pivot['TOTAL_GERAL'] = df_pivot['1-TITULO_REAL'] + df_pivot['2-PROJECAO_PEDIDO']
-    df_pivot = df_pivot.sort_values('TOTAL_GERAL', ascending=False)
-    
-    total_real = df_pivot['1-TITULO_REAL'].sum()
-    total_proj = df_pivot['2-PROJECAO_PEDIDO'].sum()
-    total_geral = df_pivot['TOTAL_GERAL'].sum()
-    
-    df_pivot.loc[len(df_pivot)] = ['TOTAL GERAL', total_real, total_proj, total_geral]
-    
-    def fmt(x):
-        return f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-        
-    df_pivot['Valor Real'] = df_pivot['1-TITULO_REAL'].apply(fmt)
-    df_pivot['Valor Projetado'] = df_pivot['2-PROJECAO_PEDIDO'].apply(fmt)
-    df_pivot['Total'] = df_pivot['TOTAL_GERAL'].apply(fmt)
-    
-    df_table = df_pivot[[col_label, 'Valor Real', 'Valor Projetado', 'Total']]
-    
-    tabela_html = df_table.to_html(index=False, classes='', border=0, justify='left')
-    
-    return grafico_html, tabela_html, table_title
+    return grafico_html
 
 def clean_id(x):
     return re.sub(r'[^a-zA-Z0-9]', '', str(x)).lower()
@@ -314,16 +214,16 @@ def main():
         botoes_html += f'<button class="btn {active_btn}" onclick="changeOrigem(\'{orig["id"]}\', this)">{orig["nome"]}</button>\n'
         
         # Visão: Todos os Compradores (para esta Origem)
-        gf, tb, title = compilar_visao(orig["nome"], orig["df"], f'{orig["id"]}_todos', is_todos_compradores=True)
+        gf = compilar_visao(orig["nome"], orig["df"], f'{orig["id"]}_todos', is_todos_compradores=True)
         display_css = "block" if i == 0 else "none"
-        visoes_html += f'<div id="view_{orig["id"]}_todos" class="sub-view" style="display:{display_css};">\n{gf}\n<div class="table-container">\n<h3>{title}</h3>\n{tb}\n</div>\n</div>\n'
+        visoes_html += f'<div id="view_{orig["id"]}_todos" class="sub-view" style="display:{display_css};">\n{gf}\n</div>\n'
         
         # Visões Específicas: Um por um dos Compradores (para esta Origem)
         for comp in compradores:
             df_comp = orig["df"][orig["df"]['COMPRADOR'] == comp]
             cid = clean_id(comp)
-            gf, tb, title = compilar_visao(f"{orig['nome']} - {comp}", df_comp, f'{orig["id"]}_{cid}', is_single_comprador=True)
-            visoes_html += f'<div id="view_{orig["id"]}_{cid}" class="sub-view" style="display:none;">\n{gf}\n<div class="table-container">\n<h3>{title}</h3>\n{tb}\n</div>\n</div>\n'
+            gf = compilar_visao(f"{orig['nome']} - {comp}", df_comp, f'{orig["id"]}_{cid}', is_single_comprador=True)
+            visoes_html += f'<div id="view_{orig["id"]}_{cid}" class="sub-view" style="display:none;">\n{gf}\n</div>\n'
         
     html_template = f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -418,14 +318,17 @@ def main():
         </select>
         
         <div class="date-filter">
-            <label for="filtroData">Detalhar Dia:</label>
-            <input type="date" id="filtroData" onchange="changeData()">
-            <button class="btn-clear" onclick="clearData()" title="Limpar Data">X</button>
+            <label>Detalhar Período:</label>
+            <input type="date" id="filtroDataInicio" onchange="changeData()" title="Data Inicial (Opcional)">
+            <span style="color:#4facfe; font-weight:600; font-size:14px;">até</span>
+            <input type="date" id="filtroDataFim" onchange="changeData()" title="Data Final (Opcional)">
+            <button class="btn-clear" onclick="clearData()" title="Limpar Período">X</button>
         </div>
     </div>
     
     {visoes_html}
 
+    <div id="resumoDinamicoContainer" class="table-container"></div>
     <div id="detalhesDataContainer" style="display:none; margin-top:20px;"></div>
 
     <script>
@@ -441,12 +344,14 @@ def main():
         }}
         btnElement.classList.add("active");
         updateView();
+        renderResumo();
         renderDetalhes();
     }}
 
     function changeComprador(selectObj) {{
         current_comprador = selectObj.value;
         updateView();
+        renderResumo();
         renderDetalhes();
     }}
 
@@ -462,24 +367,119 @@ def main():
     }}
     
     function changeData() {{
+        renderResumo();
         renderDetalhes();
     }}
     
     function clearData() {{
-        document.getElementById('filtroData').value = '';
+        document.getElementById('filtroDataInicio').value = '';
+        document.getElementById('filtroDataFim').value = '';
+        renderResumo();
         renderDetalhes();
     }}
 
+    function renderResumo() {{
+        const inicio = document.getElementById('filtroDataInicio').value;
+        const fim = document.getElementById('filtroDataFim').value;
+        const container = document.getElementById('resumoDinamicoContainer');
+        
+        let filtrados = contas_detalhes;
+        
+        if (inicio && fim) {{
+            filtrados = filtrados.filter(item => item.DATA_ISO >= inicio && item.DATA_ISO <= fim);
+        }} else if (inicio) {{
+            filtrados = filtrados.filter(item => item.DATA_ISO === inicio);
+        }} else if (fim) {{
+            filtrados = filtrados.filter(item => item.DATA_ISO === fim);
+        }}
+        
+        if (current_comprador !== 'todos') {{
+            filtrados = filtrados.filter(item => item.COMPRADOR_ID === current_comprador);
+        }}
+        
+        if (current_origem === 'real') {{
+            filtrados = filtrados.filter(item => item.ORIGEM === '1-TITULO_REAL');
+        }} else if (current_origem === 'projetado') {{
+            filtrados = filtrados.filter(item => item.ORIGEM === '2-PROJECAO_PEDIDO');
+        }}
+        
+        let is_single = current_comprador !== 'todos';
+        let agrupamento = {{}};
+        
+        filtrados.forEach(item => {{
+            let key = is_single ? item.FORNECEDOR : item.COMPRADOR;
+            if (!agrupamento[key]) {{
+                agrupamento[key] = {{ real: 0, proj: 0, total: 0 }};
+            }}
+            if (item.ORIGEM === '1-TITULO_REAL') {{
+                agrupamento[key].real += item.VALOR_PROJETADO;
+            }} else {{
+                agrupamento[key].proj += item.VALOR_PROJETADO;
+            }}
+            agrupamento[key].total += item.VALOR_PROJETADO;
+        }});
+        
+        let lista = Object.keys(agrupamento).map(k => {{
+            return {{ nome: k, real: agrupamento[k].real, proj: agrupamento[k].proj, total: agrupamento[k].total }};
+        }});
+        lista.sort((a, b) => b.total - a.total);
+        
+        let nomeCompradorText = '';
+        if (is_single) {{
+            let selectObj = document.getElementById('filtroComprador');
+            nomeCompradorText = selectObj.options[selectObj.selectedIndex].text.replace('Comprador: ', '');
+        }}
+        let titulo = is_single ? `Detalhamento por Fornecedor (Comprador: ${{nomeCompradorText}})` : 'Resumo Geral por Comprador';
+        
+        let html = `<h3>${{titulo}}</h3>`;
+        html += `<table style="width:100%; border-collapse:collapse;">
+            <tr>
+                <th>${{is_single ? 'Fornecedor' : 'Comprador'}}</th>
+                <th>Valor Real</th>
+                <th>Valor Projetado</th>
+                <th>Total</th>
+            </tr>`;
+            
+        let totReal = 0, totProj = 0, totGeral = 0;
+        let fmt = val => "R$ " + val.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{{3}})+(?!\d))/g, '$1.');
+        
+        lista.forEach(item => {{
+            html += `<tr>
+                <td>${{item.nome}}</td>
+                <td>${{fmt(item.real)}}</td>
+                <td>${{fmt(item.proj)}}</td>
+                <td style="font-weight:bold;">${{fmt(item.total)}}</td>
+            </tr>`;
+            totReal += item.real;
+            totProj += item.proj;
+            totGeral += item.total;
+        }});
+        
+        html += `<tr style="background-color: #1a1a1a; font-weight:800; color:#00f2fe; font-size:16px;">
+            <td>TOTAL GERAL</td>
+            <td>${{fmt(totReal)}}</td>
+            <td>${{fmt(totProj)}}</td>
+            <td>${{fmt(totGeral)}}</td>
+        </tr></table>`;
+        
+        container.innerHTML = html;
+    }}
+
     function renderDetalhes() {{
-        const dataIso = document.getElementById('filtroData').value;
+        const inicio = document.getElementById('filtroDataInicio').value;
+        const fim = document.getElementById('filtroDataFim').value;
         const container = document.getElementById('detalhesDataContainer');
         
-        if (!dataIso) {{
+        if (!inicio && !fim) {{
             container.style.display = 'none';
             return;
         }}
         
-        let filtrados = contas_detalhes.filter(item => item.DATA_ISO === dataIso);
+        let filtrados = contas_detalhes.filter(item => {{
+            if (inicio && item.DATA_ISO < inicio) return false;
+            if (fim && item.DATA_ISO > fim) return false;
+            return true;
+        }});
         
         if (current_comprador !== 'todos') {{
             filtrados = filtrados.filter(item => item.COMPRADOR_ID === current_comprador);
@@ -492,18 +492,19 @@ def main():
         }}
         
         if (filtrados.length === 0) {{
-            container.innerHTML = `<div class="sub-view"><h3 style="color:#4facfe; margin-top:0;">Detalhes do Dia ${{dataIso.split('-').reverse().join('/')}}</h3><p>Nenhuma conta a pagar encontrada para esta data e filtros selecionados.</p></div>`;
+            container.innerHTML = `<div class="sub-view"><h3 style="color:#4facfe; margin-top:0;">Detalhes do Período</h3><p>Nenhuma conta a pagar encontrada para este intervalo e filtros selecionados.</p></div>`;
             container.style.display = 'block';
             return;
         }}
         
         let html = `<div class="sub-view">
             <h3 style="color:#4facfe; margin-top:0; border-bottom: 1px solid #333; padding-bottom: 10px;">
-                Detalhes do Dia ${{filtrados[0].DATA_FORMATADA}}
+                Detalhes do Período
             </h3>
             <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; margin-top:10px;">
                 <tr>
+                    <th>Data</th>
                     <th>Loja</th>
                     <th>Fornecedor</th>
                     <th>Título/Pedido</th>
@@ -518,6 +519,7 @@ def main():
         
         filtrados.forEach(item => {{
             html += `<tr>
+                <td style="font-weight:600;">${{item.DATA_FORMATADA}}</td>
                 <td>${{item.EMPRESA}}</td>
                 <td>${{item.FORNECEDOR}}</td>
                 <td>${{item.TITULO}}</td>
@@ -530,10 +532,10 @@ def main():
             total += item.VALOR_PROJETADO;
         }});
         
-        let totalFmt = "R$ " + total.toFixed(2).replace('.', ',').replace(/(\\d)(?=(\\d{{3}})+(?!\\d))/g, '$1.');
+        let totalFmt = "R$ " + total.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{{3}})+(?!\d))/g, '$1.');
         
         html += `<tr style="background-color: #1a1a1a; font-weight:800; color:#00f2fe; font-size:16px;">
-            <td colspan="7" style="text-align:right;">TOTAL DO DIA</td>
+            <td colspan="8" style="text-align:right;">TOTAL DO PERÍODO</td>
             <td style="text-align:right;">${{totalFmt}}</td>
         </tr>`;
         
@@ -542,9 +544,16 @@ def main():
         container.innerHTML = html;
         container.style.display = 'block';
         
-        // Scroll suave para os detalhes
-        container.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+        // Scroll suave para os detalhes apenas se for a segunda data
+        if (fim) {{
+            container.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+        }}
     }}
+
+    // Renderiza a tabela de resumo inicial ao carregar a página
+    window.onload = function() {{
+        renderResumo();
+    }};
     </script>
 </body>
 </html>
