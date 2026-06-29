@@ -73,6 +73,8 @@ Se a query criada nao tiver filtros antes do Run, ainda assim salve um registro 
 - Se `#LSx` aparecer em comparacao textual direta, a lista deve retornar o texto ja quoted, por exemplo `'TODOS'`.
 - Em listas textuais, escapar aspas do conteudo antes de encapsular o valor final.
 - Em consultas pesadas, empurre filtros seletivos para subqueries agregadas antes dos joins mais caros.
+- Regra de Combobox Simples: O Consinco injeta o texto inteiro (Código + Descrição) da opção selecionada na variável `LSx`. Se o filtro usar seleção simples (Combobox), isole o código com `SUBSTR(:LSx, 1, 1)`. Além disso, para evitar limite de caracteres, construa as listas pequenas sempre usando a tabela virtual `DUAL` (ex: `SELECT 'C', 'CROSS' FROM DUAL`).
+- Regra do ORDER BY invisível em LS: A tela Consulta Criação do Consinco injeta automaticamente a cláusula `ORDER BY 1` no final do script SQL das variáveis de Lista (`LS`). Ao criar listas manuais usando a tabela `DUAL` e múltiplos `UNION`, NUNCA deixe a palavra `UNION` sobrando no final da última linha, senão o sistema executará `... UNION ORDER BY 1`, causando falha crítica `ORA-00928: missing SELECT keyword`.
 
 ## Formato de Resposta
 Ao responder, use sempre esta estrutura:

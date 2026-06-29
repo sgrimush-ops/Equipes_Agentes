@@ -82,8 +82,8 @@ WHERE (NVL(TRIM(:LT1), '0') = '0' OR A.NROEMPRESA IN (#LT1))
       ))
   AND ('#LT4' = '0' OR A.CODGERALOPER IN (#LT4))
   AND (
-        (NVL(TRIM(:LS2), 'N') <> 'E' AND (:LS1 = 'T' OR A.SITUACAO = :LS1))
+        (NVL(SUBSTR(:LS2, 1, 1), 'N') <> 'E' AND (SUBSTR(:LS1, 1, 1) = 'T' OR A.SITUACAO = SUBSTR(:LS1, 1, 1)))
         OR
-        (NVL(TRIM(:LS2), 'N') = 'E' AND A.SITUACAO <> NVL(NULLIF(TRIM(:LS1), 'T'), 'I'))
+        (NVL(SUBSTR(:LS2, 1, 1), 'N') = 'E' AND A.SITUACAO <> NVL(NULLIF(SUBSTR(:LS1, 1, 1), 'T'), 'I'))
       )
 ORDER BY A.DTAEMISSAO ASC, C.NOMEREDUZIDO ASC, A.NUMERONF ASC
