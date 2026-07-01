@@ -43,8 +43,8 @@ def classificar_lote(client, prompt_system, produtos_lote):
             return json.loads(response.text)['matches']
         except Exception as e:
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                print(f"⚠️ Limite da API Gratuita atingido. Aguardando 60 segundos antes de tentar novamente... (Tentativa {tentativa+1}/{tentativas})")
-                time.sleep(60)
+                print(f"Aviso: Limite da API Gratuita atingido. Aguardando 65 segundos antes de tentar novamente... (Tentativa {tentativa+1}/{tentativas})")
+                time.sleep(65)
             else:
                 print(f"Erro na API Gemini: {e}")
                 return None
