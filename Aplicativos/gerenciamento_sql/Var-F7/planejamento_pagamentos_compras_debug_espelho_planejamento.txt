@@ -1,0 +1,35 @@
+Consulta: planejamento_pagamentos_compras_debug_espelho_planejamento.sql
+
+Objetivo:
+- Espelhar a logica da consulta Planejamento_Compras_Pagar.2 e identificar onde o fornecedor aparece com nome MODELO.
+
+Variaveis para cadastrar em Var-F7:
+1) DT1
+- Tipo: Data
+- Obrigatoria
+- Uso: inicio do periodo (vencimento/projecao)
+
+2) DT2
+- Tipo: Data
+- Obrigatoria
+- Uso: fim do periodo (vencimento/projecao)
+
+3) NR1
+- Tipo: Numerica
+- Opcional
+- Padrao: 0
+- Regra: 0 = todos os fornecedores
+
+Listas:
+- Nao utiliza LS/LT nesta versao.
+
+Como executar:
+1) Cadastre DT1, DT2 e NR1.
+2) Use o mesmo periodo da tela Planejamento_Compras_Pagar.2.
+3) Em NR1, deixe 0.
+4) Execute a consulta.
+5) Observe as colunas FLAG_NOME_MODELO e FLAG_CNPJ_DUPLICADO.
+
+Leitura do resultado:
+- FLAG_NOME_MODELO = S: linha em que o nome fornecedor atual do cadastro e MODELO.
+- FLAG_CNPJ_DUPLICADO = S: CNPJ/CPF com mais de um cadastro em GE_PESSOA.

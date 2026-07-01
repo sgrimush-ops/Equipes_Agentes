@@ -1,0 +1,35 @@
+Consulta: planejamento_pagamentos_compras_debug_monitor_analitico.sql
+
+Objetivo:
+- Reproduzir o criterio do monitor de operacoes de titulos e identificar quando o fornecedor aparece com nome contendo MODELO ou com possivel duplicidade de cadastro por CNPJ.
+
+Variaveis para cadastrar em Var-F7:
+1) DT1
+- Tipo: Data
+- Obrigatoria
+- Uso: inicio do periodo de operacao (OP.DTAOPERACAO)
+
+2) DT2
+- Tipo: Data
+- Obrigatoria
+- Uso: fim do periodo de operacao (OP.DTAOPERACAO)
+
+3) NR1
+- Tipo: Numerica
+- Opcional
+- Padrao: 0
+- Uso: codigo do fornecedor especifico
+- Regra: 0 = todos
+
+Passo a passo curto:
+1) Cadastre DT1, DT2 e NR1 na tela Var-F7.
+2) Informe DT1 e DT2 com o mesmo periodo que esta testando.
+3) Em NR1, use 0 para trazer todos.
+4) Execute a consulta.
+5) Analise as colunas:
+   - FLAG_NOME_MODELO
+   - FLAG_CNPJ_COM_MAIS_DE_UM_CADASTRO
+
+Leitura esperada:
+- FLAG_NOME_MODELO = S: o nome do cadastro vinculado ao titulo contem MODELO.
+- FLAG_CNPJ_COM_MAIS_DE_UM_CADASTRO = S: existe mais de um cadastro GE_PESSOA para o mesmo CNPJ/CPF.

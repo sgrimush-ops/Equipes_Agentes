@@ -1,0 +1,40 @@
+Consulta principal: planejamento_pagamentos_compras_otimizado_fallback_tmpcache.sql
+Pre-carga obrigatoria: pre_carga_fallback_comprador_tmp.sql
+
+Objetivo:
+- Manter as mesmas colunas do SQL original.
+- Aplicar fallback de comprador para casos MODELO com melhor desempenho.
+- Evitar recalcular subconsulta pesada dentro da consulta principal.
+
+Variaveis da consulta principal (Var-F7):
+1) DT1
+- Tipo: Data
+- Obrigatoria
+
+2) DT2
+- Tipo: Data
+- Obrigatoria
+
+3) NR1
+- Tipo: Numerica
+- Opcional
+- Padrao: 0
+- Regra: 0 = todos os fornecedores
+
+Listas:
+- Nao utiliza LS/LT.
+
+Passo a passo de execucao:
+1) Executar o script pre_carga_fallback_comprador_tmp.sql.
+2) Executar a consulta planejamento_pagamentos_compras_otimizado_fallback_tmpcache.sql.
+3) Sempre que quiser atualizar o mapa de fallback, rode novamente a pre-carga.
+
+Regra de fallback:
+- Se comprador da origem for MODELO (SEQCOMPRADOR = 1), tenta usar comprador sugerido do cache.
+- Se nao houver sugerido no cache, mantem MODELO.
+
+Chave do cache utilizada:
+- STRING1 = 'PLNPGTO_FBK_COMP'
+- STRING3 = 'SEQFORN_COMP'
+- NUMBER1 = SEQFORNECEDOR
+- NUMBER2 = SEQCOMPRADOR_SUGERIDO

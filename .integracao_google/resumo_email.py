@@ -18,8 +18,9 @@ import html
 import webbrowser
 import urllib.parse
 import urllib.request
+import threading
 from pathlib import Path
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from dotenv import load_dotenv
@@ -359,7 +360,7 @@ def _renderizar_html(dados, mensagem=""):
             const selecionados = itens().filter(i => i.checked).length;
             const btn = document.getElementById('btn-batch');
             btn.disabled = selecionados === 0;
-            btn.textContent = selecionados > 0 ? `Excluir selecionados (${selecionados})` : 'Excluir selecionados';
+            btn.textContent = selecionados > 0 ? `Excluir selecionados (${{selecionados}})` : 'Excluir selecionados';
         }}
         function marcarTodos(marcar) {{
             itens().forEach(i => i.checked = marcar);
@@ -371,7 +372,7 @@ def _renderizar_html(dados, mensagem=""):
                 ev.preventDefault();
                 return;
             }}
-            if (!confirm(`Deseja mover ${selecionados} e-mail(s) para a lixeira?`)) {{
+            if (!confirm(`Deseja mover ${{selecionados}} e-mail(s) para a lixeira?`)) {{
                 ev.preventDefault();
             }}
         }});
@@ -474,10 +475,19 @@ def iniciar_interface_web(limite=20, so_nao_lidos=False, porta=8765):
                 self.end_headers()
                 self.wfile.write(erro)
 
-    servidor = HTTPServer(("127.0.0.1", porta), Handler)
+    servidor = ThreadingHTTPServer(("127.0.0.1", porta), Handler)
     url = f"http://127.0.0.1:{porta}/?limit={limite}&nao_lidos={1 if so_nao_lidos else 0}"
     print(f"Interface web iniciada em: {url}")
-    webbrowser.open(url)
+
+    # Em alguns ambientes o open() pode bloquear; roda em thread para nao travar o servidor.
+    def _abrir_navegador_async():
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
+    threading.Thread(target=_abrir_navegador_async, daemon=True).start()
+
     try:
         servidor.serve_forever()
     except KeyboardInterrupt:
@@ -493,7 +503,17 @@ if __name__ == "__main__":
     parser.add_argument("--terminal", action="store_true", help="Exibe no terminal em vez da interface web")
     parser.add_argument("--porta", type=int, default=8765, help="Porta da interface web local")
     args = parser.parse_args()
-    if args.terminal:
-        resumir_emails(limite=args.limite, so_nao_lidos=args.so_nao_lidos)
-    else:
-        iniciar_interface_web(limite=args.limite, so_nao_lidos=args.so_nao_lidos, porta=args.porta)
+    try:
+        if args.terminal:
+            resumir_emails(limite=args.limite, so_nao_lidos=args.so_nao_lidos)
+        else:
+            iniciar_interface_web(limite=args.limite, so_nao_lidos=args.so_nao_lidos, porta=args.porta)
+    except FileNotFoundError as exc:
+        print("\n[ERRO DE CONFIGURACAO] Nao foi possivel autenticar no Google.")
+        print(str(exc))
+        print("\nComo resolver:")
+        print("1) No Google Cloud Console, habilite a Gmail API.")
+        print("2) Crie credenciais OAuth de aplicativo Desktop.")
+        print("3) Baixe o arquivo e salve como 'credentials.json' nesta pasta:")
+        print(f"   {Path(__file__).parent}")
+        print("4) Rode o script novamente para abrir o login no navegador.")

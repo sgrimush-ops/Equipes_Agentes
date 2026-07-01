@@ -51,7 +51,17 @@ def get_google_credentials() -> Credentials:
                 str(cred_path), SCOPES
             )
             # Retorna as credenciais via redirecionamento de porta localhost
-            creds = flow.run_local_server(port=0)
+            try:
+                creds = flow.run_local_server(port=0)
+            except Exception as exc:
+                mensagem = str(exc)
+                if "access_denied" in mensagem or "403" in mensagem:
+                    raise RuntimeError(
+                        "Acesso negado pelo Google (403/access_denied). "
+                        "No Google Cloud Console, abra 'Tela de consentimento OAuth', "
+                        "deixe o app em modo de teste e adicione seu e-mail em 'Usuarios de teste'."
+                    ) from exc
+                raise
             
         # Salva a credencial para o próximo uso
         with open(token_path, 'w') as token:

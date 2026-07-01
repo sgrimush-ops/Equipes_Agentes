@@ -1,0 +1,42 @@
+Consulta: planejamento_pagamentos_compras_auditoria_comprador_modelo.sql
+
+Objetivo:
+- Auditar por que o comprador exibido ficou como MODELO na consulta de planejamento de pagamentos.
+- Mostrar exatamente qual SEQCOMPRADOR foi usado na origem e qual cadastro em MAX_COMPRADOR foi lido.
+
+Variaveis (Var-F7):
+1) DT1
+- Tipo: Data
+- Obrigatoria
+- Uso: periodo inicial
+
+2) DT2
+- Tipo: Data
+- Obrigatoria
+- Uso: periodo final
+
+3) NR1
+- Tipo: Numerica
+- Opcional
+- Padrao: 0
+- Regra: 0 = todos os fornecedores
+
+Listas:
+- Nao utiliza LS/LT nesta versao.
+
+Passo a passo:
+1) Cadastrar DT1, DT2 e NR1 em Var-F7.
+2) Informar o mesmo periodo da tela Planejamento_Compras_Pagar.2.
+3) NR1 = 0 para todos.
+4) Executar Run.
+5) Validar colunas:
+   - SEQCOMPRADOR_ORIGEM
+   - APELIDO_CAD_COMPRADOR
+   - NOME_CAD_COMPRADOR
+   - COMPRADOR_EXIBIDO
+   - REGRA_ORIGEM
+
+Interpretacao:
+- Se COMPRADOR_EXIBIDO = MODELO, o valor veio do cadastro MAX_COMPRADOR associado ao SEQCOMPRADOR da origem.
+- Bloco 1 usa FI_TITCOMPRADOR (titulo financeiro).
+- Bloco 2 usa MACV_PSITEMRECEBER.SEQCOMPRADOR (pedido/projecao).

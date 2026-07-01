@@ -1,0 +1,52 @@
+Consulta: planejamento_pagamentos_compras_fallback_modelo.sql
+
+Objetivo:
+- Quando comprador atual vier como MODELO (SEQCOMPRADOR = 1), aplicar fallback opcional para comprador sugerido do historico de pedidos por fornecedor.
+- Manter consulta no padrao da Planejamento_Compras_Pagar.2.
+
+Variaveis (Var-F7):
+1) DT1
+- Tipo: Data
+- Obrigatoria
+- Uso: periodo inicial de vencimento/projecao
+
+2) DT2
+- Tipo: Data
+- Obrigatoria
+- Uso: periodo final de vencimento/projecao
+
+3) NR1
+- Tipo: Numerica
+- Opcional
+- Padrao: 0
+- Regra: 0 = todos os fornecedores
+
+4) NR2
+- Tipo: Numerica
+- Opcional
+- Padrao: 1
+- Regra:
+  - 1 = aplica fallback quando comprador for MODELO
+  - 0 = nao aplica fallback (mantem regra original)
+
+Listas:
+- Nao utiliza LS/LT nesta versao.
+
+Colunas de auditoria:
+- COMPRADOR: comprador final exibido (com fallback, se aplicavel)
+- COMPRADOR_ORIGEM: comprador original do vinculo financeiro/pedido
+- STATUS_COMPRADOR:
+  - ORIGINAL
+  - FALLBACK_APLICADO
+  - MANTEVE_MODELO
+
+Regra de fallback usada:
+- Busca em MACV_PSITEMRECEBER por fornecedor o menor SEQCOMPRADOR diferente de 1.
+- Se encontrar, usa esse comprador quando o original for 1 (MODELO).
+- Se nao encontrar, mantem MODELO.
+
+Passo a passo:
+1) Cadastrar DT1, DT2, NR1 e NR2 no Var-F7.
+2) Teste inicial com NR2 = 0 para baseline.
+3) Teste com NR2 = 1 para aplicar fallback.
+4) Compare STATUS_COMPRADOR e COMPRADOR vs COMPRADOR_ORIGEM.

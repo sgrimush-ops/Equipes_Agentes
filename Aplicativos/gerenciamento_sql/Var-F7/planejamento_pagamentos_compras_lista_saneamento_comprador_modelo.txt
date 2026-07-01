@@ -1,0 +1,39 @@
+Consulta: planejamento_pagamentos_compras_lista_saneamento_comprador_modelo.sql
+
+Objetivo:
+- Gerar lista pronta para saneamento dos titulos com comprador exibido como MODELO.
+- Sugerir comprador para cada fornecedor com base no historico de pedidos (MACV_PSITEMRECEBER), sem alterar dados.
+
+Variaveis para cadastrar em Var-F7:
+1) DT1
+- Tipo: Data
+- Obrigatoria
+- Uso: inicio do periodo de vencimento do titulo
+
+2) DT2
+- Tipo: Data
+- Obrigatoria
+- Uso: fim do periodo de vencimento do titulo
+
+3) NR1
+- Tipo: Numerica
+- Opcional
+- Padrao: 0
+- Regra: 0 = todos os fornecedores
+
+Listas:
+- Nao utiliza LS/LT nesta versao.
+
+Leitura da saida:
+- SEQCOMPRADOR_ATUAL / COMPRADOR_ATUAL: comprador atualmente gravado no titulo
+- SEQCOMPRADOR_SUGERIDO / COMPRADOR_SUGERIDO: sugestao vinda do historico de pedidos
+- STATUS_SUGESTAO:
+  - SUGESTAO_UNICA: fornecedor tem um unico comprador no historico (mais confiavel)
+  - AMBIGUO_MULTIPLOS_COMPRADORES: fornecedor aparece com mais de um comprador no historico
+  - SEM_HISTORICO_PARA_SUGERIR: nao achou base para sugerir
+
+Passo a passo:
+1) Cadastre DT1, DT2 e NR1 na tela Var-F7.
+2) Execute com NR1 = 0 para lista geral.
+3) Priorize saneamento pelas linhas com STATUS_SUGESTAO = SUGESTAO_UNICA.
+4) Valide casos ambiguos com a area de compras antes de ajustar FI_TITCOMPRADOR.
