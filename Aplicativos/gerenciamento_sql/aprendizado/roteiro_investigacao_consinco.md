@@ -51,6 +51,7 @@ Este roteiro orienta a investigacao por tipo de problema no ambiente Totvs Consi
 - Priorizar o reaproveitamento da base materializada em vez de reconstruir toda a logica transacional.
 
 ## Se o problema for Performance
+- Ler obrigatoriamente `aprendizado_otimizacao_ctes_materialize.md` para aplicar CTEs com `/*+ MATERIALIZE */`, funções analíticas e SELECT Fantasma, sendo proibido criar fallbacks sem CTE.
 - Evitar funcoes linha a linha em massa.
 - Evitar joins diretos entre saldo fixo e historico diario sem agregacao previa.
 - Reutilizar tabelas BI materializadas quando existirem.

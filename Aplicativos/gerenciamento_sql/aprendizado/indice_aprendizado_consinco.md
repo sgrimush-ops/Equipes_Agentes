@@ -10,6 +10,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 
 ## Regras Operacionais de SQL
 - `regras_imutaveis_sql.md`: regras que nao devem ser quebradas em queries do Consinco.
+- `aprendizado_otimizacao_ctes_materialize.md`: guia obrigatorio de performance sobre CTEs com hint /*+ MATERIALIZE */, funcoes analiticas e bypass de validacao (SELECT Fantasma), proibindo fallbacks sem CTE.
 - `aprendizado_erro_sql.md`: licoes de validacao de dicionario, tipos e joins.
 - `aprendizado_filtros_categorias_embalagem.md`: filtros seguros de categoria, divisao e embalagem.
 - `aprendizado_compras_transferencias_segregadas.md`: separacao e segregacao tecnica de compras de fornecedores (recebimento) e transferencias internas (CD e expedicao).
