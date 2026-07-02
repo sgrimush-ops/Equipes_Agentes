@@ -40,14 +40,15 @@ Ao remover as CTEs para tentar agradar o validador da tela, o script incorria em
 
 Para garantir **máxima velocidade no Oracle** e, ao mesmo tempo, **passar 100% pelo validador do Consinco sem erros**, toda IA ou desenvolvedor deve seguir estritamente a arquitetura abaixo em consultas complexas:
 
-### Regra 1: O Bypass do Validador (SELECT Fantasma)
-Nunca abandone o uso de `WITH`. Para contornar o erro *"não é uma consulta"*, **envelope toda a consulta CTE dentro de um SELECT externo simples**:
+### Regra 1: O Bypass do Validador (SELECT Fantasma) e Variáveis Bind
+O validador do Consinco bloqueia qualquer consulta que não comece com a palavra `SELECT` (erro *"A instrução SQL informada, não é uma consulta"*). Nunca abandone o uso de `WITH`. Para contornar esse erro, **envelope toda a consulta CTE dentro de um SELECT externo simples**:
 ```sql
 SELECT * FROM (
     WITH ...
     SELECT ...
 )
 ```
+**Importante sobre Variáveis:** Ao utilizar variáveis de lista de seleção em funções de manipulação de texto (como `SUBSTR` e `INSTR`), utilize **sempre variáveis bind iniciadas com dois-pontos** (ex: `:LS1`) em vez de macros iniciadas com hash (`#LS1`). Macros com hash são substituídas literalmente no texto antes da execução; se o valor for inserido sem aspas, o Oracle dispara o erro fatal **`ORA-00907: missing right parenthesis`**.
 
 ### Regra 2: Obrigatoriedade do Hint `/*+ MATERIALIZE */`
 Em todas as CTEs que lerem Views do Consinco (`MACV_`, `MAXV_`, `MRLV_`, etc.) ou tabelas de alto volume (`MRL_PRODUTOEMPRESA`, `FI_TITULO`, `MAC_PSITEMRECEBER`), insira obrigatoriamente a instrução `/*+ MATERIALIZE */` logo após o `SELECT` da CTE.
@@ -96,9 +97,12 @@ WITH COMPRADOR_SUGERIDO AS (
 | **Subqueries de Agrupamento** | Executadas em loop para cada registro (Nested Loop) | **Resolvidas em conjunto único** (Hash Join / Window Function) |
 | **Tempo de Resposta** | Risco alto de lentidão severa ou Timeout (ORA-01013) | **Execução ultra-rápida (milissegundos a poucos segundos)** |
 | **Comentários no SQL** | Zero comentários | **Zero comentários** (obrigatório para evitar quebra no SGI) |
+| **Variáveis Bind em Funções/Tipos** | Erro `ORA-00907` ou `ORA-00932` por tipo incompatível | **Sem erros**, usando bind `:LS1` e `TO_NUMBER(:NR1)` |
 
 ## 5. Diretriz Imutável para Agentes de IA
 Quando solicitado a criar, otimizar ou corrigir consultas SQL no ERP Consinco:
 1. **NUNCA** sugira ou crie arquivos com sufixo `_fallback` que abram mão do uso de CTEs.
 2. **SEMPRE** analise se a consulta acessa views ou repete a leitura da mesma tabela em múltiplos `JOIN` ou `UNION ALL`. Se repetir, isole em CTE com `/*+ MATERIALIZE */`.
-3. **SEMPRE** aplique o envelope `SELECT * FROM ( WITH ... SELECT ... )` quando houver CTEs.
+3. **SEMPRE** aplique o envelope `SELECT * FROM ( WITH ... SELECT ... )` quando houver CTEs para passar no validador *"não é uma consulta"*.
+4. **SEMPRE** prefira variáveis bind com dois-pontos (`:LS1`, `:NR1`) a macros com hash (`#LS1`), principalmente dentro de funções como `SUBSTR` e `INSTR`, para evitar erros de sintaxe `ORA-00907` na substituição literal do Consinco.
+5. **SEMPRE** aplique conversão explícita `TO_NUMBER(:NR1)` ao comparar variáveis bind com colunas numéricas do Oracle (ex: `SEQPESSOA = TO_NUMBER(:NR1)`) ou em blocos `CASE WHEN`, evitando o erro **`ORA-00932: inconsistent datatypes: expected CHAR got NUMBER`**.
