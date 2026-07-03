@@ -4,31 +4,36 @@
 - Arquivo SQL: [Aplicativos/gerenciamento_sql/querys/consulta_promocao_v4.sql](../querys/consulta_promocao_v4.sql)
 
 ## Objetivo
-Listar produtos em promocao com preco normal, preco promocional, quantidade vendida no periodo atual, quantidade vendida no periodo anterior e uma coluna calculada de valor total vendido.
+Listar produtos em promocao com preco normal, preco promocional, quantidade vendida no periodo atual, quantidade vendida no periodo anterior, comprador da familia e uma coluna calculada de valor total vendido, com formatação garantindo o zero à esquerda nos decimais (ex: 0,00).
 
 ## Colunas retornadas
 - `PROMOCAO`: identificador da promocao.
 - `DTAINICIO`: data inicial da promocao.
 - `DTAFIM`: data final da promocao.
-- `LOJA`: mantida como 0 no modelo atual.
+- `COMPRADOR`: apelido (ou nome) do comprador vinculado à família (NRODIVISAO = 1).
 - `NOME`: sequencia da promocao.
 - `COD`: codigo do produto.
 - `DESCRICAO`: descricao completa do produto.
-- `PRECO`: preco normal.
-- `MGNORMAL`: margem normal formatada.
-- `PROMO`: preco promocional.
-- `MGPROMOC`: margem promocional formatada.
+- `PRECO`: preco normal (formatado com `FM999G990D00`).
+- `MGNORMAL`: margem normal formatada (`FM999G990D99`).
+- `PROMO`: preco promocional (formatado com `FM999G990D00`).
+- `MGPROMOC`: margem promocional formatada (`FM999G990D99`).
 - `QTD_ATUAL`: quantidade vendida no periodo atual.
 - `QTD_ANTERIOR`: quantidade vendida no periodo anterior.
-- `VALOR_TOTAL_VENDIDO`: preco promocional multiplicado pela quantidade vendida atual.
+- `VALOR_TOTAL_VENDIDO`: preco promocional multiplicado pela quantidade vendida atual (formatado com `FM999G990D00` para evitar o efeito `,00`).
 
 ## Variaveis para cadastrar em Var - F7
-Essa consulta usa as variaveis ja existentes na tela de Consulta Criacao:
+Essa consulta usa as seguintes variaveis na tela de Consulta Criacao:
 
 ### LS1
 - Tipo: Lista
 - Descricao: Promocao
 - Instrucao: selecione a promocao para filtrar a base principal e as subconsultas de vendas.
+
+### LS2
+- Tipo: Lista
+- Descricao: Comprador
+- Instrucao: selecione o comprador para filtrar ou mantenha `0 - TODOS` para trazer todos os compradores.
 
 ### DT1
 - Tipo: Data
@@ -51,16 +56,36 @@ Essa consulta usa as variaveis ja existentes na tela de Consulta Criacao:
 - Instrucao: informe o fim do periodo atual.
 
 ## SQL da lista LS1
-Nao ha SQL de lista nesta alteracao, porque a consulta ja consome `#LS1` como lista cadastrada na tela.
+Colar no cadastro da variável LS1 (Promoção):
+```sql
+SELECT DISTINCT PROMOCAO AS ITEM
+FROM MRLV_BASEPRODPROMOC
+WHERE CENTRALLOJA = 'C'
+  AND PRINCIPAL = 'S'
+ORDER BY 1
+```
+
+## SQL da lista LS2
+Colar no cadastro da variável LS2 (Comprador - versão sem aspas literais para evitar ORA-01722):
+```sql
+SELECT '0 - TODOS' AS COMPRADOR
+FROM DUAL
+UNION
+SELECT DISTINCT TO_CHAR(SEQCOMPRADOR) || ' - ' || NVL(APELIDO, COMPRADOR)
+FROM MAX_COMPRADOR
+WHERE STATUS = 'A'
+ORDER BY 1
+```
 
 ## Passo a passo operacional
-1. Abrir a consulta na tela Consulta Criacao.
+1. Abrir a consulta na tela Consulta Criacao e colar o SQL atualizado.
 2. Clicar em Var - F7.
 3. Conferir o cadastro de LS1 como lista de promocao.
-4. Conferir os cadastros de DT1, DT2, DT3 e DT4 como datas.
-5. Salvar as variaveis.
-6. Executar a consulta.
+4. Cadastrar LS2 como lista de comprador.
+5. Conferir os cadastros de DT1, DT2, DT3 e DT4 como datas.
+6. Salvar as variaveis.
+7. Executar a consulta.
 
 ## Observacoes
-- A nova coluna `VALOR_TOTAL_VENDIDO` nao exige outras pesquisas no SQL; ela usa o preco promocional ja retornado e a quantidade agregada da subconsulta `Q1`.
-- Se a intencao for usar preco normal em vez de preco promocional, basta trocar `MIN(M.PRECOPROMOCIONAL)` por `MIN(M.PRECONORMAL)` na expressao da nova coluna.
+- A coluna `VALOR_TOTAL_VENDIDO` usa o preco promocional retornado e a quantidade agregada da subconsulta `Q1`.
+- A formatação de todas as colunas de valor e margem foi ajustada para o modelo `FM999G990D00` / `FM999G990D99`, que garante a exibição do zero inteiro em valores como `0,00` em vez de `,00`.
