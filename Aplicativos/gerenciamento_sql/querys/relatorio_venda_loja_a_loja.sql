@@ -1,0 +1,89 @@
+SELECT * FROM (
+    WITH CTE_PRODUTOS AS (
+        SELECT /*+ MATERIALIZE */
+            PE.SEQPRODUTO,
+            PE.NROEMPRESA,
+            NVL(PE.CMULTCUSLIQUIDOEMP, 0) AS CUSTO_UNIT
+        FROM MAP_PRODUTO P
+        INNER JOIN MRL_PRODUTOEMPRESA PE
+            ON PE.SEQPRODUTO = P.SEQPRODUTO
+        INNER JOIN MAP_FAMDIVISAO FD
+            ON FD.SEQFAMILIA = P.SEQFAMILIA
+           AND FD.NRODIVISAO = 1
+        WHERE FD.FINALIDADEFAMILIA = 'R'
+          AND PE.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
+    ),
+    CTE_VENDAS_LOJA AS (
+        SELECT /*+ MATERIALIZE */
+            TO_CHAR(E.NROEMPRESA, 'FM00') || ' - ' || NVL(E.NOMEREDUZIDO, 'LOJA ' || TO_CHAR(E.NROEMPRESA)) AS EMPRESA_VENDA,
+            ROUND(VF.VALOR_TOTAL_VENDIDO, 2) AS VALOR_TOTAL_VENDIDO,
+            ROUND(VF.VALOR_TOTAL_CUSTO, 2) AS VALOR_TOTAL_CUSTO,
+            ROUND(
+                (VF.VALOR_TOTAL_VENDIDO - VF.VALOR_TOTAL_CUSTO)
+                / NULLIF(VF.VALOR_TOTAL_VENDIDO, 0) * 100
+            , 2) AS MARGEM_LUCRO
+        FROM (
+            SELECT
+                N.NROEMPRESA,
+                SUM(NVL(I.VLRITEM, 0)) AS VALOR_TOTAL_VENDIDO,
+                SUM(NVL(I.QUANTIDADE, 0) * NVL(PR.CUSTO_UNIT, 0)) AS VALOR_TOTAL_CUSTO
+            FROM MLFV_BASENFE N
+            INNER JOIN MFLV_BASEDFITEM I
+                ON I.NROEMPRESA = N.NROEMPRESA
+               AND I.SEQNF = N.SEQNF
+               AND I.TIPNOTAFISCAL = N.TIPNOTAFISCAL
+            INNER JOIN CTE_PRODUTOS PR
+                ON PR.SEQPRODUTO = I.SEQPRODUTO
+               AND PR.NROEMPRESA = I.NROEMPRESA
+            WHERE N.TIPNOTAFISCAL = 'S'
+              AND N.CODGERALOPER = 800
+              AND NVL(N.STATUSNF, 'A') != 'C'
+              AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
+              AND N.DTAEMISSAO >= TRUNC(:DT1)
+              AND N.DTAEMISSAO < TRUNC(:DT2) + 1
+              AND NOT (
+                    (N.NROEMPRESA = 3 AND N.NUMERONF = 10068 AND N.SERIENF = 703)
+                    OR (N.NROEMPRESA = 4 AND N.NUMERONF = 18130 AND N.SERIENF = 710)
+              )
+            GROUP BY
+                N.NROEMPRESA
+        ) VF
+        INNER JOIN MAX_EMPRESA E
+            ON E.NROEMPRESA = VF.NROEMPRESA
+    )
+    SELECT
+        X.EMPRESA_VENDA,
+        'R$ ' || TO_CHAR(
+            X.VALOR_TOTAL_VENDIDO,
+            'FM999G999G999G990D00',
+            'NLS_NUMERIC_CHARACTERS = '',.'''
+        ) AS VALOR_TOTAL_VENDIDO,
+        TO_CHAR(
+            X.MARGEM_LUCRO,
+            'FM999G990D00',
+            'NLS_NUMERIC_CHARACTERS = '',.'''
+        ) || '%' AS MARGEM_LUCRO
+    FROM (
+        SELECT
+            EMPRESA_VENDA,
+            VALOR_TOTAL_VENDIDO,
+            MARGEM_LUCRO,
+            1 AS ORDEM
+        FROM CTE_VENDAS_LOJA
+
+        UNION ALL
+
+        SELECT
+            'TOTAL_PERIODO' AS EMPRESA_VENDA,
+            ROUND(SUM(VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO,
+            ROUND(
+                (SUM(VALOR_TOTAL_VENDIDO) - SUM(VALOR_TOTAL_CUSTO))
+                / NULLIF(SUM(VALOR_TOTAL_VENDIDO), 0) * 100
+            , 2) AS MARGEM_LUCRO,
+            2 AS ORDEM
+        FROM CTE_VENDAS_LOJA
+    ) X
+    ORDER BY
+        X.ORDEM,
+        X.EMPRESA_VENDA
+)

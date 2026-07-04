@@ -4,24 +4,16 @@
 - Arquivo SQL: `Aplicativos/gerenciamento_sql/querys/levantamento_margens_objetivas_departamento.sql`
 
 ## Objetivo
-Levantar a margem objetiva por produto/hierarquia de departamento, com código e descrição do produto, para identificar margens incorretas. Permite filtrar por loja, produto e comprador.
+Levantar a margem objetiva por produto/hierarquia de departamento, com código e descrição do produto, para identificar margens incorretas. Retorna exclusivamente produtos **Ativos para Compra** (`STATUSCOMPRA = 'A'`). Permite filtrar por produto e comprador.
 
 ---
 
 ## Variáveis para cadastrar em Var-F7
 
-### NR1 — Loja (opcional)
+### NR1 — Código do Produto (opcional)
 | Campo        | Valor                              |
 |--------------|------------------------------------|
 | Nome         | NR1                                |
-| Tipo         | Numérico                           |
-| Descrição    | Loja (0 = todas)                   |
-| Valor Padrão | 0                                  |
-
-### NR2 — Código do Produto (opcional)
-| Campo        | Valor                              |
-|--------------|------------------------------------|
-| Nome         | NR2                                |
 | Tipo         | Numérico                           |
 | Descrição    | Código do produto (0 = todos)      |
 | Valor Padrão | 0                                  |
@@ -52,24 +44,22 @@ ORDER BY ITEM
 2. Acesse **Var-F7** (botão ou tecla F7).
 3. Cadastre **NR1**:
    - Aba: Numérico
-   - Descrição: `Loja (0 = todas)`
-   - Valor padrão: `0`
-4. Cadastre **NR2**:
-   - Aba: Numérico
    - Descrição: `Código do produto (0 = todos)`
    - Valor padrão: `0`
-5. Cadastre **LS1**:
+4. Cadastre **LS1**:
    - Aba: Lista
    - Descrição: `Comprador`
    - Valor padrão: `0 - TODOS`
    - SQL da lista: `SELECT '0 - TODOS' AS ITEM FROM DUAL UNION ALL SELECT TO_CHAR(SEQCOMPRADOR) || ' - ' || COMPRADOR AS ITEM FROM MAX_COMPRADOR ORDER BY ITEM`
-6. Salve as variáveis.
-7. Execute a consulta.
+5. Salve as variáveis.
+6. Execute a consulta.
 
 ---
 
 ## Observações
 
+- **Apenas Produtos Ativos:** A consulta possui filtro obrigatório por `PE.STATUSCOMPRA = 'A'`, expurgando produtos inativos ou fora de linha.
+- **Filtro de Loja Removido:** O filtro por loja (`NR1=empresa`) foi removido conforme solicitação; a verificação abrange todas as lojas comerciais fixas da rede.
 - O filtro de comprador usa o padrão `codigo - comprador` e extrai o código para comparar com `MAP_FAMDIVISAO.SEQCOMPRADOR`.
 - Selecionar `0 - TODOS` retorna todos os compradores.
 - O comprador aparece como coluna `COMPRADOR` no grid, entre a hierarquia e o código do produto.

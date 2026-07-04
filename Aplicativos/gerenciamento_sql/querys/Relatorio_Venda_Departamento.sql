@@ -1,49 +1,16 @@
-SELECT
-    X.DEPARTAMENTO,
-    'R$ ' || TO_CHAR(
-        X.VALOR_TOTAL_VENDIDO,
-        'FM999G999G999G990D00',
-        'NLS_NUMERIC_CHARACTERS = '',.'''
-    ) AS VALOR_TOTAL_VENDIDO
-FROM (
-    SELECT
-        BASE.DEPARTAMENTO,
-        BASE.VALOR_TOTAL_VENDIDO,
-        1 AS ORDEM
-    FROM (
-        SELECT
+SELECT * FROM (
+    WITH CTE_PRODUTOS AS (
+        SELECT /*+ MATERIALIZE */
+            PE.SEQPRODUTO,
+            PE.NROEMPRESA,
             NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO') AS DEPARTAMENTO,
-            ROUND(SUM(VF.VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO
-        FROM (
-            SELECT
-                P.SEQFAMILIA,
-                SUM(NVL(I.VLRITEM, 0)) AS VALOR_TOTAL_VENDIDO
-            FROM MLFV_BASENFE N
-            INNER JOIN MFLV_BASEDFITEM I
-                ON I.NROEMPRESA = N.NROEMPRESA
-               AND I.SEQNF = N.SEQNF
-               AND I.TIPNOTAFISCAL = N.TIPNOTAFISCAL
-               AND I.SERIEDF = N.SERIENF
-               AND I.NUMERODF = N.NUMERONF
-               AND I.SEQPESSOA = N.SEQPESSOA
-            INNER JOIN MAP_PRODUTO P
-                ON P.SEQPRODUTO = I.SEQPRODUTO
-            INNER JOIN MAP_FAMDIVISAO FD
-                ON FD.SEQFAMILIA = P.SEQFAMILIA
-               AND FD.NRODIVISAO = 1
-            WHERE N.TIPNOTAFISCAL = 'S'
-              AND N.CODGERALOPER = 800
-              AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
-              AND N.DTAEMISSAO >= TRUNC(:DT1)
-              AND N.DTAEMISSAO < TRUNC(:DT2) + 1
-              AND FD.FINALIDADEFAMILIA = 'R'
-              AND NOT (
-                    (N.NROEMPRESA = 3 AND N.NUMERONF = 10068 AND N.SERIENF = 703)
-                    OR (N.NROEMPRESA = 4 AND N.NUMERONF = 18130 AND N.SERIENF = 710)
-              )
-            GROUP BY
-                P.SEQFAMILIA
-        ) VF
+            NVL(PE.CMULTCUSLIQUIDOEMP, 0) AS CUSTO_UNIT
+        FROM MAP_PRODUTO P
+        INNER JOIN MRL_PRODUTOEMPRESA PE
+            ON PE.SEQPRODUTO = P.SEQPRODUTO
+        INNER JOIN MAP_FAMDIVISAO FD
+            ON FD.SEQFAMILIA = P.SEQFAMILIA
+           AND FD.NRODIVISAO = 1
         LEFT JOIN (
             SELECT
                 X.SEQFAMILIA,
@@ -60,73 +27,73 @@ FROM (
             GROUP BY
                 X.SEQFAMILIA
         ) D
-            ON D.SEQFAMILIA = VF.SEQFAMILIA
+            ON D.SEQFAMILIA = P.SEQFAMILIA
+        WHERE FD.FINALIDADEFAMILIA = 'R'
+          AND PE.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
+    ),
+    CTE_VENDAS_DEPTO AS (
+        SELECT /*+ MATERIALIZE */
+            PR.DEPARTAMENTO,
+            ROUND(SUM(NVL(I.VLRITEM, 0)), 2) AS VALOR_TOTAL_VENDIDO,
+            ROUND(SUM(NVL(I.QUANTIDADE, 0) * NVL(PR.CUSTO_UNIT, 0)), 2) AS VALOR_TOTAL_CUSTO,
+            ROUND(
+                (SUM(NVL(I.VLRITEM, 0)) - SUM(NVL(I.QUANTIDADE, 0) * NVL(PR.CUSTO_UNIT, 0)))
+                / NULLIF(SUM(NVL(I.VLRITEM, 0)), 0) * 100
+            , 2) AS MARGEM_LUCRO
+        FROM MLFV_BASENFE N
+        INNER JOIN MFLV_BASEDFITEM I
+            ON I.NROEMPRESA = N.NROEMPRESA
+           AND I.SEQNF = N.SEQNF
+           AND I.TIPNOTAFISCAL = N.TIPNOTAFISCAL
+        INNER JOIN CTE_PRODUTOS PR
+            ON PR.SEQPRODUTO = I.SEQPRODUTO
+           AND PR.NROEMPRESA = I.NROEMPRESA
+        WHERE N.TIPNOTAFISCAL = 'S'
+          AND N.CODGERALOPER = 800
+          AND NVL(N.STATUSNF, 'A') != 'C'
+          AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
+          AND N.DTAEMISSAO >= TRUNC(:DT1)
+          AND N.DTAEMISSAO < TRUNC(:DT2) + 1
+          AND NOT (
+                (N.NROEMPRESA = 3 AND N.NUMERONF = 10068 AND N.SERIENF = 703)
+                OR (N.NROEMPRESA = 4 AND N.NUMERONF = 18130 AND N.SERIENF = 710)
+          )
         GROUP BY
-            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO')
-    ) BASE
-
-    UNION ALL
-
+            PR.DEPARTAMENTO
+    )
     SELECT
-        'TOTAL_PERIODO' AS DEPARTAMENTO,
-        ROUND(SUM(BASE.VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO,
-        2 AS ORDEM
+        X.DEPARTAMENTO,
+        'R$ ' || TO_CHAR(
+            X.VALOR_TOTAL_VENDIDO,
+            'FM999G999G999G990D00',
+            'NLS_NUMERIC_CHARACTERS = '',.'''
+        ) AS VALOR_TOTAL_VENDIDO,
+        TO_CHAR(
+            X.MARGEM_LUCRO,
+            'FM999G990D00',
+            'NLS_NUMERIC_CHARACTERS = '',.'''
+        ) || '%' AS MARGEM_LUCRO
     FROM (
         SELECT
-            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO') AS DEPARTAMENTO,
-            ROUND(SUM(VF.VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO
-        FROM (
-            SELECT
-                P.SEQFAMILIA,
-                SUM(NVL(I.VLRITEM, 0)) AS VALOR_TOTAL_VENDIDO
-            FROM MLFV_BASENFE N
-            INNER JOIN MFLV_BASEDFITEM I
-                ON I.NROEMPRESA = N.NROEMPRESA
-               AND I.SEQNF = N.SEQNF
-               AND I.TIPNOTAFISCAL = N.TIPNOTAFISCAL
-               AND I.SERIEDF = N.SERIENF
-               AND I.NUMERODF = N.NUMERONF
-               AND I.SEQPESSOA = N.SEQPESSOA
-            INNER JOIN MAP_PRODUTO P
-                ON P.SEQPRODUTO = I.SEQPRODUTO
-            INNER JOIN MAP_FAMDIVISAO FD
-                ON FD.SEQFAMILIA = P.SEQFAMILIA
-               AND FD.NRODIVISAO = 1
-            WHERE N.TIPNOTAFISCAL = 'S'
-              AND N.CODGERALOPER = 800
-              AND N.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18)
-              AND N.DTAEMISSAO >= TRUNC(:DT1)
-              AND N.DTAEMISSAO < TRUNC(:DT2) + 1
-              AND FD.FINALIDADEFAMILIA = 'R'
-              AND NOT (
-                    (N.NROEMPRESA = 3 AND N.NUMERONF = 10068 AND N.SERIENF = 703)
-                    OR (N.NROEMPRESA = 4 AND N.NUMERONF = 18130 AND N.SERIENF = 710)
-              )
-            GROUP BY
-                P.SEQFAMILIA
-        ) VF
-        LEFT JOIN (
-            SELECT
-                X.SEQFAMILIA,
-                MAX(Y.CATEGORIA) AS DEPARTAMENTO
-            FROM MAP_FAMDIVCATEG X
-            INNER JOIN MAP_CATEGORIA Y
-                ON Y.SEQCATEGORIA = X.SEQCATEGORIA
-               AND Y.NRODIVISAO = X.NRODIVISAO
-            WHERE X.NRODIVISAO = 1
-              AND X.STATUS = 'A'
-              AND Y.NIVELHIERARQUIA = 1
-              AND Y.TIPCATEGORIA = 'M'
-              AND UPPER(Y.CATEGORIA) NOT IN ('A CLASSIFICAR', 'ALMOXARIFADO', 'INATIVAR', 'SERVICOS')
-            GROUP BY
-                X.SEQFAMILIA
-        ) D
-            ON D.SEQFAMILIA = VF.SEQFAMILIA
-        GROUP BY
-            NVL(D.DEPARTAMENTO, 'SEM_DEPARTAMENTO')
-    ) BASE
-) X
-ORDER BY
-    X.ORDEM,
-    X.VALOR_TOTAL_VENDIDO DESC,
-    X.DEPARTAMENTO
+            DEPARTAMENTO,
+            VALOR_TOTAL_VENDIDO,
+            MARGEM_LUCRO,
+            1 AS ORDEM
+        FROM CTE_VENDAS_DEPTO
+
+        UNION ALL
+
+        SELECT
+            'TOTAL_PERIODO' AS DEPARTAMENTO,
+            ROUND(SUM(VALOR_TOTAL_VENDIDO), 2) AS VALOR_TOTAL_VENDIDO,
+            ROUND(
+                (SUM(VALOR_TOTAL_VENDIDO) - SUM(VALOR_TOTAL_CUSTO))
+                / NULLIF(SUM(VALOR_TOTAL_VENDIDO), 0) * 100
+            , 2) AS MARGEM_LUCRO,
+            2 AS ORDEM
+        FROM CTE_VENDAS_DEPTO
+    ) X
+    ORDER BY
+        X.ORDEM,
+        X.DEPARTAMENTO
+)
