@@ -56,6 +56,29 @@ def aplicar_renomeacao_colunas(df: pd.DataFrame) -> pd.DataFrame:
 	return df
 
 
+def adicionar_percentual_compra_venda(df: pd.DataFrame) -> pd.DataFrame:
+	df = df.copy()
+	col_venda = "VENDA" if "VENDA" in df.columns else ("VLR_VENDA" if "VLR_VENDA" in df.columns else None)
+	col_compra = "COMPRA" if "COMPRA" in df.columns else ("VLR_COMPRA" if "VLR_COMPRA" in df.columns else None)
+
+	if col_venda and col_compra:
+		venda = pd.to_numeric(df[col_venda], errors="coerce").fillna(0.0)
+		compra = pd.to_numeric(df[col_compra], errors="coerce").fillna(0.0)
+		
+		# Calcular percentual (compra / venda * 100), evitando divisão por zero
+		df["% COMPRA/VENDA"] = (compra / venda.replace(0, pd.NA)).fillna(0.0) * 100.0
+
+		# Posicionar logo após a coluna de COMPRA (ou VLR_COMPRA)
+		cols = list(df.columns)
+		if col_compra in cols and "% COMPRA/VENDA" in cols:
+			cols.remove("% COMPRA/VENDA")
+			idx = cols.index(col_compra) + 1
+			cols.insert(idx, "% COMPRA/VENDA")
+			df = df[cols]
+
+	return df
+
+
 def preparar_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[str], list[str]]:
 	df = df.copy()
 	df.columns = [str(col).strip() for col in df.columns]
@@ -69,7 +92,7 @@ def preparar_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[
 			colunas_inteiras.append(coluna)
 
 	for coluna in df.columns:
-		if coluna.upper().startswith("VLR"):
+		if coluna.upper().startswith("VLR") or "%" in coluna or coluna.upper().startswith("PERC"):
 			df[coluna] = pd.to_numeric(df[coluna], errors="coerce").fillna(0.0)
 			colunas_decimais.append(coluna)
 
@@ -106,7 +129,9 @@ def calcular_larguras_colunas(
 	for coluna in df.columns:
 		serie = df[coluna]
 
-		if coluna in colunas_decimais:
+		if "%" in coluna or coluna.upper().startswith("PERC"):
+			textos = serie.fillna(0).map(lambda v: f"{float(v):,.2f}%".replace(",", "X").replace(".", ",").replace("X", "."))
+		elif coluna in colunas_decimais:
 			textos = serie.fillna(0).map(lambda v: f"{float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 		elif coluna == primeira_coluna and coluna in colunas_inteiras:
 			textos = serie.fillna(0).map(lambda v: str(int(float(v))))
@@ -137,8 +162,19 @@ def calcular_totais_exibicao(
 	valores_totais: list[str] = []
 	coluna_texto_principal = colunas_texto[0] if colunas_texto else ""
 
+	col_venda = "VENDA" if "VENDA" in df.columns else ("VLR_VENDA" if "VLR_VENDA" in df.columns else None)
+	col_compra = "COMPRA" if "COMPRA" in df.columns else ("VLR_COMPRA" if "VLR_COMPRA" in df.columns else None)
+	total_venda = float(pd.to_numeric(df[col_venda], errors="coerce").fillna(0).sum()) if col_venda else 0.0
+	total_compra = float(pd.to_numeric(df[col_compra], errors="coerce").fillna(0).sum()) if col_compra else 0.0
+
 	for coluna in df.columns:
-		if coluna in colunas_decimais:
+		if "%" in coluna or coluna.upper().startswith("PERC"):
+			if total_venda > 0:
+				perc_total = (total_compra / total_venda) * 100.0
+				valores_totais.append(f"{perc_total:,.2f}%".replace(",", "X").replace(".", ",").replace("X", "."))
+			else:
+				valores_totais.append("0,00%")
+		elif coluna in colunas_decimais:
 			total = float(pd.to_numeric(df[coluna], errors="coerce").fillna(0).sum())
 			valores_totais.append(f"{total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 		elif coluna in colunas_inteiras:
@@ -172,7 +208,19 @@ def gerar_html(
 	)
 
 	for col in df.columns:
-		if col in colunas_decimais:
+		if "%" in col or col.upper().startswith("PERC"):
+			colunas_js.append(
+				"{"
+				f"data: '{col}', className: 'dt-body-right', "
+				"render: function(data, type) {"
+				"if (type === 'display') {"
+				"return Number(data || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%';"
+				"}"
+				"return Number(data || 0);"
+				"}"
+				"}"
+			)
+		elif col in colunas_decimais:
 			colunas_js.append(
 				"{"
 				f"data: '{col}', className: 'dt-body-right', "
@@ -484,6 +532,7 @@ def main() -> int:
 
 	df = carregar_dados(args.origem)
 	df = aplicar_renomeacao_colunas(df)
+	df = adicionar_percentual_compra_venda(df)
 	df, colunas_decimais, colunas_inteiras, colunas_texto = preparar_dataframe(df)
 	totais_exibicao = calcular_totais_exibicao(df, colunas_decimais, colunas_inteiras, colunas_texto)
 	larguras_colunas = calcular_larguras_colunas(df, colunas_decimais, colunas_inteiras)
