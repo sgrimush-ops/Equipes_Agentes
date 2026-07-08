@@ -10,11 +10,12 @@ Listar produtos recém-cadastrados (dentro de X dias) que ainda possuem estoque 
 
 ## Variáveis — Var - F7
 
-### :LT1 — Departamento
-- **Tipo:** Literal
-- **Descrição:** Filtro por departamento (categoria nível 1). Deixe `TODOS` para trazer todos.
+### :LS1 — Departamento
+- **Tipo:** Lista
+- **Descrição:** Filtro por departamento (categoria nível 1). Selecione no dropdown ou deixe `TODOS` para trazer todos.
+- **Tipo de retorno:** Literal
 - **Valor padrão:** TODOS
-- **Instrução:** Informe o nome exato do departamento ou deixe `TODOS`.
+- **Instrução:** Selecione o departamento desejado na lista ou mantenha `TODOS`.
 
 ### :NR1 — Dias desde o cadastro
 - **Tipo:** Numérico
@@ -30,16 +31,32 @@ Listar produtos recém-cadastrados (dentro de X dias) que ainda possuem estoque 
 
 ---
 
+## SQL da lista LS1
+Cole esta instrução SQL dentro do quadro da variável LS1 na tela Var - F7:
+
+```sql
+SELECT 'TODOS'
+FROM DUAL
+UNION
+SELECT DISTINCT A.CATEGORIA
+FROM MAP_CATEGORIA A
+WHERE A.STATUSCATEGOR = 'A'
+  AND A.TIPCATEGORIA = 'M'
+  AND A.NIVELHIERARQUIA = 1
+```
+
+---
+
 ## Passo a Passo — Configurar em Var - F7
 
 1. Abra a Consulta Criação e carregue o SQL `consulta_cadastro_novo.sql`.
 2. Pressione **F7** para abrir o cadastro de variáveis.
-3. Cadastre cada variável conforme a tabela acima:
-   - `:LT1` → Tipo **Literal**, padrão `TODOS`
+3. Cadastre cada variável conforme a especificação acima:
+   - `:LS1` → Tipo **Lista** (Retorno **Literal**), padrão `TODOS`. Cole a SQL da lista acima no quadro de consulta da variável.
    - `:NR1` → Tipo **Numérico**, padrão `30`
    - `:NR2` → Tipo **Numérico**, padrão `1`
-4. Salve e pressione **Run**.
-5. Antes do Run, a tela exibirá os três filtros para ajuste.
+4. Salve as variáveis e pressione **Run**.
+5. Antes do Run, a tela exibirá o dropdown de Departamento e os dois filtros numéricos para ajuste.
 
 ---
 

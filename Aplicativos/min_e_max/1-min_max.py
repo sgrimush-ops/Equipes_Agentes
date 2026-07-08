@@ -227,6 +227,92 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
         cap_out,
     ])
 
+
+def carregar_lookup_pontos_extras(arquivo_pontos_extras):
+    """
+    Carrega pontos extras vigentes e retorna lookup com soma por (produto, loja).
+    """
+    lookup_min = {}
+    lookup_max = {}
+
+    if not arquivo_pontos_extras.exists():
+        print(f"[AVISO] Arquivo '{arquivo_pontos_extras.name}' não encontrado. Sem soma de ponto extra.")
+        return lookup_min, lookup_max
+
+    print(f"Carregando pontos extras de '{arquivo_pontos_extras.name}'...")
+
+    try:
+        try:
+            df_pe = pd.read_csv(arquivo_pontos_extras, sep=';', dtype=str, encoding='utf-8')
+        except UnicodeDecodeError:
+            df_pe = pd.read_csv(arquivo_pontos_extras, sep=';', dtype=str, encoding='cp1252')
+
+        df_pe.columns = df_pe.columns.astype(str).str.strip()
+
+        colunas_obrigatorias = [
+            'LOJA',
+            'COD_PRODUTO',
+            'MINIMO_PONTO_EXTRA',
+            'MAXIMO_PONTO_EXTRA',
+        ]
+        faltantes = [c for c in colunas_obrigatorias if c not in df_pe.columns]
+        if faltantes:
+            print(
+                '[AVISO] Pontos extras ignorado. Colunas ausentes: '
+                + ', '.join(faltantes)
+            )
+            return lookup_min, lookup_max
+
+        if 'SITUACAO_VIGENCIA' in df_pe.columns:
+            situacao = df_pe['SITUACAO_VIGENCIA'].fillna('').astype(str).str.strip().str.upper()
+            df_pe = df_pe[situacao == 'VIGENTE'].copy()
+
+        if 'STATUS_ITEM_EMP' in df_pe.columns:
+            status_item = df_pe['STATUS_ITEM_EMP'].fillna('').astype(str).str.strip().str.upper()
+            df_pe = df_pe[status_item == 'A'].copy()
+
+        if 'INICIO_VIGENCIA' in df_pe.columns and 'FIM_VIGENCIA' in df_pe.columns:
+            hoje = pd.Timestamp(datetime.now().date())
+            inicio = pd.to_datetime(df_pe['INICIO_VIGENCIA'], dayfirst=True, errors='coerce')
+            fim = pd.to_datetime(df_pe['FIM_VIGENCIA'], dayfirst=True, errors='coerce')
+
+            sem_data = inicio.isna() | fim.isna()
+            dentro_periodo = (inicio <= hoje) & (fim >= hoje)
+            df_pe = df_pe[sem_data | dentro_periodo].copy()
+
+        if df_pe.empty:
+            print('Nenhum ponto extra vigente encontrado para considerar no cálculo.')
+            return lookup_min, lookup_max
+
+        df_pe['LOJA_INT'] = pd.to_numeric(df_pe['LOJA'], errors='coerce').fillna(-1).astype(int)
+        df_pe['COD_PRODUTO_INT'] = pd.to_numeric(df_pe['COD_PRODUTO'], errors='coerce').fillna(-1).astype(int)
+        df_pe['MINIMO_PONTO_EXTRA_INT'] = pd.to_numeric(df_pe['MINIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
+        df_pe['MAXIMO_PONTO_EXTRA_INT'] = pd.to_numeric(df_pe['MAXIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
+
+        df_pe = df_pe[(df_pe['LOJA_INT'] > 0) & (df_pe['COD_PRODUTO_INT'] > 0)].copy()
+        if df_pe.empty:
+            print('Nenhum ponto extra válido encontrado após saneamento.')
+            return lookup_min, lookup_max
+
+        agrupado = (
+            df_pe.groupby(['COD_PRODUTO_INT', 'LOJA_INT'], as_index=False)[
+                ['MINIMO_PONTO_EXTRA_INT', 'MAXIMO_PONTO_EXTRA_INT']
+            ]
+            .sum()
+        )
+
+        for _, row in agrupado.iterrows():
+            chave = (int(row['COD_PRODUTO_INT']), int(row['LOJA_INT']))
+            lookup_min[chave] = int(row['MINIMO_PONTO_EXTRA_INT'])
+            lookup_max[chave] = int(row['MAXIMO_PONTO_EXTRA_INT'])
+
+        print(f"Sucesso: {len(agrupado)} combinações produto/loja com ponto extra mapeadas.")
+        return lookup_min, lookup_max
+
+    except Exception as e:
+        print(f"Erro ao carregar pontos extras: {e}")
+        return lookup_min, lookup_max
+
 def processar_calculos():
     # Caminho corporativo centralizado
     arquivo_query = Path(__file__).parent.parent / 'import_querys' / 'query.parquet'
@@ -307,6 +393,29 @@ def processar_calculos():
         f"Venda media sera calculada as {coluna_venda} / {dias_relatorio} dias."
     )
     df['DIAS_RELATORIO_VENDA'] = dias_relatorio
+
+    # Somar ponto extra (campanha) ao estoque cadastrado da loja para comparar sugestoes.
+    pontos_extras_path = Path(__file__).parent.parent / 'import_querys' / 'pontos_extras.txt'
+    lookup_min_pe, lookup_max_pe = carregar_lookup_pontos_extras(pontos_extras_path)
+
+    df['CODIGO_PRODUTO_INT_KEY'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int)
+    df['CODIGO_EMPRESA_INT_KEY'] = pd.to_numeric(df['CODIGO_EMPRESA'], errors='coerce').fillna(-1).astype(int)
+
+    df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
+
+    chaves_produto_loja = list(zip(df['CODIGO_PRODUTO_INT_KEY'], df['CODIGO_EMPRESA_INT_KEY']))
+    df['MINIMO_PONTO_EXTRA'] = [lookup_min_pe.get(chave, 0) for chave in chaves_produto_loja]
+    df['MAXIMO_PONTO_EXTRA'] = [lookup_max_pe.get(chave, 0) for chave in chaves_produto_loja]
+
+    df['QUANTIDADE_ESTOQUE_MINIMO'] = df['QUANTIDADE_ESTOQUE_MINIMO'] + df['MINIMO_PONTO_EXTRA']
+    df['QUANTIDADE_ESTOQUE_MAXIMO'] = df['QUANTIDADE_ESTOQUE_MAXIMO'] + df['MAXIMO_PONTO_EXTRA']
+
+    linhas_com_ponto_extra = int(((df['MINIMO_PONTO_EXTRA'] > 0) | (df['MAXIMO_PONTO_EXTRA'] > 0)).sum())
+    print(
+        'Base de comparação atualizada com ponto extra: '
+        f'{linhas_com_ponto_extra} linhas receberam soma de campanha.'
+    )
 
     # Carregar capacidade.xlsx para construir o lookup de gôndola
     capacidade_path = Path(__file__).parent / 'capacidade.xlsx'
@@ -424,20 +533,25 @@ def processar_calculos():
     print("           OPÇÕES DE RELATÓRIO / EXPORTAÇÃO")
     print("="*50)
     print("[1] - Gerar APENAS sugestões para AUMENTAR")
-    print("      (Filtra os casos onde o Novo Mínimo Calculado é maior que o Atual (origem))")
+    print("      (Filtra os casos onde o Novo Mínimo Calculado é maior que o Atual vigente (loja + ponto extra))")
     print("\n[2] - Gerar TOTAL")
     print("      (Exporta a base total, englobando altas e baixas com alteração relevante)")
+    print("\n[3] - Gerar APENAS sugestões para DIMINUIR")
+    print("      (Filtra os casos onde o Novo Mínimo Calculado é menor que o Atual vigente (loja + ponto extra))")
     print("="*50)
     
     while True:
-        opcao = input("-> Digite a opção escolhida (1 ou 2): ").strip()
-        if opcao in ['1', '2']:
+        opcao = input("-> Digite a opção escolhida (1, 2 ou 3): ").strip()
+        if opcao in ['1', '2', '3']:
             break
-        print("x Opção inválida. Digite 1 ou 2.")
+        print("x Opção inválida. Digite 1, 2 ou 3.")
         
     if opcao == '1':
         print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO...")
         df_resultado = df[df['MINIMO'] > df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
+    elif opcao == '3':
+        print("\n=> Filtrando exclusivamente os produtos apontando para REDUÇÃO...")
+        df_resultado = df[df['MINIMO'] < df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
     else:
         print("\n=> Exportando todos os produtos com alteração relevante...")
         df_resultado = df.copy()
