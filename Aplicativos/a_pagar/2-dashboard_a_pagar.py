@@ -41,6 +41,10 @@ def expand_installments(df):
                 for idx, prazo in enumerate(prazos):
                     new_row = row.copy()
                     new_row['VALOR_PROJETADO'] = val_parcela
+                    if 'VALOR_NOMINAL' in new_row:
+                        new_row['VALOR_NOMINAL'] = row.get('VALOR_NOMINAL', 0) / n
+                    if 'VALOR_PAGO' in new_row:
+                        new_row['VALOR_PAGO'] = row.get('VALOR_PAGO', 0) / n
                     new_row['PARCELA'] = f"{idx + 1}/{n}"
                     
                     if pd.notnull(base_dt):
@@ -80,6 +84,14 @@ def load_data(input_file):
     print("Processando valores e datas...")
     if 'VALOR_PROJETADO' in df.columns:
         df['VALOR_PROJETADO'] = df['VALOR_PROJETADO'].apply(parse_br_currency)
+    if 'VALOR_NOMINAL' in df.columns:
+        df['VALOR_NOMINAL'] = df['VALOR_NOMINAL'].apply(parse_br_currency)
+    else:
+        df['VALOR_NOMINAL'] = df['VALOR_PROJETADO']
+    if 'VALOR_PAGO' in df.columns:
+        df['VALOR_PAGO'] = df['VALOR_PAGO'].apply(parse_br_currency)
+    else:
+        df['VALOR_PAGO'] = 0.0
 
     if 'DATA_VENCIMENTO' in df.columns:
         df['DATA_VENCIMENTO_DT'] = pd.to_datetime(df['DATA_VENCIMENTO'], format='%d/%m/%Y', errors='coerce')
@@ -102,18 +114,20 @@ def compilar_visao(nome_visao, curr_df, id_visao, is_single_comprador=False, is_
 
     dias_semana = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
-    # Agrega por Data e Origem (para separar cores em todos os cenários)
-    df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT', 'ORIGEM'], as_index=False)['VALOR_PROJETADO'].sum()
+    # Agrega por Data e Origem
+    df_chart = curr_df.groupby(['DATA_VENCIMENTO_DT', 'ORIGEM'], as_index=False)[['VALOR_PROJETADO', 'VALOR_NOMINAL']].sum()
     df_chart = df_chart.sort_values('DATA_VENCIMENTO_DT')
     
     # Calcula Total do Dia e Formatação para Tooltip
-    df_totais = df_chart.groupby('DATA_VENCIMENTO_DT', as_index=False)['VALOR_PROJETADO'].sum()
-    df_totais = df_totais.rename(columns={'VALOR_PROJETADO': 'TOTAL_DIA'})
+    df_totais = df_chart.groupby('DATA_VENCIMENTO_DT', as_index=False)[['VALOR_PROJETADO', 'VALOR_NOMINAL']].sum()
+    df_totais = df_totais.rename(columns={'VALOR_PROJETADO': 'TOTAL_DIA', 'VALOR_NOMINAL': 'TOTAL_DIA_NOMINAL'})
     df_chart = pd.merge(df_chart, df_totais, on='DATA_VENCIMENTO_DT')
     
     df_chart['Data Formatada'] = df_chart['DATA_VENCIMENTO_DT'].apply(lambda x: f"{x.strftime('%d/%m/%Y')} ({dias_semana[x.weekday()]})" if pd.notnull(x) else "Sem Data")
     df_chart['Valor Formatado'] = df_chart['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+    df_chart['Valor Nominal Formatado'] = df_chart['VALOR_NOMINAL'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
     df_chart['Total Formatado'] = df_chart['TOTAL_DIA'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+    df_chart['Total Nominal Formatado'] = df_chart['TOTAL_DIA_NOMINAL'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
     
     # Mapeia os nomes limpos para a legenda
     df_chart['Origem_Nome'] = df_chart['ORIGEM'].map({'1-TITULO_REAL': 'Real', '2-PROJECAO_PEDIDO': 'Projetado'})
@@ -125,7 +139,7 @@ def compilar_visao(nome_visao, curr_df, id_visao, is_single_comprador=False, is_
         y='VALOR_PROJETADO', 
         color='Origem_Nome',
         color_discrete_map={'Real': '#4facfe', 'Projetado': '#ff9800'},
-        custom_data=['Data Formatada', 'Valor Formatado', 'Total Formatado'],
+        custom_data=['Data Formatada', 'Valor Formatado', 'Valor Nominal Formatado', 'Total Formatado', 'Total Nominal Formatado'],
         title=f"Evolução Diária - {nome_visao}",
         template='plotly_dark',
         barmode='stack'
@@ -134,8 +148,10 @@ def compilar_visao(nome_visao, curr_df, id_visao, is_single_comprador=False, is_
     fig.update_traces(
         hovertemplate="<b>Data:</b> %{customdata[0]}<br>" +
                       "<b>Tipo:</b> %{data.name}<br>" +
-                      "<b>Valor:</b> %{customdata[1]}<br>" +
-                      "<b>TOTAL DO DIA:</b> %{customdata[2]}<extra></extra>",
+                      "<b>Valor a Pagar:</b> %{customdata[1]}<br>" +
+                      "<b>Valor Nominal:</b> %{customdata[2]}<br>" +
+                      "<b>TOTAL DO DIA (a Pagar):</b> %{customdata[3]}<br>" +
+                      "<b>TOTAL DO DIA (Nominal):</b> %{customdata[4]}<extra></extra>",
         marker_line_width=0
     )
     
@@ -192,8 +208,9 @@ def main():
     # Preparar JSON com os detalhes linha a linha
     if 'EMPRESA' not in df.columns: df['EMPRESA'] = '-'
     if 'STATUS_PEDIDO' not in df.columns: df['STATUS_PEDIDO'] = '-'
+    if 'VALOR_NOMINAL' not in df.columns: df['VALOR_NOMINAL'] = df['VALOR_PROJETADO']
     
-    df_details = df[['ORIGEM', 'TITULO', 'FORNECEDOR', 'COMPRADOR', 'DATA_VENCIMENTO_DT', 'PARCELA', 'VALOR_PROJETADO', 'EMPRESA', 'STATUS_PEDIDO']].copy()
+    df_details = df[['ORIGEM', 'TITULO', 'FORNECEDOR', 'COMPRADOR', 'DATA_VENCIMENTO_DT', 'PARCELA', 'VALOR_PROJETADO', 'VALOR_NOMINAL', 'EMPRESA', 'STATUS_PEDIDO']].copy()
     df_details['TITULO'] = df_details['TITULO'].fillna('-')
     df_details['FORNECEDOR'] = df_details['FORNECEDOR'].fillna('-')
     df_details['COMPRADOR_ID'] = df_details['COMPRADOR'].apply(clean_id)
@@ -204,7 +221,8 @@ def main():
     df_valid['DATA_FORMATADA'] = df_valid['DATA_VENCIMENTO_DT'].dt.strftime('%d/%m/%Y')
     df_valid['DATA_ISO'] = df_valid['DATA_VENCIMENTO_DT'].dt.strftime('%Y-%m-%d')
     df_valid['VALOR_FORMATADO'] = df_valid['VALOR_PROJETADO'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
-    json_data = df_valid[['ORIGEM', 'TITULO', 'FORNECEDOR', 'COMPRADOR', 'COMPRADOR_ID', 'DATA_FORMATADA', 'DATA_ISO', 'PARCELA', 'VALOR_PROJETADO', 'VALOR_FORMATADO', 'EMPRESA', 'STATUS_PEDIDO']].to_json(orient='records', force_ascii=False)
+    df_valid['VALOR_NOMINAL_FORMATADO'] = df_valid['VALOR_NOMINAL'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
+    json_data = df_valid[['ORIGEM', 'TITULO', 'FORNECEDOR', 'COMPRADOR', 'COMPRADOR_ID', 'DATA_FORMATADA', 'DATA_ISO', 'PARCELA', 'VALOR_PROJETADO', 'VALOR_FORMATADO', 'VALOR_NOMINAL', 'VALOR_NOMINAL_FORMATADO', 'EMPRESA', 'STATUS_PEDIDO']].to_json(orient='records', force_ascii=False)
     
     visoes_html = ""
     botoes_html = ""
@@ -409,20 +427,33 @@ def main():
         filtrados.forEach(item => {{
             let key = is_single ? item.FORNECEDOR : item.COMPRADOR;
             if (!agrupamento[key]) {{
-                agrupamento[key] = {{ real: 0, proj: 0, total: 0 }};
+                agrupamento[key] = {{ real_nom: 0, real_proj: 0, proj_nom: 0, proj_proj: 0, total_nom: 0, total_proj: 0 }};
             }}
+            let nom = item.VALOR_NOMINAL || 0;
+            let proj = item.VALOR_PROJETADO || 0;
             if (item.ORIGEM === '1-TITULO_REAL') {{
-                agrupamento[key].real += item.VALOR_PROJETADO;
+                agrupamento[key].real_nom += nom;
+                agrupamento[key].real_proj += proj;
             }} else {{
-                agrupamento[key].proj += item.VALOR_PROJETADO;
+                agrupamento[key].proj_nom += nom;
+                agrupamento[key].proj_proj += proj;
             }}
-            agrupamento[key].total += item.VALOR_PROJETADO;
+            agrupamento[key].total_nom += nom;
+            agrupamento[key].total_proj += proj;
         }});
         
         let lista = Object.keys(agrupamento).map(k => {{
-            return {{ nome: k, real: agrupamento[k].real, proj: agrupamento[k].proj, total: agrupamento[k].total }};
+            return {{
+                nome: k,
+                real_nom: agrupamento[k].real_nom,
+                real_proj: agrupamento[k].real_proj,
+                proj_nom: agrupamento[k].proj_nom,
+                proj_proj: agrupamento[k].proj_proj,
+                total_nom: agrupamento[k].total_nom,
+                total_proj: agrupamento[k].total_proj
+            }};
         }});
-        lista.sort((a, b) => b.total - a.total);
+        lista.sort((a, b) => b.total_proj - a.total_proj);
         
         let nomeCompradorText = '';
         if (is_single) {{
@@ -435,31 +466,43 @@ def main():
         html += `<table style="width:100%; border-collapse:collapse;">
             <tr>
                 <th>${{is_single ? 'Fornecedor' : 'Comprador'}}</th>
-                <th>Valor Real</th>
-                <th>Valor Projetado</th>
-                <th>Total</th>
+                <th style="text-align:right;">Real (Nominal)</th>
+                <th style="text-align:right;">Real (a Pagar)</th>
+                <th style="text-align:right;">Projetado (Nominal)</th>
+                <th style="text-align:right;">Projetado (a Pagar)</th>
+                <th style="text-align:right;">Total Nominal</th>
+                <th style="text-align:right;">Total a Pagar</th>
             </tr>`;
             
-        let totReal = 0, totProj = 0, totGeral = 0;
-        let fmt = val => "R$ " + val.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{{3}})+(?!\d))/g, '$1.');
+        let totRealNom = 0, totRealProj = 0, totProjNom = 0, totProjProj = 0, totGeralNom = 0, totGeralProj = 0;
+        let fmt = val => "R$ " + val.toFixed(2).replace('.', ',').replace(/(\\d)(?=(\\d{{3}})+(?!\\d))/g, '$1.');
         
         lista.forEach(item => {{
             html += `<tr>
                 <td>${{item.nome}}</td>
-                <td>${{fmt(item.real)}}</td>
-                <td>${{fmt(item.proj)}}</td>
-                <td style="font-weight:bold;">${{fmt(item.total)}}</td>
+                <td style="text-align:right; color:#bbb;">${{fmt(item.real_nom)}}</td>
+                <td style="text-align:right;">${{fmt(item.real_proj)}}</td>
+                <td style="text-align:right; color:#bbb;">${{fmt(item.proj_nom)}}</td>
+                <td style="text-align:right;">${{fmt(item.proj_proj)}}</td>
+                <td style="text-align:right; color:#bbb; font-weight:600;">${{fmt(item.total_nom)}}</td>
+                <td style="text-align:right; font-weight:bold; color:#00f2fe;">${{fmt(item.total_proj)}}</td>
             </tr>`;
-            totReal += item.real;
-            totProj += item.proj;
-            totGeral += item.total;
+            totRealNom += item.real_nom;
+            totRealProj += item.real_proj;
+            totProjNom += item.proj_nom;
+            totProjProj += item.proj_proj;
+            totGeralNom += item.total_nom;
+            totGeralProj += item.total_proj;
         }});
         
-        html += `<tr style="background-color: #1a1a1a; font-weight:800; color:#00f2fe; font-size:16px;">
+        html += `<tr style="background-color: #1a1a1a; font-weight:800; color:#00f2fe; font-size:15px;">
             <td>TOTAL GERAL</td>
-            <td>${{fmt(totReal)}}</td>
-            <td>${{fmt(totProj)}}</td>
-            <td>${{fmt(totGeral)}}</td>
+            <td style="text-align:right; color:#ddd;">${{fmt(totRealNom)}}</td>
+            <td style="text-align:right;">${{fmt(totRealProj)}}</td>
+            <td style="text-align:right; color:#ddd;">${{fmt(totProjNom)}}</td>
+            <td style="text-align:right;">${{fmt(totProjProj)}}</td>
+            <td style="text-align:right; color:#ddd;">${{fmt(totGeralNom)}}</td>
+            <td style="text-align:right;">${{fmt(totGeralProj)}}</td>
         </tr></table>`;
         
         container.innerHTML = html;
@@ -512,10 +555,12 @@ def main():
                     <th>Origem</th>
                     <th>Status</th>
                     <th>Parcela</th>
-                    <th style="text-align:right;">Valor</th>
+                    <th style="text-align:right;">Valor Nominal</th>
+                    <th style="text-align:right;">Valor a Pagar</th>
                 </tr>`;
                 
-        let total = 0;
+        let totalProj = 0;
+        let totalNom = 0;
         
         filtrados.forEach(item => {{
             html += `<tr>
@@ -527,16 +572,20 @@ def main():
                 <td>${{item.ORIGEM === '1-TITULO_REAL' ? '<span style="color:#2ecc71;">Faturado</span>' : '<span style="color:#f39c12;">Projetado</span>'}}</td>
                 <td>${{item.STATUS_PEDIDO}}</td>
                 <td>${{item.PARCELA}}</td>
-                <td style="text-align:right;">${{item.VALOR_FORMATADO}}</td>
+                <td style="text-align:right; color:#bbb;">${{item.VALOR_NOMINAL_FORMATADO || '-'}}</td>
+                <td style="text-align:right; font-weight:bold;">${{item.VALOR_FORMATADO}}</td>
             </tr>`;
-            total += item.VALOR_PROJETADO;
+            totalProj += (item.VALOR_PROJETADO || 0);
+            totalNom += (item.VALOR_NOMINAL || 0);
         }});
         
-        let totalFmt = "R$ " + total.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{{3}})+(?!\d))/g, '$1.');
+        let totalProjFmt = "R$ " + totalProj.toFixed(2).replace('.', ',').replace(/(\\d)(?=(\\d{{3}})+(?!\\d))/g, '$1.');
+        let totalNomFmt = "R$ " + totalNom.toFixed(2).replace('.', ',').replace(/(\\d)(?=(\\d{{3}})+(?!\\d))/g, '$1.');
         
         html += `<tr style="background-color: #1a1a1a; font-weight:800; color:#00f2fe; font-size:16px;">
             <td colspan="8" style="text-align:right;">TOTAL DO PERÍODO</td>
-            <td style="text-align:right;">${{totalFmt}}</td>
+            <td style="text-align:right; color:#ddd;">${{totalNomFmt}}</td>
+            <td style="text-align:right;">${{totalProjFmt}}</td>
         </tr>`;
         
         html += `</table></div></div>`;

@@ -47,6 +47,10 @@ def expand_installments(df):
                 for idx, prazo in enumerate(prazos):
                     new_row = row.copy()
                     new_row['VALOR_PROJETADO'] = val_parcela
+                    if 'VALOR_NOMINAL' in new_row:
+                        new_row['VALOR_NOMINAL'] = row.get('VALOR_NOMINAL', 0) / n
+                    if 'VALOR_PAGO' in new_row:
+                        new_row['VALOR_PAGO'] = row.get('VALOR_PAGO', 0) / n
                     new_row['PARCELA'] = f"{idx + 1}/{n}"
                     
                     if pd.notnull(base_dt):
@@ -99,6 +103,10 @@ def main():
     # Limpa e converte os valores
     if 'VALOR_PROJETADO' in df.columns:
         df['VALOR_PROJETADO'] = df['VALOR_PROJETADO'].apply(parse_br_currency)
+    if 'VALOR_NOMINAL' in df.columns:
+        df['VALOR_NOMINAL'] = df['VALOR_NOMINAL'].apply(parse_br_currency)
+    if 'VALOR_PAGO' in df.columns:
+        df['VALOR_PAGO'] = df['VALOR_PAGO'].apply(parse_br_currency)
 
     # Converte datas
     if 'DATA_VENCIMENTO' in df.columns:
@@ -115,44 +123,55 @@ def main():
 
     print("Gerando Resumos...")
 
-    # 1. Resumo por Dia e Origem (Real vs Projetado)
-    pivot_origem = pd.pivot_table(
-        df, 
-        values='VALOR_PROJETADO', 
-        index='DATA_VENCIMENTO_DT', 
-        columns='ORIGEM', 
-        aggfunc='sum', 
-        fill_value=0,
-        margins=True,
-        margins_name='Total Geral'
-    ).reset_index()
-    
-    # Formata a data de volta para string limpa
-    pivot_origem['DATA_VENCIMENTO'] = pivot_origem['DATA_VENCIMENTO_DT'].apply(
-        lambda x: x.strftime('%d/%m/%Y') if hasattr(x, 'strftime') else x
-    )
-    # Reordena colunas e remove a datetime original
-    cols = ['DATA_VENCIMENTO'] + [c for c in pivot_origem.columns if c not in ['DATA_VENCIMENTO', 'DATA_VENCIMENTO_DT']]
-    pivot_origem = pivot_origem[cols]
-
-    # 2. Resumo por Dia e Comprador
-    if 'COMPRADOR' in df.columns:
-        pivot_comprador = pd.pivot_table(
-            df, 
-            values='VALOR_PROJETADO', 
-            index=['DATA_VENCIMENTO_DT', 'ORIGEM'], 
-            columns='COMPRADOR', 
-            aggfunc='sum', 
+    def build_pivot(curr_df, index_cols, columns_col):
+        if isinstance(index_cols, str):
+            index_cols = [index_cols]
+        val_cols = ['VALOR_PROJETADO']
+        if 'VALOR_NOMINAL' in curr_df.columns:
+            val_cols.append('VALOR_NOMINAL')
+            
+        pivot = pd.pivot_table(
+            curr_df,
+            values=val_cols,
+            index=index_cols,
+            columns=columns_col,
+            aggfunc='sum',
             fill_value=0,
             margins=True,
             margins_name='Total Geral'
         ).reset_index()
         
-        pivot_comprador['DATA_VENCIMENTO'] = pivot_comprador['DATA_VENCIMENTO_DT'].apply(
-            lambda x: x.strftime('%d/%m/%Y') if hasattr(x, 'strftime') else x
-        )
-        cols2 = ['DATA_VENCIMENTO', 'ORIGEM'] + [c for c in pivot_comprador.columns if c not in ['DATA_VENCIMENTO', 'DATA_VENCIMENTO_DT', 'ORIGEM']]
-        pivot_comprador = pivot_comprador[cols2]
+        flat_cols = []
+        for col in pivot.columns:
+            if isinstance(col, tuple):
+                if col[0] in index_cols or col[1] == '':
+                    flat_cols.append(col[0])
+                else:
+                    metric_label = "Nominal" if col[0] == 'VALOR_NOMINAL' else "Projetado"
+                    flat_cols.append(f"{col[1]} ({metric_label})")
+            else:
+                flat_cols.append(str(col))
+        pivot.columns = flat_cols
+        
+        # Ordena colunas para colocar Nominal e Projetado lado a lado por categoria
+        id_cols = [c for c in pivot.columns if '(' not in c]
+        metric_cols = sorted([c for c in pivot.columns if '(' in c])
+        pivot = pivot[id_cols + metric_cols]
+        
+        if 'DATA_VENCIMENTO_DT' in pivot.columns:
+            pivot['DATA_VENCIMENTO'] = pivot['DATA_VENCIMENTO_DT'].apply(
+                lambda x: x.strftime('%d/%m/%Y') if hasattr(x, 'strftime') else x
+            )
+            cols = ['DATA_VENCIMENTO'] + [c for c in pivot.columns if c not in ['DATA_VENCIMENTO', 'DATA_VENCIMENTO_DT']]
+            pivot = pivot[cols]
+        return pivot
+
+    # 1. Resumo por Dia e Origem (Real vs Projetado)
+    pivot_origem = build_pivot(df, 'DATA_VENCIMENTO_DT', 'ORIGEM')
+
+    # 2. Resumo por Dia e Comprador
+    if 'COMPRADOR' in df.columns:
+        pivot_comprador = build_pivot(df, ['DATA_VENCIMENTO_DT', 'ORIGEM'], 'COMPRADOR')
     else:
         pivot_comprador = pd.DataFrame({'Aviso': ['Coluna COMPRADOR não encontrada']})
 
