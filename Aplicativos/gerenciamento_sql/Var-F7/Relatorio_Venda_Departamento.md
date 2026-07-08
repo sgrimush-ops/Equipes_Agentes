@@ -45,4 +45,5 @@ Sem abrir itens ou produtos no grid final.
 - A consulta restringe a mercadorias de revenda usando `MAP_FAMDIVISAO.FINALIDADEFAMILIA = 'R'`.
 - Departamentos internos como A CLASSIFICAR, ALMOXARIFADO, INATIVAR e SERVICOS ficam fora do resultado.
 - O escopo de empresas segue a lista branca homologada do workspace: 1 a 8, 11 a 15, 17 e 18.
+- A consulta apresenta a demonstração comercial completa por departamento, abrindo todas as colunas da tela nativa da Totvs: **`VALOR_BRUTO`**, **`VALOR_DESCONTO`**, **`VENDA_REAL`** (`Bruto - Desconto`), **`CUSTO_LIQUIDO`**, **`IMPOSTOS`** (`ICMS + PIS + COFINS`), **`LUCRATIVIDADE_TOTAL`** (`Venda Real - Custo Líquido - Impostos`) e **`MARGEM_LUCRO`** (`Lucratividade Total / Venda Real * 100`).
 - Se voce quiser que o numero bata exatamente com alguma visao nativa especifica da ABC de Vendas do Consinco, o proximo ajuste natural e comparar as notas fiscais retornadas na debug `debug_venda_pet_nf_800.sql` com a origem de conferência usada no processo de negocio.

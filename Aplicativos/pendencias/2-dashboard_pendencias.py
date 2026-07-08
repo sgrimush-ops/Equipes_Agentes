@@ -182,14 +182,14 @@ def gerar_dashboard():
     
     # --- B. Regras de Negócio e SLAs ---
     hoje = datetime.now()
-    data_fim_referencia = hoje - timedelta(days=2) # data final: hoje menos 2 dias
-    data_inicio_referencia = hoje - timedelta(days=31) # data inicial: hoje menos 31 dias
+    data_fim_referencia = hoje # data final: hoje (sem atraso)
+    data_inicio_referencia = hoje - timedelta(days=29) # janela de 30 dias corridos (inclui hoje)
     
     # Filtro rígido do range de 30 dias de interesse:
     df = df[(df['DATA'] >= data_inicio_referencia) & (df['DATA'] <= data_fim_referencia)].copy()
     
     if len(df) == 0:
-        print("⚠️ Nenhum registro classificado no critério de SLA (30 dias antes das últimas 48h).")
+        print("⚠️ Nenhum registro classificado no critério de SLA (janela dos últimos 30 dias).")
         return
     
     # Cálculos das colunas alvo
@@ -233,7 +233,7 @@ def gerar_dashboard():
         <div class="header">
             <div>
                 <h1>📦 Radar de Pendências Ocultas | SLA Critico</h1>
-                <span style="color:#7F8C8D; font-size:14px;">Analise Cohort: 30 dias cortando o target D-2</span>
+                <span style="color:#7F8C8D; font-size:14px;">Analise Cohort: janela móvel dos últimos 30 dias (até hoje)</span>
             </div>
             <select id="FiltroMestre" onchange="trocarVisao()">
                 {opcoes_select}
