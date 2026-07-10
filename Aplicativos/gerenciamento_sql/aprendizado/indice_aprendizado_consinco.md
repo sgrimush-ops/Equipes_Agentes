@@ -13,6 +13,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_otimizacao_ctes_materialize.md`: guia obrigatorio de performance sobre CTEs com hint /*+ MATERIALIZE */, funcoes analiticas e bypass de validacao (SELECT Fantasma), proibindo fallbacks sem CTE.
 - `aprendizado_erro_sql.md`: licoes de validacao de dicionario, tipos e joins.
 - `aprendizado_filtros_categorias_embalagem.md`: filtros seguros de categoria, divisao e embalagem.
+- `aprendizado_filtros_formatacao_faturamento.md`: boas práticas de filtro único (LS sem NR redundante), ordenação correta com formatação monetária (TO_CHAR) e filtros de lista de texto (LT via INSTR).
 - `aprendizado_compras_transferencias_segregadas.md`: separacao e segregacao tecnica de compras de fornecedores (recebimento) e transferencias internas (CD e expedicao).
 - `aprendizado_pendencias_transferencia_recebimento_fantasma.md`: logica de performance, joins (SEQNF vs SEQNOTAFISCAL) e tratamento de notas de transferencia pendentes ("Ped Receber") antigas.
 - `aprendizado_auditoria_compras_devolucoes_trocas.md`: tratamento de trocas/devolucoes como deducoes, capturas unificadas (Entrada vs Saida) e filtros globais em rankings.

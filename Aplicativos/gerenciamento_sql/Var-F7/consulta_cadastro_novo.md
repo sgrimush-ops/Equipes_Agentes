@@ -21,13 +21,13 @@ Listar produtos recém-cadastrados (dentro de X dias) que ainda possuem estoque 
 - **Tipo:** Numérico
 - **Descrição:** Quantidade de dias atrás a partir de hoje. Traz somente produtos cadastrados DENTRO desse intervalo.
 - **Valor padrão:** 30
-- **Instrução:** Informe quantos dias quer olhar para trás. Ex.: `30` traz produtos cadastrados nos últimos 30 dias.
+- **Instrução:** Informe quantos dias quer olhar para trás. Ex.: `30` traz produtos cadastrados nos últimos 30 dias. Digite `0` caso queira ver produtos de qualquer data.
 
 ### :NR2 — Mínimo máximo aceito
 - **Tipo:** Numérico
 - **Descrição:** Filtra produtos onde ESTQMINIMOLOJA seja menor que este valor.
 - **Valor padrão:** 1
-- **Instrução:** Padrão `1` retorna itens com mínimo = 0 (mínimo não parametrizado). Aumente se quiser incluir faixas maiores.
+- **Instrução:** Padrão `1` retorna itens com mínimo = 0 (mínimo não parametrizado). Digite `0` caso queira ignorar o filtro de estoque mínimo e ver todos os itens.
 
 ---
 

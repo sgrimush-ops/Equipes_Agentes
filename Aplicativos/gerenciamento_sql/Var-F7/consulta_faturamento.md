@@ -26,21 +26,44 @@ Consultar o total global de compras faturadas por fornecedor dentro de um determ
 | Descrição     | Data final do período de entrada         |
 | Valor Padrão  | (Vazio - preencher ao executar)          |
 
+### LT1 — CGOs de Compra
+| Campo         | Valor                                    |
+|---------------|------------------------------------------|
+| Nome          | LT1                                      |
+| Tipo          | Texto / Lista de Texto                   |
+| Descrição     | Códigos CGO separados por vírgula        |
+| Valor Padrão  | 1, 28, 32, 200, 290                      |
+
+### LS1 — Lista de Fornecedores (Opcional)
+| Campo         | Valor                                    |
+|---------------|------------------------------------------|
+| Nome          | LS1                                      |
+| Tipo          | Lista (Retorno Literal)                  |
+| Descrição     | Selecione o fornecedor ou TODOS          |
+| Valor Padrão  | 0 - TODOS                                |
+
+#### SQL para cadastrar na variável LS1:
+```sql
+SELECT '0 - TODOS' FROM DUAL
+UNION
+SELECT A.SEQPESSOA || ' - ' || A.NOMERAZAO
+FROM GE_PESSOA A, MAF_FORNECEDOR B
+WHERE A.SEQPESSOA = B.SEQFORNECEDOR
+  AND B.STATUSGERAL = 'A'
+```
+
 ---
 
 ## Passo a Passo — Cadastro em Var-F7
 
 1. Abra a **Consulta Criação** no Consinco e localize ou crie a consulta `consulta_faturamento`.
 2. Acesse **Var-F7** (botão ou tecla F7 na tela de cadastro de consulta).
-3. Cadastre **DT1**:
-   - Tipo: `Data`
-   - Descrição: `Data inicial do período de entrada`
-4. Cadastre **DT2**:
-   - Tipo: `Data`
-   - Descrição: `Data final do período de entrada`
-5. Salve as variáveis.
-6. Carregue o código SQL do arquivo `consulta_faturamento.sql` no editor da consulta e clique em salvar.
-7. Ao clicar em executar (Run), informe o período desejado nas variáveis `DT1` e `DT2` apresentadas.
+3. Cadastre **DT1** e **DT2** como do tipo **Data**.
+4. Cadastre **LT1** como do tipo **Texto** (ou Lista de Texto) com valor padrão `1, 28, 32, 200, 290`.
+5. Cadastre **LS1** como do tipo **Lista** (Retorno **Literal**), padrão `0 - TODOS`, colando a SQL acima no editor da variável.
+6. Salve as variáveis.
+7. Carregue o código SQL do arquivo `consulta_faturamento.sql` no editor da consulta e clique em salvar.
+8. Ao clicar em executar (Run), informe o período (`DT1` / `DT2`), os CGOs (`LT1`) e o fornecedor (`LS1`).
 
 ---
 

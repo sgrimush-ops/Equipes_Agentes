@@ -1,7 +1,7 @@
-"""Conversor de cadastros novos (TXT → CSV).
+"""Conversor de cadastros novos (TXT → XLSX).
 
 Lê o arquivo cadastro_novo.txt da pasta import_querys,
-aplica saneamento básico e exporta como CSV padronizado.
+aplica saneamento básico e exporta diretamente como XLSX padronizado.
 """
 
 import os
@@ -17,15 +17,13 @@ if __name__ == '__main__':
 
 
 def processar_cadastro_novo() -> None:
-    """Lê cadastro_novo.txt, saneia e exporta como CSV."""
+    """Lê cadastro_novo.txt, saneia e exporta como XLSX."""
 
-    # Caminho absoluto para a pasta import_querys (padrão do projeto)
-    pasta_import = Path(
-        r'c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes'
-        r'\Aplicativos\import_querys'
-    )
+    # Caminho dinâmico para a pasta import_querys
+    base_dir = Path(__file__).resolve().parent.parent
+    pasta_import = base_dir / 'import_querys'
     arquivo_entrada = pasta_import / 'cadastro_novo.txt'
-    arquivo_saida = Path(__file__).parent / 'cadastro_novo.csv'
+    arquivo_saida = Path(__file__).parent / 'cadastro_novo.xlsx'
 
     # Validação de existência
     if not arquivo_entrada.exists():
@@ -33,7 +31,7 @@ def processar_cadastro_novo() -> None:
         sys.exit(1)
 
     try:
-        # Leitura com delimitador ; e encoding utf-8-sig (padrão Consinco/Pt-BR)
+        # Leitura com delimitador ; e encoding latin-1 (padrão Consinco/Pt-BR)
         df = pd.read_csv(
             arquivo_entrada,
             sep=';',
@@ -47,16 +45,19 @@ def processar_cadastro_novo() -> None:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
 
-        # Exportação padronizada (sep=';', utf-8-sig, decimal com vírgula)
-        df.to_csv(
+        # Exportação padronizada em formato Excel (.xlsx)
+        df.to_excel(
             arquivo_saida,
-            sep=';',
             index=False,
-            encoding='utf-8-sig',
-            decimal=',',
+            engine='openpyxl',
         )
 
         print(f'[OK] Arquivo salvo em: {arquivo_saida}')
+
+        # Remover CSV antigo caso exista na pasta
+        arquivo_csv_antigo = Path(__file__).parent / 'cadastro_novo.csv'
+        if arquivo_csv_antigo.exists():
+            arquivo_csv_antigo.unlink()
 
     except Exception as e:
         print(f'[ERRO] Falha no processamento: {e}')
@@ -74,20 +75,19 @@ def gerar_ajustepp() -> None:
         - MAXIMO = 2 × EMBL_TRANSFERENCIA (mínimo + mais uma embalagem)
     """
 
-    arquivo_csv = Path(__file__).parent / 'cadastro_novo.csv'
+    arquivo_xlsx = Path(__file__).parent / 'cadastro_novo.xlsx'
     pasta_saida = Path(__file__).parent
     arquivo_saida = pasta_saida / 'ajustepp.xlsx'
 
-    # Validação de existência
-    if not arquivo_csv.exists():
-        print(f'[ERRO] CSV não encontrado: {arquivo_csv}')
+    # Validação de existência do arquivo XLSX gerado na etapa anterior
+    if not arquivo_xlsx.exists():
+        print(f'[ERRO] Arquivo não encontrado: {arquivo_xlsx}')
         print('       Execute processar_cadastro_novo() antes.')
         sys.exit(1)
 
     try:
-        df = pd.read_csv(arquivo_csv, sep=';', encoding='utf-8-sig')
-
-        print(f'[OK] {len(df)} linhas carregadas do CSV')
+        df = pd.read_excel(arquivo_xlsx, engine='openpyxl')
+        print(f'[OK] {len(df)} linhas carregadas de {arquivo_xlsx.name}')
 
         # Saneamento de EMBL_TRANSFERENCIA (extrair numérico puro)
         df['EMBL_TRANSFERENCIA'] = (
@@ -124,13 +124,12 @@ def gerar_ajustepp() -> None:
         # Exportar como xlsx (padrão GAM)
         df_saida.to_excel(arquivo_saida, index=False, engine='openpyxl')
 
-        print(f'[OK] ajustepp.xlsx gerado com {len(df_saida)} linhas')
+        print(f'[OK] ajustepp.xlsx gerado com {len(df_saida)} linhas em {arquivo_saida}')
 
         # Mover para pasta bd_entrada do GAM
-        destino = Path(
-            r'c:\Users\Alessandro.soares.BAKLIZI\Downloads\Equipes_Agentes'
-            r'\Aplicativos\GAM\bd_entrada'
-        ) / 'ajustepp.xlsx'
+        destino_dir = Path(__file__).resolve().parent.parent / 'GAM' / 'bd_entrada'
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        destino = destino_dir / 'ajustepp.xlsx'
         shutil.move(str(arquivo_saida), str(destino))
         print(f'[OK] Movido para: {destino}')
 
@@ -142,5 +141,4 @@ def gerar_ajustepp() -> None:
 if __name__ == '__main__':
     processar_cadastro_novo()
     gerar_ajustepp()
-    os.system('cls')
-    print('[OK] Processo concluído!')
+    print('[OK] Processo concluído com sucesso!')
