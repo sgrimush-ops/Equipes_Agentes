@@ -1,5 +1,0 @@
-pandas
-openpyxl
-pdfplumber
-pillow
-rapidocr-onnxruntime
