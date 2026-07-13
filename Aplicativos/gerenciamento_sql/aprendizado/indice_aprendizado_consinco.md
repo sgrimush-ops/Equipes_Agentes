@@ -29,6 +29,8 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `modelo_calculos_custos_consinco.sql`: referencia de campos de custo, estoque e metricas relacionadas.
 - `modelo_calculos_vendas_varejo_consinco.sql`: referencia das metricas de `MBI_TABCVAREJO`.
 - `modelo_calculos_cliente_distrib_consinco.sql`: referencia das metricas de `MBI_TABCDISTRIB`.
+- `aprendizado_grade_pedido_lojas_pivoteamento.md`: arquitetura para consultas de grade horizontal por loja (Venda, Estoque e Linha de Compra) com pivoteamento em CTEs independentes.
+- `aprendizado_simulador_precificacao_otimizacao_plsql.md`: guia de arquitetura para simuladores de precificação/margem condensados por produto, regras para expurgar transferências em custos brutos (`MAX`), e otimização extrema de performance chamando funções PL/SQL após a agregação SQL.
 
 ## Regras Especificas do Projeto
 - `regras_consolidadas_abc_vendas_subgrupo.md`: regras finais da query `abc_vendas_subgrupo` e da variante de 40 dias.

@@ -1,0 +1,231 @@
+SELECT * FROM (
+    WITH FORN_PRINCIPAL AS (
+        SELECT /*+ MATERIALIZE */
+            F.SEQFAMILIA,
+            F.SEQFORNECEDOR AS CODIGO_FORNECEDOR,
+            P.NOMERAZAO AS FORNECEDOR,
+            ROW_NUMBER() OVER (PARTITION BY F.SEQFAMILIA ORDER BY F.PRINCIPAL DESC, F.SEQFORNECEDOR ASC) AS RN
+        FROM MAP_FAMFORNEC F
+        INNER JOIN GE_PESSOA P ON P.SEQPESSOA = F.SEQFORNECEDOR
+    ),
+    FORNECEDORES AS (
+        SELECT /*+ MATERIALIZE */
+            SEQFAMILIA,
+            CODIGO_FORNECEDOR,
+            FORNECEDOR
+        FROM FORN_PRINCIPAL
+        WHERE RN = 1
+    ),
+    PRODUTOS AS (
+        SELECT /*+ MATERIALIZE */
+            P.SEQPRODUTO,
+            P.DESCCOMPLETA AS DESCRICAO,
+            NVL(COMP.APELIDO, NVL(COMP.COMPRADOR, 'SEM COMPRADOR')) AS COMPRADOR,
+            NVL(FD.PADRAOEMBCOMPRA, 1) AS EMB
+        FROM MAP_PRODUTO P
+        INNER JOIN MAP_FAMDIVISAO FD ON FD.SEQFAMILIA = P.SEQFAMILIA AND FD.NRODIVISAO = 1
+        LEFT JOIN MAX_COMPRADOR COMP ON COMP.SEQCOMPRADOR = FD.SEQCOMPRADOR
+        LEFT JOIN FORNECEDORES FORN ON FORN.SEQFAMILIA = P.SEQFAMILIA
+        WHERE FD.FINALIDADEFAMILIA = 'R'
+          AND (
+              TO_NUMBER(NVL(:NR1, '0')) = 0
+              OR P.SEQPRODUTO = TO_NUMBER(:NR1)
+          )
+          AND (
+              NVL(TRIM(:LS1), 'TODOS') IN ('TODOS', '0 - TODOS', '0', '')
+              OR INSTR(TRIM(:LS1), 'TODOS') > 0
+              OR TO_CHAR(FORN.CODIGO_FORNECEDOR) = TRIM(:LS1)
+              OR INSTR(TRIM(:LS1), TO_CHAR(FORN.CODIGO_FORNECEDOR) || ' - ') = 1
+              OR INSTR(TRIM(:LS1), TO_CHAR(FORN.CODIGO_FORNECEDOR) || '-') = 1
+              OR EXISTS (
+                  SELECT 1
+                  FROM MAP_FAMFORNEC FF
+                  WHERE FF.SEQFAMILIA = P.SEQFAMILIA
+                    AND (
+                        TO_CHAR(FF.SEQFORNECEDOR) = TRIM(:LS1)
+                        OR INSTR(TRIM(:LS1), TO_CHAR(FF.SEQFORNECEDOR) || ' - ') = 1
+                        OR INSTR(TRIM(:LS1), TO_CHAR(FF.SEQFORNECEDOR) || '-') = 1
+                    )
+              )
+          )
+          AND (
+              NVL(TRIM(:LS2), 'TODOS') IN ('TODOS', '0 - TODOS', '0', '')
+              OR INSTR(TRIM(:LS2), 'TODOS') > 0
+              OR TO_CHAR(FD.SEQCOMPRADOR) = TRIM(:LS2)
+              OR INSTR(TRIM(:LS2), TO_CHAR(FD.SEQCOMPRADOR) || ' - ') = 1
+              OR INSTR(TRIM(:LS2), TO_CHAR(FD.SEQCOMPRADOR) || '-') = 1
+          )
+    ),
+    VENDAS_LOJA AS (
+        SELECT /*+ MATERIALIZE */
+            V.SEQPRODUTO,
+            V.NROEMPRESA,
+            SUM(V.QTDVDA) AS QTD_VENDA
+        FROM MRL_PRODVENDADIA V
+        INNER JOIN PRODUTOS P ON P.SEQPRODUTO = V.SEQPRODUTO
+        WHERE V.DTAVDA BETWEEN TRUNC(:DT1) AND TRUNC(:DT2)
+          AND V.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 17, 18)
+        GROUP BY V.SEQPRODUTO, V.NROEMPRESA
+    ),
+    VENDAS_PIVOT AS (
+        SELECT /*+ MATERIALIZE */
+            V.SEQPRODUTO,
+            SUM(CASE WHEN V.NROEMPRESA = 1 THEN V.QTD_VENDA ELSE 0 END) AS VDA_1,
+            SUM(CASE WHEN V.NROEMPRESA = 2 THEN V.QTD_VENDA ELSE 0 END) AS VDA_2,
+            SUM(CASE WHEN V.NROEMPRESA = 3 THEN V.QTD_VENDA ELSE 0 END) AS VDA_3,
+            SUM(CASE WHEN V.NROEMPRESA = 4 THEN V.QTD_VENDA ELSE 0 END) AS VDA_4,
+            SUM(CASE WHEN V.NROEMPRESA = 5 THEN V.QTD_VENDA ELSE 0 END) AS VDA_5,
+            SUM(CASE WHEN V.NROEMPRESA = 6 THEN V.QTD_VENDA ELSE 0 END) AS VDA_6,
+            SUM(CASE WHEN V.NROEMPRESA = 7 THEN V.QTD_VENDA ELSE 0 END) AS VDA_7,
+            SUM(CASE WHEN V.NROEMPRESA = 8 THEN V.QTD_VENDA ELSE 0 END) AS VDA_8,
+            SUM(CASE WHEN V.NROEMPRESA = 11 THEN V.QTD_VENDA ELSE 0 END) AS VDA_11,
+            SUM(CASE WHEN V.NROEMPRESA = 12 THEN V.QTD_VENDA ELSE 0 END) AS VDA_12,
+            SUM(CASE WHEN V.NROEMPRESA = 13 THEN V.QTD_VENDA ELSE 0 END) AS VDA_13,
+            SUM(CASE WHEN V.NROEMPRESA = 14 THEN V.QTD_VENDA ELSE 0 END) AS VDA_14,
+            SUM(CASE WHEN V.NROEMPRESA = 17 THEN V.QTD_VENDA ELSE 0 END) AS VDA_17,
+            SUM(CASE WHEN V.NROEMPRESA = 18 THEN V.QTD_VENDA ELSE 0 END) AS VDA_18
+        FROM VENDAS_LOJA V
+        GROUP BY V.SEQPRODUTO
+    ),
+    ESTOQUE_LOJA AS (
+        SELECT /*+ MATERIALIZE */
+            PE.SEQPRODUTO,
+            PE.NROEMPRESA,
+            (NVL(PE.ESTQLOJA, 0) + NVL(PE.ESTQDEPOSITO, 0) - NVL(PE.QTDRESERVADAVDA, 0) - NVL(PE.QTDRESERVADARECEB, 0)) AS QTD_ESTOQUE
+        FROM MRL_PRODUTOEMPRESA PE
+        INNER JOIN PRODUTOS P ON P.SEQPRODUTO = PE.SEQPRODUTO
+        WHERE PE.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 17, 18)
+    ),
+    ESTOQUE_PIVOT AS (
+        SELECT /*+ MATERIALIZE */
+            E.SEQPRODUTO,
+            SUM(CASE WHEN E.NROEMPRESA = 1 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_1,
+            SUM(CASE WHEN E.NROEMPRESA = 2 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_2,
+            SUM(CASE WHEN E.NROEMPRESA = 3 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_3,
+            SUM(CASE WHEN E.NROEMPRESA = 4 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_4,
+            SUM(CASE WHEN E.NROEMPRESA = 5 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_5,
+            SUM(CASE WHEN E.NROEMPRESA = 6 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_6,
+            SUM(CASE WHEN E.NROEMPRESA = 7 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_7,
+            SUM(CASE WHEN E.NROEMPRESA = 8 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_8,
+            SUM(CASE WHEN E.NROEMPRESA = 11 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_11,
+            SUM(CASE WHEN E.NROEMPRESA = 12 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_12,
+            SUM(CASE WHEN E.NROEMPRESA = 13 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_13,
+            SUM(CASE WHEN E.NROEMPRESA = 14 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_14,
+            SUM(CASE WHEN E.NROEMPRESA = 17 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_17,
+            SUM(CASE WHEN E.NROEMPRESA = 18 THEN E.QTD_ESTOQUE ELSE 0 END) AS ESTQ_18
+        FROM ESTOQUE_LOJA E
+        GROUP BY E.SEQPRODUTO
+    ),
+    GRADE_RESULTADO AS (
+        SELECT /*+ MATERIALIZE */
+            (TRUNC(:DT2) - TRUNC(:DT1)) + 1 AS DIAS,
+            P.COMPRADOR,
+            P.SEQPRODUTO,
+            P.DESCRICAO,
+            P.EMB,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',1,') > 0) THEN NVL(V.VDA_1, 0) ELSE 0 END AS L1_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',1,') > 0) THEN NVL(E.ESTQ_1, 0) ELSE 0 END AS L1_ESTQ,
+            '________' AS L1_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',2,') > 0) THEN NVL(V.VDA_2, 0) ELSE 0 END AS L2_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',2,') > 0) THEN NVL(E.ESTQ_2, 0) ELSE 0 END AS L2_ESTQ,
+            '________' AS L2_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',3,') > 0) THEN NVL(V.VDA_3, 0) ELSE 0 END AS L3_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',3,') > 0) THEN NVL(E.ESTQ_3, 0) ELSE 0 END AS L3_ESTQ,
+            '________' AS L3_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',4,') > 0) THEN NVL(V.VDA_4, 0) ELSE 0 END AS L4_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',4,') > 0) THEN NVL(E.ESTQ_4, 0) ELSE 0 END AS L4_ESTQ,
+            '________' AS L4_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',5,') > 0) THEN NVL(V.VDA_5, 0) ELSE 0 END AS L5_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',5,') > 0) THEN NVL(E.ESTQ_5, 0) ELSE 0 END AS L5_ESTQ,
+            '________' AS L5_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',6,') > 0) THEN NVL(V.VDA_6, 0) ELSE 0 END AS L6_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',6,') > 0) THEN NVL(E.ESTQ_6, 0) ELSE 0 END AS L6_ESTQ,
+            '________' AS L6_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',7,') > 0) THEN NVL(V.VDA_7, 0) ELSE 0 END AS L7_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',7,') > 0) THEN NVL(E.ESTQ_7, 0) ELSE 0 END AS L7_ESTQ,
+            '________' AS L7_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',8,') > 0) THEN NVL(V.VDA_8, 0) ELSE 0 END AS L8_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',8,') > 0) THEN NVL(E.ESTQ_8, 0) ELSE 0 END AS L8_ESTQ,
+            '________' AS L8_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',11,') > 0) THEN NVL(V.VDA_11, 0) ELSE 0 END AS L11_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',11,') > 0) THEN NVL(E.ESTQ_11, 0) ELSE 0 END AS L11_ESTQ,
+            '________' AS L11_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',12,') > 0) THEN NVL(V.VDA_12, 0) ELSE 0 END AS L12_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',12,') > 0) THEN NVL(E.ESTQ_12, 0) ELSE 0 END AS L12_ESTQ,
+            '________' AS L12_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',13,') > 0) THEN NVL(V.VDA_13, 0) ELSE 0 END AS L13_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',13,') > 0) THEN NVL(E.ESTQ_13, 0) ELSE 0 END AS L13_ESTQ,
+            '________' AS L13_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',14,') > 0) THEN NVL(V.VDA_14, 0) ELSE 0 END AS L14_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',14,') > 0) THEN NVL(E.ESTQ_14, 0) ELSE 0 END AS L14_ESTQ,
+            '________' AS L14_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',17,') > 0) THEN NVL(V.VDA_17, 0) ELSE 0 END AS L17_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',17,') > 0) THEN NVL(E.ESTQ_17, 0) ELSE 0 END AS L17_ESTQ,
+            '________' AS L17_COMPR,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',18,') > 0) THEN NVL(V.VDA_18, 0) ELSE 0 END AS L18_VENDA,
+            CASE WHEN (NVL(TRIM(:LT1), 'TODOS') IN ('TODOS', '0', '') OR INSTR(',' || REPLACE(TRIM(:LT1), ' ', '') || ',', ',18,') > 0) THEN NVL(E.ESTQ_18, 0) ELSE 0 END AS L18_ESTQ,
+            '________' AS L18_COMPR
+        FROM PRODUTOS P
+        LEFT JOIN VENDAS_PIVOT V ON V.SEQPRODUTO = P.SEQPRODUTO
+        LEFT JOIN ESTOQUE_PIVOT E ON E.SEQPRODUTO = P.SEQPRODUTO
+    )
+    SELECT
+        G.DIAS,
+        G.COMPRADOR,
+        G.SEQPRODUTO,
+        G.DESCRICAO,
+        G.EMB,
+        G.L1_VENDA,
+        G.L1_ESTQ,
+        G.L1_COMPR,
+        G.L2_VENDA,
+        G.L2_ESTQ,
+        G.L2_COMPR,
+        G.L3_VENDA,
+        G.L3_ESTQ,
+        G.L3_COMPR,
+        G.L4_VENDA,
+        G.L4_ESTQ,
+        G.L4_COMPR,
+        G.L5_VENDA,
+        G.L5_ESTQ,
+        G.L5_COMPR,
+        G.L6_VENDA,
+        G.L6_ESTQ,
+        G.L6_COMPR,
+        G.L7_VENDA,
+        G.L7_ESTQ,
+        G.L7_COMPR,
+        G.L8_VENDA,
+        G.L8_ESTQ,
+        G.L8_COMPR,
+        G.L11_VENDA,
+        G.L11_ESTQ,
+        G.L11_COMPR,
+        G.L12_VENDA,
+        G.L12_ESTQ,
+        G.L12_COMPR,
+        G.L13_VENDA,
+        G.L13_ESTQ,
+        G.L13_COMPR,
+        G.L14_VENDA,
+        G.L14_ESTQ,
+        G.L14_COMPR,
+        G.L17_VENDA,
+        G.L17_ESTQ,
+        G.L17_COMPR,
+        G.L18_VENDA,
+        G.L18_ESTQ,
+        G.L18_COMPR,
+        (G.L1_VENDA + G.L2_VENDA + G.L3_VENDA + G.L4_VENDA + G.L5_VENDA + G.L6_VENDA + G.L7_VENDA + G.L8_VENDA + G.L11_VENDA + G.L12_VENDA + G.L13_VENDA + G.L14_VENDA + G.L17_VENDA + G.L18_VENDA) AS TOTAL_VENDA,
+        (G.L1_ESTQ + G.L2_ESTQ + G.L3_ESTQ + G.L4_ESTQ + G.L5_ESTQ + G.L6_ESTQ + G.L7_ESTQ + G.L8_ESTQ + G.L11_ESTQ + G.L12_ESTQ + G.L13_ESTQ + G.L14_ESTQ + G.L17_ESTQ + G.L18_ESTQ) AS TOTAL_ESTOQUE
+    FROM GRADE_RESULTADO G
+    WHERE (
+        TO_NUMBER(NVL(:NR1, '0')) > 0
+        OR (G.L1_VENDA + G.L2_VENDA + G.L3_VENDA + G.L4_VENDA + G.L5_VENDA + G.L6_VENDA + G.L7_VENDA + G.L8_VENDA + G.L11_VENDA + G.L12_VENDA + G.L13_VENDA + G.L14_VENDA + G.L17_VENDA + G.L18_VENDA) > 0
+        OR (G.L1_ESTQ + G.L2_ESTQ + G.L3_ESTQ + G.L4_ESTQ + G.L5_ESTQ + G.L6_ESTQ + G.L7_ESTQ + G.L8_ESTQ + G.L11_ESTQ + G.L12_ESTQ + G.L13_ESTQ + G.L14_ESTQ + G.L17_ESTQ + G.L18_ESTQ) > 0
+    )
+    ORDER BY
+        G.DESCRICAO ASC,
+        G.SEQPRODUTO ASC
+)
