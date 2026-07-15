@@ -152,6 +152,20 @@ class AcaoAjusteMinMax(BaseAction):
                     usecols=['EMPRESA', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'MINIMO', 'MAXIMO']
                 )
             
+            # Expansão de empresas separadas por vírgula (ex: "2,3,6,11,12" -> várias linhas)
+            df['EMPRESA'] = df['EMPRESA'].astype(str).str.split(',')
+            df = df.explode('EMPRESA')
+            
+            # Conversão e limpeza de tipos numéricos
+            df['EMPRESA'] = pd.to_numeric(df['EMPRESA'].str.strip(), errors='coerce')
+            df['CODIGO_PRODUTO'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce')
+            df = df.dropna(subset=['CODIGO_PRODUTO', 'EMPRESA'])
+            df['EMPRESA'] = df['EMPRESA'].astype(int)
+            df['CODIGO_PRODUTO'] = df['CODIGO_PRODUTO'].astype(int)
+            
+            # Remove duplicidades caso a mesma loja e produto apareçam em linhas repetidas
+            df = df.drop_duplicates(subset=['CODIGO_PRODUTO', 'EMPRESA'], keep='last')
+            
             # Ordenando de forma crescente
             df = df.sort_values(by=['CODIGO_PRODUTO', 'EMPRESA'], ascending=[True, True])
             
