@@ -15,6 +15,7 @@ Este arquivo concentra o que vale manter como referencia permanente sobre o ambi
 - aprendizado_erro_sql.md: licoes de validacao de dicionario e tipos.
 - aprendizado_filtros_categorias_embalagem.md: regras praticas de categorias, divisao e embalagem.
 - aprendizado_curva_abc_lucratividade.md: visao de lucratividade e funcoes nativas.
+- aprendizado_vendas_mrl_custodia.md: descoberta critica provando que MRL_CUSTODIA (e nao MRL_PRODVENDADIA) e a fonte oficial das vendas no Consinco.
 - As antigas listas brutas em txt de categorias e tabelas foram consolidadas no catalogo markdown.
 
 ## Verdades Operacionais do Ambiente

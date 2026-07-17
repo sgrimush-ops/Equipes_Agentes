@@ -23,10 +23,10 @@ Este roteiro orienta a investigacao por tipo de problema no ambiente Totvs Consi
 - Se houver divergencia com historico de venda, confirmar se as vendas foram agregadas antes do join.
 
 ## Se o problema for Venda ou Periodo
-- Comecar por `MRL_PRODVENDADIA` quando a necessidade for quantidade vendida por intervalo.
-- Nunca usar `VLRVDA` nesta base local; a coluna valida e `QTDVDA`.
+- Começar por `MRL_CUSTODIA` (`QTDVDA` filtrado por `DTAENTRADASAIDA`) quando a necessidade for a quantidade vendida consolidada que bate com a tela "Histórico do Produto" do Consinco e Curva ABC.
+- Nunca usar `VLRVDA` em `MRL_PRODVENDADIA`; para vendas diárias rápidas do PDV usar `QTDVDA` em `MRL_PRODVENDADIA`, mas ciente de que pode subestimar a venda faturada total da rede.
 - Para periodos dinamicos, usar `TRUNC(SYSDATE)` e agregar por `SEQPRODUTO` e `NROEMPRESA`.
-- Se precisar bater com a curva ABC nativa do Consinco, avaliar `MBIX_TABCDISTRIB`.
+- Se precisar bater com a curva ABC nativa do Consinco, avaliar `MBIX_TABCDISTRIB` ou `MRL_CUSTODIA`.
 
 ## Se o problema for Categoria, Departamento ou Embalagem
 - Ler `aprendizado_filtros_categorias_embalagem.md`.

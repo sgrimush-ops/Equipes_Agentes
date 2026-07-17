@@ -25,3 +25,13 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 
 4. **Proibição Absoluta de Comentários no Código SQL:**
    O parser/validador do Totvs Consinco remove quebras de linha em alguns cenários e tenta executar a query em uma única string de texto. Se houver qualquer comentário no estilo `-- comentário` ou `/* comentário */` inserido no meio do script, o Consinco transformará o restante do código válido em um comentário gigantesco, resultando em erro fatal (`missing expression`, etc). **NUNCA comente dentro dos arquivos SQL!**
+
+---
+
+# Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco
+
+Ao criar automações desktop ou protótipos em Python para interagir visualmente com as telas do ERP Consinco:
+1. **Consulte a Skill de Automação GUI Consinco:** Sempre leia e aplique os padrões descritos em `c:\Users\usr\Downloads\Equipes_Agentes\.agents\skills\automacao_gui_consinco\SKILL.md`.
+2. **PyInstaller com RapidOCR:** É obrigatório usar `collect_submodules('rapidocr_onnxruntime')` além de `collect_data_files` nos arquivos `.spec` para evitar `AttributeError: module 'ch_ppocr_v3_det' has no attribute 'TextDetector'`.
+3. **Mecânica de Rolagem no Consinco (Seta para Baixo):** Mapeie as `N` linhas visíveis iniciais (`step 0 até N-1`). A partir da `N`-ésima linha (`step >= N`), fixe a ancoragem de leitura e clique na coordenada `Y` da última linha visível, pois o foco permanece travado e os registros sobem na tabela.
+4. **Isolamento de Coluna OCR via Recorte Assimetricamente Estreito:** Em colunas adjacentes a datas (ex: Valor ao lado de Vencimento), recorte caixas estreitas à direita (`[x - 20, y - 10, x + 65, y + 10]`) para impedir a captura acidental de anos (`2026`).

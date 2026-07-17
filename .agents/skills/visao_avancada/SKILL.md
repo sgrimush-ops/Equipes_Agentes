@@ -49,3 +49,4 @@ subprocess.run(['clip.exe'], input=texto, creationflags=subprocess.CREATE_NO_WIN
 ```
 
 - KI de referência completo: `knowledge/supply_buyer_skip/artifacts/supply_buyer_skip.md`
+- Consulte também as regras e padrões para empacotamento PyInstaller e OCR em tabelas no ERP Consinco na skill `c:\Users\usr\Downloads\Equipes_Agentes\.agents\skills\automacao_gui_consinco\SKILL.md`

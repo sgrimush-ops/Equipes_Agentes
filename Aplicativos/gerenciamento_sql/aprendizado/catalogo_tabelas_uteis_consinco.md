@@ -40,7 +40,7 @@ Este arquivo consolida o conhecimento util antes distribuido entre `dicionario_c
 - O dicionario local manda mais que conhecimento externo.
 - Historico de venda deve ser agregado antes do join com estoque para nao multiplicar saldos.
 - `MRL_PRODUTOEMPRESA` e a fonte principal de estoque operacional.
-- `MRL_PRODVENDADIA` e a fonte principal de quantidade vendida por periodo.
+- `MRL_CUSTODIA` (coluna `QTDVDA` por `DTAENTRADASAIDA`) é a verdadeira fonte consolidada de quantidade vendida por período, batendo exatamente com a tela nativa "Histórico do Produto" (`Consulta Produtos`) e relatórios de Curva ABC. Evitar confiar apenas em `MRL_PRODVENDADIA` quando houver divergência com o total faturado/movimentado.
 - Em relatorios complexos, preferir `MBI_` / `MBIX_` quando o sistema ja tiver materializado os calculos.
 
 ## Colunas e Regras Criticas Ja Validadas
