@@ -159,17 +159,15 @@ class ExcelManager:
         except Exception as e:
             return False, f"Erro ao ler arquivo {os.path.basename(self.filepath)}: {str(e)}"
 
+    @staticmethod
+    def formatar_moeda_br(valor: float) -> str:
+        """Formata float para moeda brasileira: 1234.56 -> '1.234,56'."""
+        s = f"{valor:,.2f}"
+        return s.replace(',', 'X').replace('.', ',').replace('X', '.')
+
     def verificar_titulo(self, titulo_tela: str, valor_tela: Any, tolerancia: float = 0.02) -> Tuple[bool, Optional[Dict[str, Any]], str]:
         """
         Verifica se o título lido da tela existe na planilha e se o valor coincide.
-        
-        Args:
-            titulo_tela: Texto lido na coluna Título do Consinco
-            valor_tela: Texto ou float lido na coluna Valor em Aberto do Consinco
-            tolerancia: Diferença de arredondamento aceitável (ex: R$ 0,02)
-            
-        Returns:
-            (is_valid, item_dict, motivo_ou_status)
         """
         if not self.dados_sanitizados:
             return False, None, "Planilha não carregada."
@@ -184,7 +182,7 @@ class ExcelManager:
         candidatos = [item for item in self.dados_sanitizados if item["titulo_norm"] == t_norm_tela]
 
         if not candidatos:
-            # Tentar busca parcial APENAS se os tamanhos forem muito próximos (evita que '336-700/1' dê match em '1336-700/1')
+            # Tentar busca parcial APENAS se os tamanhos forem muito próximos
             candidatos_parciais = [
                 item for item in self.dados_sanitizados 
                 if (item["titulo_norm"] in t_norm_tela or t_norm_tela in item["titulo_norm"]) 
@@ -197,15 +195,29 @@ class ExcelManager:
         for item in candidatos:
             diferenca = abs(item["valor_num"] - v_num_tela)
             if diferenca <= tolerancia:
-                # Match perfeito de título e valor!
-                item["status"] = "validado"
-                self.validados.add(item["id"])
-                return True, item, f"OK: Título e Valor batem (Excel: R$ {item['valor_num']:.2f} | Tela: R$ {v_num_tela:.2f})"
-            else:
-                motivo = f"Divergência de valor para '{t_norm_tela}': Excel R$ {item['valor_num']:.2f} vs Tela R$ {v_num_tela:.2f}"
-                return False, item, motivo
+                if item.get("status") != "validado" and item.get("id") not in self.validados:
+                    item["status"] = "validado"
+                    self.validados.add(item["id"])
+                    v_excel_str = self.formatar_moeda_br(item['valor_num'])
+                    v_tela_str = self.formatar_moeda_br(v_num_tela)
+                    return True, item, f"OK: Título e Valor batem (Excel: R$ {v_excel_str} | Tela: R$ {v_tela_str})"
 
-        return False, candidatos[0], f"Divergência no título ou valor para {t_norm_tela}."
+        # Se não encontrou candidato pendente que bata o valor, checamos:
+        # 1) Existe candidato cujo valor bate mas que já foi validado antes?
+        ja_validados = [
+            item for item in candidatos 
+            if abs(item["valor_num"] - v_num_tela) <= tolerancia and (item.get("status") == "validado" or item.get("id") in self.validados)
+        ]
+        if ja_validados:
+            item = ja_validados[0]
+            return False, item, f"Já validado anteriormente: '{t_norm_tela}'"
+
+        # 2) Caso contrário, é divergência de valor para este título
+        item = candidatos[0]
+        v_excel_str = self.formatar_moeda_br(item['valor_num'])
+        v_tela_str = self.formatar_moeda_br(v_num_tela)
+        motivo = f"Divergência de valor para '{t_norm_tela}': Excel R$ {v_excel_str} vs Tela R$ {v_tela_str}"
+        return False, item, motivo
 
     def get_resumo(self) -> Dict[str, Any]:
         """Retorna contadores de progresso e a soma financeira dos itens marcados."""
@@ -225,36 +237,88 @@ class ExcelManager:
     def salvar_resultados(self) -> Tuple[bool, str]:
         """
         Salva o status na coluna 'Marcado' com o texto 'ok' para todas as linhas
-        que foram validadas e marcadas no Consinco.
+        que foram validadas, preservando 100% da formatação e vírgulas originais
+        da planilha (sem sobrescrever ou converter decimais para ponto).
         """
         if not hasattr(self, 'df') or self.df is None:
             return False, "Planilha original não está carregada na memória."
 
         try:
-            # Cria a coluna 'Marcado' se ela ainda não existir
-            if "Marcado" not in self.df.columns:
-                self.df["Marcado"] = ""
-
-            for item in self.dados_sanitizados:
-                if item.get("status") == "validado" or item.get("id") in self.validados:
-                    self.df.at[item["id"], "Marcado"] = "ok"
-
             ext = os.path.splitext(self.filepath)[1].lower()
-            try:
-                if ext == '.csv':
+            if ext in ['.xlsx', '.xlsm']:
+                import openpyxl
+                wb = openpyxl.load_workbook(self.filepath)
+                ws = wb.active
+
+                col_idx = None
+                for col in range(1, ws.max_column + 1):
+                    val = ws.cell(row=1, column=col).value
+                    if val and str(val).strip().lower() == "marcado":
+                        col_idx = col
+                        break
+
+                if not col_idx:
+                    col_idx = ws.max_column + 1
+                    ws.cell(row=1, column=col_idx, value="Marcado")
+
+                for item in self.dados_sanitizados:
+                    if item.get("status") == "validado" or item.get("id") in self.validados:
+                        ws.cell(row=item["id"] + 2, column=col_idx, value="ok")
+
+                try:
+                    wb.save(self.filepath)
+                    return True, f"Planilha '{os.path.basename(self.filepath)}' atualizada: coluna 'Marcado' = 'ok' (formatação decimal original preservada intacta)."
+                except PermissionError:
+                    dir_atual = os.path.dirname(self.filepath)
+                    base_nome = os.path.splitext(os.path.basename(self.filepath))[0]
+                    caminho_alt = os.path.join(dir_atual, f"{base_nome}_conferido{ext}")
+                    wb.save(caminho_alt)
+                    return True, f"Planilha salva em '{os.path.basename(caminho_alt)}' (o arquivo original estava aberto/travado no Excel)."
+            else:
+                if "Marcado" not in self.df.columns:
+                    self.df["Marcado"] = ""
+                for item in self.dados_sanitizados:
+                    if item.get("status") == "validado" or item.get("id") in self.validados:
+                        self.df.at[item["id"], "Marcado"] = "ok"
+
+                try:
                     self.df.to_csv(self.filepath, sep=';', index=False, encoding='utf-8')
-                else:
-                    self.df.to_excel(self.filepath, index=False)
-                return True, f"Planilha '{os.path.basename(self.filepath)}' atualizada: coluna 'Marcado' = 'ok'."
-            except PermissionError:
-                # Caso o arquivo original esteja aberto e travado pelo Microsoft Excel
-                dir_atual = os.path.dirname(self.filepath)
-                base_nome = os.path.splitext(os.path.basename(self.filepath))[0]
-                caminho_alt = os.path.join(dir_atual, f"{base_nome}_conferido{ext}")
-                if ext == '.csv':
+                    return True, f"Planilha CSV '{os.path.basename(self.filepath)}' atualizada com sucesso."
+                except PermissionError:
+                    dir_atual = os.path.dirname(self.filepath)
+                    base_nome = os.path.splitext(os.path.basename(self.filepath))[0]
+                    caminho_alt = os.path.join(dir_atual, f"{base_nome}_conferido{ext}")
                     self.df.to_csv(caminho_alt, sep=';', index=False, encoding='utf-8')
-                else:
-                    self.df.to_excel(caminho_alt, index=False)
-                return True, f"Planilha salva em '{os.path.basename(caminho_alt)}' (o original estava aberto no Excel)."
+                    return True, f"Planilha salva em '{os.path.basename(caminho_alt)}' (original aberto no Excel)."
         except Exception as e:
-            return False, f"Erro ao salvar coluna 'Marcado' no Excel: {e}"
+            return False, f"Erro ao salvar coluna 'Marcado': {e}"
+
+    def gerar_relatorio_nao_encontrados(self, itens_lidos_tela: Dict[str, str]) -> str:
+        """Gera um arquivo Excel separando todos os títulos lidos no Consinco mas que não existem na planilha."""
+        if not self.dados_sanitizados or not itens_lidos_tela:
+            return "Nenhum dado para comparar."
+
+        titulos_excel_norm = {item["titulo_norm"] for item in self.dados_sanitizados}
+        nao_encontrados = []
+
+        for t_tela, v_tela in itens_lidos_tela.items():
+            t_norm = self.normalize_titulo(t_tela)
+            if t_norm and t_norm not in titulos_excel_norm:
+                nao_encontrados.append({
+                    "Título Lido na Tela": t_tela,
+                    "Valor Lido na Tela": v_tela,
+                    "Observação": "Lançamento visível no Consinco mas NÃO consta na planilha do Excel"
+                })
+
+        if not nao_encontrados:
+            return "Nenhum título desconhecido ou extra lido na tela (todos estavam no Excel)."
+
+        try:
+            import pandas as pd
+            dir_planilha = os.path.dirname(self.filepath)
+            path_relatorio = os.path.join(dir_planilha, "lançamentos_não_encontrados_no_excel.xlsx")
+            df_out = pd.DataFrame(nao_encontrados)
+            df_out.to_excel(path_relatorio, index=False)
+            return f"Planilha gerada com {len(nao_encontrados)} lançamento(s) extra(s): '{os.path.basename(path_relatorio)}'"
+        except Exception as e:
+            return f"Falha ao gerar planilha de lançamentos extras: {e}"

@@ -283,12 +283,16 @@ class MiniGamApp:
                 with open(path, 'r', encoding='utf-8') as f:
                     coords = json.load(f)
                 linhas_y = coords.get("linhas_y", [])
-                if all([coords.get("x_titulo"), coords.get("x_valor"), coords.get("x_checkbox")]) and len(linhas_y) == 12:
-                    if abs(linhas_y[11] - linhas_y[0]) < 80:
-                        self.lbl_calib.config(text=f"📍 Mapeamento: Inválido (Linhas muito próximas: {abs(linhas_y[11]-linhas_y[0])}px. Recalibre!)", fg="#ef233c")
-                    else:
-                        self.lbl_calib.config(text="📍 Mapeamento: Mapeado OK (12 linhas e colunas salvas)", fg="#55a630")
-                    return
+                has_2cliques = coords.get("x_titulo_esq") is not None and coords.get("x_valor_esq") is not None
+                if len(linhas_y) == 12 and abs(linhas_y[11] - linhas_y[0]) < 80:
+                    self.lbl_calib.config(text=f"📍 Mapeamento: Inválido (Linhas muito próximas: {abs(linhas_y[11]-linhas_y[0])}px. Recalibre!)", fg="#ef233c")
+                elif has_2cliques and coords.get("x_checkbox") and len(linhas_y) == 12:
+                    self.lbl_calib.config(text="📍 Mapeamento: Mapeado OK (2-cliques esq/dir e 12 linhas salvas)", fg="#55a630")
+                elif coords.get("x_titulo") or coords.get("x_valor") or coords.get("x_checkbox") or coords.get("y_linha_12"):
+                    self.lbl_calib.config(text="📍 Mapeamento: Mapeado OK (Coordenadas salvas em arquivo)", fg="#55a630")
+                else:
+                    self.lbl_calib.config(text="📍 Mapeamento: Pendente (Clique em 'Mapear Checklist')", fg="#ffb703")
+                return
             except Exception:
                 pass
         self.lbl_calib.config(text="📍 Mapeamento: Pendente (Clique em 'Mapear Checklist')", fg="#ffb703")
@@ -312,6 +316,21 @@ class MiniGamApp:
         if not os.path.exists(path_coords):
             messagebox.showwarning("Calibração Necessária", "Você deve clicar no botão 'Mapear Checklist' e capturar as coordenadas antes de começar.")
             return
+
+        try:
+            with open(path_coords, 'r', encoding='utf-8') as f:
+                coords_check = json.load(f)
+            if coords_check.get("x_titulo_esq") is None or coords_check.get("x_valor_esq") is None:
+                msg_alerta = (
+                    "O arquivo de coordenadas atual é da versão anterior (de 1 clique no meio), "
+                    "sem os limites exatos do Canto Esquerdo e Canto Direito.\n\n"
+                    "Para evitar que números como '69,12' sejam cortados para '9,12', é obrigatório recalibrar agora.\n\n"
+                    "👉 Clique em 'Mapear Checklist' e faça os 2 cliques (canto esquerdo e canto direito) no Título e no Valor em Aberto!"
+                )
+                messagebox.showwarning("Recalibração de 2 Cliques Necessária", msg_alerta)
+                return
+        except Exception:
+            pass
 
         self.btn_comecar.config(state="disabled", bg="#6c757d")
         self.btn_mapear.config(state="disabled")

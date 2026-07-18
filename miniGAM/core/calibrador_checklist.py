@@ -99,13 +99,13 @@ class CalibradorChecklist(tk.Toplevel):
         body.pack(fill="both", expand=True)
 
         tk.Label(
-            body, text="Aponte o mouse para os pontos indicados na tabela do Consinco e dê 1 clique para gravar a calibração:",
-            font=("Segoe UI", 9), bg="#f8f9fa", fg="#495057", wraplength=440, justify="left"
-        ).pack(pady=(0, 15))
+            body, text="⚠️ IMPORTANTE: Clique sempre nos REGISTROS DE DADOS da tabela (ex: linha '9-700/1' e valor '37,44'). NUNCA clique na barra cinza de cabeçalho ('Título'/'Valor em Aberto')!",
+            font=("Segoe UI", 9, "bold"), bg="#fff3cd", fg="#856404", wraplength=440, justify="left", padx=8, pady=6, bd=1, relief="solid"
+        ).pack(pady=(0, 15), fill="x")
 
-        # Botão 1: Coluna Título na Linha 1
+        # Botão 1: Coluna Título na Linha 1 de dados
         self.btn_titulo = tk.Button(
-            body, text="1. Capturar Título (Linha 1 - Topo)",
+            body, text="1. Capturar Título (1ª Linha DADOS - 2 CLIQUES: Esq e Dir)",
             font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#2b2d42", relief="groove",
             command=lambda: self.start_capture("titulo_l1", self.btn_titulo, self.lbl_titulo)
         )
@@ -113,9 +113,9 @@ class CalibradorChecklist(tk.Toplevel):
         self.lbl_titulo = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
         self.lbl_titulo.pack(anchor="w", padx=5)
 
-        # Botão 2: Coluna Valor em Aberto na Linha 1
+        # Botão 2: Coluna Valor em Aberto na Linha 1 de dados
         self.btn_valor = tk.Button(
-            body, text="2. Capturar Valor em Aberto (Linha 1 - Topo)",
+            body, text="2. Capturar Valor em Aberto (1ª Linha DADOS - 2 CLIQUES: Esq e Dir)",
             font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#2b2d42", relief="groove",
             command=lambda: self.start_capture("valor_l1", self.btn_valor, self.lbl_valor)
         )
@@ -123,9 +123,9 @@ class CalibradorChecklist(tk.Toplevel):
         self.lbl_valor = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
         self.lbl_valor.pack(anchor="w", padx=5)
 
-        # Botão 3: Coluna Checkbox (Qui) na Linha 1
+        # Botão 3: Coluna Checkbox (Qui) na Linha 1 de dados
         self.btn_check_l1 = tk.Button(
-            body, text="3. Capturar Checkbox Qui (Linha 1 - Topo)",
+            body, text="3. Capturar Checkbox Qui (1ª Linha DADOS - 1 CLIQUE central)",
             font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#2b2d42", relief="groove",
             command=lambda: self.start_capture("checkbox_l1", self.btn_check_l1, self.lbl_check_l1)
         )
@@ -133,9 +133,9 @@ class CalibradorChecklist(tk.Toplevel):
         self.lbl_check_l1 = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
         self.lbl_check_l1.pack(anchor="w", padx=5)
 
-        # Botão 4: Coluna Checkbox (Qui) ou centro da Linha 12
+        # Botão 4: Coluna Checkbox (Qui) na Linha 12 de dados
         self.btn_l12 = tk.Button(
-            body, text="4. Capturar Checkbox Qui (Linha 12 - Fundo visível)",
+            body, text="4. Capturar Checkbox Qui (12ª Linha DADOS - 1 CLIQUE central)",
             font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#2b2d42", relief="groove",
             command=lambda: self.start_capture("linha_12", self.btn_l12, self.lbl_l12)
         )
@@ -154,10 +154,18 @@ class CalibradorChecklist(tk.Toplevel):
         self.btn_save.pack(fill="x")
 
     def update_ui_state(self):
-        if self.coords["x_titulo"] and self.coords["y_linha_1"]:
+        if self.coords.get("x_titulo_esq") is not None and self.coords.get("x_titulo_dir") is not None:
+            w = abs(self.coords["x_titulo_dir"] - self.coords["x_titulo_esq"])
+            self.lbl_titulo.config(text=f"Salvo: Esq={self.coords['x_titulo_esq']}, Dir={self.coords['x_titulo_dir']} (Largura: {w}px) | Y={self.coords['y_linha_1']}", fg="#2a9d8f")
+        elif self.coords["x_titulo"] and self.coords["y_linha_1"]:
             self.lbl_titulo.config(text=f"Salvo: X={self.coords['x_titulo']}, Y={self.coords['y_linha_1']}", fg="#2a9d8f")
-        if self.coords["x_valor"]:
+
+        if self.coords.get("x_valor_esq") is not None and self.coords.get("x_valor_dir") is not None:
+            w = abs(self.coords["x_valor_dir"] - self.coords["x_valor_esq"])
+            self.lbl_valor.config(text=f"Salvo: Esq={self.coords['x_valor_esq']}, Dir={self.coords['x_valor_dir']} (Largura: {w}px)", fg="#2a9d8f")
+        elif self.coords["x_valor"]:
             self.lbl_valor.config(text=f"Salvo: X={self.coords['x_valor']}", fg="#2a9d8f")
+
         if self.coords["x_checkbox"] and self.coords["y_linha_1"]:
             self.lbl_check_l1.config(text=f"Salvo: X={self.coords['x_checkbox']}, Y={self.coords['y_linha_1']}", fg="#2a9d8f")
         if self.coords["y_linha_12"]:
@@ -168,44 +176,75 @@ class CalibradorChecklist(tk.Toplevel):
 
     def start_capture(self, mode_key: str, btn: tk.Button, lbl: tk.Label):
         orig_text = btn.cget("text")
-        btn.config(text="👉 Aponte na tela e CLIQUE AGORA...", bg="#ffb703", fg="#000000", state="disabled")
-        lbl.config(text="Aguardando clique na tela...", fg="#e76f51")
+        if mode_key in ["titulo_l1", "valor_l1"]:
+            btn.config(text="👉 1º CLIQUE: Aponte no canto ESQUERDO e clique...", bg="#ffb703", fg="#000000", state="disabled")
+            lbl.config(text="Aguardando 1º clique (Canto Esquerdo)...", fg="#e76f51")
+        else:
+            btn.config(text="👉 Aponte na tela e CLIQUE AGORA...", bg="#ffb703", fg="#000000", state="disabled")
+            lbl.config(text="Aguardando clique na tela...", fg="#e76f51")
 
         threading.Thread(target=self._capture_thread, args=(mode_key, btn, lbl, orig_text), daemon=True).start()
 
     def _capture_thread(self, mode_key: str, btn: tk.Button, lbl: tk.Label, orig_text: str):
-        click_x, click_y = 0, 0
+        if mode_key in ["titulo_l1", "valor_l1"]:
+            x_clicks = []
+            y_clicks = []
 
-        def on_click(x, y, button, pressed):
-            nonlocal click_x, click_y
-            if pressed and button == mouse.Button.left:
-                click_x, click_y = int(x), int(y)
-                return False  # Encerra o listener do mouse
+            def on_click_two(x, y, button, pressed):
+                if pressed and button == mouse.Button.left:
+                    x_clicks.append(int(x))
+                    y_clicks.append(int(y))
+                    if len(x_clicks) == 1:
+                        # Pede o 2º clique no canto direito
+                        self.after(0, lambda: btn.config(text="👉 2º CLIQUE: Agora aponte no canto DIREITO e clique..."))
+                        self.after(0, lambda: lbl.config(text=f"Esq: X={int(x)}. Aguardando 2º clique (Canto Direito)..."))
+                    if len(x_clicks) >= 2:
+                        return False
 
-        with mouse.Listener(on_click=on_click) as listener:
-            listener.join()
+            with mouse.Listener(on_click=on_click_two) as listener:
+                listener.join()
 
-        # Atualização das variáveis no objeto
-        if mode_key == "titulo_l1":
-            self.coords["x_titulo"] = click_x
-            self.coords["y_linha_1"] = click_y
-        elif mode_key == "valor_l1":
-            self.coords["x_valor"] = click_x
-            # Pode aproveitar ou refinar y_linha_1
-            if not self.coords["y_linha_1"]:
-                self.coords["y_linha_1"] = click_y
-        elif mode_key == "checkbox_l1":
-            self.coords["x_checkbox"] = click_x
-            if not self.coords["y_linha_1"]:
-                self.coords["y_linha_1"] = click_y
-        elif mode_key == "linha_12":
-            self.coords["y_linha_12"] = click_y
-            if not self.coords["x_checkbox"]:
+            x_esq = min(x_clicks[0], x_clicks[1])
+            x_dir = max(x_clicks[0], x_clicks[1])
+            x_centro = int((x_esq + x_dir) / 2)
+            y_centro = int((y_clicks[0] + y_clicks[1]) / 2)
+
+            if mode_key == "titulo_l1":
+                self.coords["x_titulo_esq"] = x_esq
+                self.coords["x_titulo_dir"] = x_dir
+                self.coords["x_titulo"] = x_centro
+                self.coords["y_linha_1"] = y_centro
+            elif mode_key == "valor_l1":
+                self.coords["x_valor_esq"] = x_esq
+                self.coords["x_valor_dir"] = x_dir
+                self.coords["x_valor"] = x_centro
+                if not self.coords["y_linha_1"]:
+                    self.coords["y_linha_1"] = y_centro
+
+            self.after(0, lambda: self._after_capture_ui(btn, lbl, orig_text, x_centro, y_centro))
+        else:
+            click_x, click_y = 0, 0
+
+            def on_click(x, y, button, pressed):
+                nonlocal click_x, click_y
+                if pressed and button == mouse.Button.left:
+                    click_x, click_y = int(x), int(y)
+                    return False  # Encerra o listener do mouse
+
+            with mouse.Listener(on_click=on_click) as listener:
+                listener.join()
+
+            if mode_key == "checkbox_l1":
                 self.coords["x_checkbox"] = click_x
+                if not self.coords["y_linha_1"]:
+                    self.coords["y_linha_1"] = click_y
+            elif mode_key == "linha_12":
+                self.coords["y_linha_12"] = click_y
+                if not self.coords["x_checkbox"]:
+                    self.coords["x_checkbox"] = click_x
 
-        self.after(0, lambda: self._after_capture_ui(btn, lbl, orig_text, click_x, click_y))
+            self.after(0, lambda: self._after_capture_ui(btn, lbl, orig_text, click_x, click_y))
 
     def _after_capture_ui(self, btn: tk.Button, lbl: tk.Label, orig_text: str, x: int, y: int):
         btn.config(text=orig_text, bg="#ffffff", fg="#2b2d42", state="normal")
-        lbl.config(text=f"Capturado: X={x}, Y={y}", fg="#2a9d8f")
         self.update_ui_state()

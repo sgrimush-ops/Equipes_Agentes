@@ -107,7 +107,7 @@ class ScreenReader:
     def set_mode(self, mode: str):
         self.mode = mode
 
-    def ler_celula_ocr(self, x: int, y: int, largura: int = 160, altura: int = 26, num_only: bool = False, debug_name: str = "snippet") -> str:
+    def ler_celula_ocr(self, x: int, y: int, largura: int = 160, altura: int = 26, num_only: bool = False, debug_name: str = "snippet", left_override: Optional[int] = None) -> str:
         """
         Captura um recorte visual em torno da coordenada (x, y), aplica processamento de imagem
         avançado para maximizar a precisão do Tesseract e retorna o texto extraído.
@@ -122,10 +122,11 @@ class ScreenReader:
             self.configurar_ocr()
 
         try:
-            # Centraliza o retângulo de recorte (ou ajusta para a direita no caso de números)
-            if num_only:
-                # Para Valor em Aberto, joga o box um pouco mais para a direita para não pegar a coluna de data (/2026)
-                left = int(x - largura * 0.38)
+            # Usa os limites exatos da esquerda e direita capturados pelo usuário
+            if left_override is not None:
+                left = int(left_override)
+            elif num_only:
+                left = int(x - 75)
             else:
                 left = int(x - largura / 2)
             top = int(y - altura / 2)
@@ -149,13 +150,31 @@ class ScreenReader:
             # 3. Binarização / Thresholding de Otsu
             _, thresh = cv2.threshold(gray_scaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-            # 4. Salva a imagem processada para depuração pelo usuário/desenvolvedor
+            # 4. Limpeza de linhas horizontais e verticais da grade da tabela (barras pretas no topo/fundo)
+            # e adição de margem branca pura (padding). Isso impede que o OCR corte o primeiro ou último dígito!
+            H, W = thresh.shape[:2]
+            kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (max(10, int(W * 0.25)), 1))
+            lines_h = cv2.morphologyEx(cv2.bitwise_not(thresh), cv2.MORPH_OPEN, kernel_h)
+            thresh[lines_h > 0] = 255
+
+            kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(10, int(H * 0.4))))
+            lines_v = cv2.morphologyEx(cv2.bitwise_not(thresh), cv2.MORPH_OPEN, kernel_v)
+            thresh[lines_v > 0] = 255
+
+            thresh[0:6, :] = 255
+            thresh[max(0, H-6):H, :] = 255
+            thresh[:, 0:4] = 255
+            thresh[:, max(0, W-4):W] = 255
+
+            thresh_padded = cv2.copyMakeBorder(thresh, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+
+            # 5. Salva a imagem processada limpa e com padding para depuração pelo usuário
             try:
-                cv2.imwrite(os.path.join(self.debug_dir, f"{debug_name}.png"), thresh)
+                cv2.imwrite(os.path.join(self.debug_dir, f"{debug_name}.png"), thresh_padded)
             except Exception:
                 pass
 
-            # 5. Executa OCR (Tesseract como primeira opção, RapidOCR como motor nativo sem instalador)
+            # 6. Executa OCR na imagem limpa (thresh_padded)
             text = ""
             if HAS_TESSERACT and self.tesseract_path:
                 try:
@@ -164,7 +183,7 @@ class ScreenReader:
                         config += " -c tessedit_char_whitelist=0123456789,-."
                     else:
                         config += " -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/-"
-                    raw_tess = pytesseract.image_to_string(thresh, config=config).strip()
+                    raw_tess = pytesseract.image_to_string(thresh_padded, config=config).strip()
                     if num_only and raw_tess:
                         token = raw_tess.split()[-1] if ' ' in raw_tess else raw_tess
                         token_clean = re.sub(r'^.*?(?:/202[0-9]|202[0-9](?=[0-9]{1,6}[,.][0-9]{2}))', '', token)
@@ -177,12 +196,10 @@ class ScreenReader:
             # Se Tesseract não estiver disponível ou retornar vazio, usa RapidOCR nativo (ONNX)
             if not text and self.rapid_ocr:
                 try:
-                    # RapidOCR aceita imagem BGR ou Gray/Thresh diretamente
-                    res, _ = self.rapid_ocr(thresh)
+                    res, _ = self.rapid_ocr(thresh_padded)
                     if res:
                         raw_list = [str(item[1]).strip() for item in res if item[1]]
                         if num_only and len(raw_list) > 1:
-                            # Pega sempre o último bloco da direita (o valor em aberto, ignorando datas)
                             raw = raw_list[-1]
                         else:
                             raw = " ".join(raw_list)
@@ -264,18 +281,46 @@ class ScreenReader:
             print(f"[ScreenReader] Erro na leitura via clipboard em ({x}, {y}): {e}")
             return ""
 
-    def ler_linha(self, x_titulo: int, x_valor: int, y_linha: int) -> Tuple[str, str]:
+    def ler_linha(self, coords_or_xtitulo: Any, x_valor: Optional[int] = None, y_linha: int = 0) -> Tuple[str, str]:
         """
         Lê simultaneamente o Título e o Valor em Aberto da linha especificada.
-        Como na tela Quitação de Título o Consinco não permite copiar (Ctrl+C),
-        o modo OCR realiza o recorte da tela e extrai o texto com alta nitidez.
+        Suporta calibração por 2 cliques (limite esquerdo e direito exatos da coluna).
         """
+        if isinstance(coords_or_xtitulo, dict):
+            coords = coords_or_xtitulo
+            # Título
+            if coords.get("x_titulo_esq") is not None and coords.get("x_titulo_dir") is not None:
+                left_t = min(int(coords["x_titulo_esq"]), int(coords["x_titulo_dir"]))
+                larg_t = abs(int(coords["x_titulo_dir"]) - int(coords["x_titulo_esq"]))
+                x_t = int(coords.get("x_titulo") or (left_t + larg_t // 2))
+            else:
+                x_t = int(coords["x_titulo"])
+                left_t = None
+                larg_t = 160
+
+            # Valor em Aberto
+            if coords.get("x_valor_esq") is not None and coords.get("x_valor_dir") is not None:
+                left_v = min(int(coords["x_valor_esq"]), int(coords["x_valor_dir"]))
+                larg_v = abs(int(coords["x_valor_dir"]) - int(coords["x_valor_esq"]))
+                x_v = int(coords.get("x_valor") or (left_v + larg_v // 2))
+            else:
+                x_v = int(coords["x_valor"])
+                left_v = None
+                larg_v = 135
+        else:
+            x_t = int(coords_or_xtitulo)
+            x_v = int(x_valor or 0)
+            left_t = None
+            left_v = None
+            larg_t = 160
+            larg_v = 135
+
         if self.mode == "ocr":
             # Captura com whitelists otimizadas e salva snippets em debug_ocr/
-            t_lido = self.ler_celula_ocr(x_titulo, y_linha, largura=150, altura=24, num_only=False, debug_name="ultimo_titulo")
-            v_lido = self.ler_celula_ocr(x_valor, y_linha, largura=85, altura=24, num_only=True, debug_name="ultimo_valor")
+            t_lido = self.ler_celula_ocr(x_t, y_linha, largura=larg_t, altura=28, num_only=False, debug_name="ultimo_titulo", left_override=left_t)
+            v_lido = self.ler_celula_ocr(x_v, y_linha, largura=larg_v, altura=28, num_only=True, debug_name="ultimo_valor", left_override=left_v)
             return t_lido, v_lido
         else:
-            t_lido = self.ler_celula_clipboard(x_titulo, y_linha)
-            v_lido = self.ler_celula_clipboard(x_valor, y_linha)
+            t_lido = self.ler_celula_clipboard(x_t, y_linha)
+            v_lido = self.ler_celula_clipboard(x_v, y_linha)
             return t_lido, v_lido
