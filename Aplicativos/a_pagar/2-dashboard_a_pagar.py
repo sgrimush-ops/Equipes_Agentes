@@ -183,7 +183,7 @@ def clean_id(x):
 def main():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     input_file = os.path.join(current_dir, 'a_pagar.txt')
-    output_html = os.path.join(current_dir, 'Dashboard_Compras.html')
+    output_html = os.path.join(current_dir, 'Planejador_Compras.html')
 
     if not os.path.exists(input_file):
         print(f"Erro: O arquivo '{input_file}' não foi encontrado.")
