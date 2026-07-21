@@ -27,13 +27,19 @@ Unificar em uma única consulta performática para a Consulta Criação todas as
 - `CODIGO_PRODUTO`: código do produto vinculado, se houver (`A.SEQPRODUTO`).
 - `QTD_UTILIZADA_VERBA`: quantidade consumida/utilizada da verba (`A.QTDUTILIZADAVERBA`).
 - `DATA_FINAL_VERBA`: data de término/vigência da verba formatada (`TO_CHAR(..., 'DD/MM/YYYY')`).
+- `DATA_VENCIMENTO`: data de vencimento (prioriza o menor vencimento dos títulos em aberto, ou do cronograma/títulos quitados) formatada (`TO_CHAR(..., 'DD/MM/YYYY')`).
 - `NUMERO_NF`: número da nota fiscal tratada (`SUBSTR(A.NUMERONF, 1, 250)`).
 - `NUMERO_PEDIDO_SUPRIMENTO`: número do pedido de compra/suprimento (`A.NROPEDIDOSUPRIM`).
-- `VLR_FIN_VENCIDO`: valor financeiro vencido, formatado em reais (`R$ 0.000,00` via `TO_CHAR(..., 'FM999G999G990D00')`).
-- `VLR_FIN_A_VENCER`: valor financeiro a vencer, formatado em reais (`R$ 0.000,00`).
 - `VALOR_ACORDO`: valor total do acordo, formatado em reais (`R$ 0.000,00`).
-- `VALOR_SALDO_ACORDO`: saldo disponível do acordo, formatado em reais (`R$ 0.000,00`).
+- `VLR_FIN_A_VENCER`: valor financeiro a vencer, formatado em reais (`R$ 0.000,00`).
+- `VLR_EM_ABERTO`: valor monetário ainda pendente/em aberto (soma sincronizada dos valores a vencer/vencidos ou saldo da verba), formatado em reais (`R$ 0.000,00`).
+- `VLR_FIN_VENCIDO`: valor financeiro vencido, formatado em reais (`R$ 0.000,00`).
+- `VLR_JA_QUITADO`: valor monetário já pago/abatido ou liquidado no financeiro (`VALOR_ACORDO - VLR_EM_ABERTO`), formatado em reais (`R$ 0.000,00`).
+- `VALOR_SALDO_ACORDO`: saldo disponível do acordo na conta corrente/abatimento, formatado em reais (`R$ 0.000,00`).
 - `VALOR_UTILIZADO_PRODUTO`: valor utilizado no produto, formatado em reais (`R$ 0.000,00`).
+- `TOTAL_PARCELAS`: quantidade total de parcelas programadas/geradas para o acordo.
+- `PARCELAS_PAGAS`: quantidade de parcelas já liquidadas no contas a pagar/receber (`ABERTOQUITADO = 'Q'`).
+- `PARCELAS_PENDENTES`: quantidade de parcelas em aberto/pendentes de pagamento (`ABERTOQUITADO = 'A'`).
 
 ## Variáveis para cadastrar em Var - F7
 Os filtros antes do Run na Consulta Criação dependem do cadastro manual em **Var - F7**:
