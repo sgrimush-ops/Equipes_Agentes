@@ -17,6 +17,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_ordenacao_texto_vs_numero_e_filtros_hierarquia.md`: guia sobre a armadilha de ordenação alfabética em aliases formatados com `TO_CHAR`, ordenação por agregação numérica, extração/exibição de Nível 5 (`SUBGRUPO`) e listas `LSx` com `0 - TODOS` (e validador `ORDER BY 1`).
 - `aprendizado_compras_transferencias_segregadas.md`: separacao e segregacao tecnica de compras de fornecedores (recebimento) e transferencias internas (CD e expedicao).
 - `aprendizado_pendencias_transferencia_recebimento_fantasma.md`: logica de performance, joins (SEQNF vs SEQNOTAFISCAL) e tratamento de notas de transferencia pendentes ("Ped Receber") antigas.
+- `aprendizado_pedidos_suprimento_transferencia_status.md`: arquitetura de pedidos de transferencia (MSU_PEDIDOSUPRIM vs MSU_PSITEMRECEBER), soberania do status do item sobre a capa, tratamento de data de expedicao nula e contorno do corte de caracteres em listas LS1 no Delphi (Constantes da Lista e CAST SYS.ODCIVARCHAR2LIST).
 - `aprendizado_auditoria_compras_devolucoes_trocas.md`: tratamento de trocas/devolucoes como deducoes, capturas unificadas (Entrada vs Saida) e filtros globais em rankings.
 - `aprendizado_estoque_em_transito.md`: desmistificacao da coluna QTDTRANSITO enganosa e a rota correta via MSU_PSITEMRECEBER para encontrar estoques rodando no caminhao.
 - `aprendizado_filtros_consulta_criacao.md`: guia sobre criacao de filtros antes do Run no Totvs Consinco (Var-F7, LT1, LS1, NR1, DT1).
