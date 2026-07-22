@@ -37,6 +37,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_relatorios_grade_pedidos_pivoteados.md`: padrao ouro para relatorios em grade pivoteada com linha 0 de cabecalho (`UNION ALL`) para exibir o numero dos pedidos sem misturar strings no grid numérico.
 - `aprendizado_simulador_precificacao_otimizacao_plsql.md`: guia de arquitetura para simuladores de precificação/margem condensados por produto, regras para expurgar transferências em custos brutos (`MAX`), e otimização extrema de performance chamando funções PL/SQL após a agregação SQL.
 - `regra_homologada_max0147_preco_sugerido_margem_realizada.md`: regra homologada com formulas obrigatorias e caso validado para o simulador de precificacao MAX0147 (Margem Objetiva, Preco Sugerido e Margem Realizada).
+- `aprendizado_precos_dia_e_comprador.md`: regras e query canônica para consulta de preços vigentes (normal, promocional e praticado via NVL/NULLIF em MRL_PRODEMPSEG) com filtro LS1 por Comprador.
 
 ## Regras Especificas do Projeto
 - `regras_consolidadas_abc_vendas_subgrupo.md`: regras finais da query `abc_vendas_subgrupo` e da variante de 40 dias.
