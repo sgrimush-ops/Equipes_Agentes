@@ -313,6 +313,167 @@ def carregar_lookup_pontos_extras(arquivo_pontos_extras):
         print(f"Erro ao carregar pontos extras: {e}")
         return lookup_min, lookup_max
 
+
+def _resolver_coluna(df, candidatos, nome_logico):
+    for coluna in candidatos:
+        if coluna in df.columns:
+            return coluna
+    raise KeyError(
+        f"Nao encontrei a coluna de {nome_logico}. "
+        f"Candidatas testadas: {candidatos}"
+    )
+
+
+def _resolver_coluna_opcional(df, candidatos):
+    for coluna in candidatos:
+        if coluna in df.columns:
+            return coluna
+    return None
+
+
+def _to_numeric(series):
+    return pd.to_numeric(
+        series.astype(str).str.replace(',', '.', regex=False),
+        errors='coerce',
+    )
+
+
+def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
+    """
+    Identifica na base original os itens onde a diferença entre máximo e mínimo
+    não é múltipla da embalagem de transferência e calcula o MAXIMO_CORRETO.
+    Retorna o DataFrame formatado para ser anexado diretamente à planilha unificada.
+    """
+    try:
+        col_produto = _resolver_coluna(
+            df,
+            ['CODIGO_PRODUTO', 'SEQPRODUTO'],
+            'codigo do produto',
+        )
+        col_descricao = _resolver_coluna(
+            df,
+            ['DESCRICAO_PRODUTO', 'DESCCOMPLETA'],
+            'descricao do produto',
+        )
+        col_emb = _resolver_coluna(
+            df,
+            ['EMBL_TRANSFERENCIA', 'EMBALAGEM_TRANSFERENCIA', 'EMBALAGEM'],
+            'embalagem de transferencia',
+        )
+        col_empresa = _resolver_coluna(
+            df,
+            ['CODIGO_EMPRESA', 'NROEMPRESA'],
+            'empresa',
+        )
+        col_min = _resolver_coluna(
+            df,
+            [
+                'QUANTIDADE_ESTOQUE_MINIMO',
+                'ESTOQUE_MINIMO',
+                'MINIMO',
+                'NOVO_MINIMO',
+            ],
+            'minimo',
+        )
+        col_max = _resolver_coluna(
+            df,
+            [
+                'QUANTIDADE_ESTOQUE_MAXIMO',
+                'ESTOQUE_MAXIMO',
+                'MAXIMO',
+                'NOVO_MAXIMO',
+            ],
+            'maximo',
+        )
+        col_status_compra = _resolver_coluna_opcional(
+            df,
+            ['ATIVO_COMPRA', 'STATUS_COMPRA', 'STATUSCOMPRA'],
+        )
+    except KeyError as e:
+        print(f"[AVISO] Falha ao resolver colunas para divergência de embalagem: {e}")
+        return pd.DataFrame()
+
+    work = df[
+        [
+            col_produto,
+            col_descricao,
+            col_emb,
+            col_empresa,
+            col_min,
+            col_max,
+        ]
+    ].copy()
+    work.columns = [
+        'CODIGO_PRODUTO',
+        'DESCRICAO_PRODUTO',
+        'EMBL_TRANSFERENCIA',
+        'EMPRESA',
+        'MINIMO',
+        'MAXIMO',
+    ]
+
+    if col_status_compra and col_status_compra in df.columns:
+        work['Status'] = df[col_status_compra].astype(str).str.strip().str.upper()
+    else:
+        work['Status'] = 'A'
+
+    work['CODIGO_PRODUTO'] = pd.to_numeric(work['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int)
+    work['EMPRESA'] = pd.to_numeric(work['EMPRESA'], errors='coerce').fillna(-1).astype(int)
+    work['EMBL_TRANSFERENCIA'] = _to_numeric(
+        work['EMBL_TRANSFERENCIA']
+        .astype(str)
+        .str.extract(r'(\d+[\.,]?\d*)')[0]
+    ).fillna(1).astype(int)
+    work['MINIMO'] = _to_numeric(work['MINIMO']).fillna(0).astype(int)
+    work['MAXIMO'] = _to_numeric(work['MAXIMO']).fillna(0).astype(int)
+
+    # Filtra apenas lojas válidas (exceto CD 15) e produtos válidos
+    work = work[(work['CODIGO_PRODUTO'] > 0) & (work['EMPRESA'] > 0) & (work['EMPRESA'] != 15)].copy()
+
+    work['DIFERENCA_MIN_MAX'] = work['MAXIMO'] - work['MINIMO']
+
+    # Identifica itens onde a diferença (MAX - MIN) não é múltipla da embalagem
+    nao_multiplo = (
+        (work['EMBL_TRANSFERENCIA'] > 1)
+        & (work['DIFERENCA_MIN_MAX'] > 0)
+        & (work['DIFERENCA_MIN_MAX'] % work['EMBL_TRANSFERENCIA'] != 0)
+    )
+
+    resultado = work[nao_multiplo].copy()
+    if resultado.empty:
+        return pd.DataFrame()
+
+    # Calcula o máximo corrigido (próximo múltiplo válido da embalagem acima do mínimo)
+    resultado['MAXIMO_CORRETO'] = (
+        resultado['MINIMO']
+        + (
+            resultado['DIFERENCA_MIN_MAX']
+            / resultado['EMBL_TRANSFERENCIA'].replace(0, 1)
+        ).apply(math.ceil)
+        * resultado['EMBL_TRANSFERENCIA']
+    ).astype(int)
+
+    # Constrói o DataFrame alinhado com as colunas finais de df_export
+    df_div = pd.DataFrame({
+        'CODIGO_PRODUTO': resultado['CODIGO_PRODUTO'].astype(int),
+        'DESCRICAO_PRODUTO': resultado['DESCRICAO_PRODUTO'],
+        'EMBL_TRANSFERENCIA': resultado['EMBL_TRANSFERENCIA'].astype(int),
+        'EMPRESA': resultado['EMPRESA'].astype(int),
+        'MINIMO': resultado['MINIMO'].astype(int),
+        'MAXIMO': resultado['MAXIMO_CORRETO'].astype(int),
+        'DIAS_RELATORIO_VENDA': dias_relatorio,
+        'VENDA_MEDIA': 0.0,
+        'QUANTIDADE_ESTOQUE_MINIMO': resultado['MINIMO'].astype(int),
+        'QUANTIDADE_ESTOQUE_MAXIMO': resultado['MAXIMO'].astype(int),
+        'REGRA_MINIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
+        'REGRA_MAXIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
+        'Status': resultado['Status'],
+        'capacidade_gondola': None
+    })
+
+    return df_div
+
+
 def processar_calculos():
     # Caminho corporativo centralizado
     arquivo_query = Path(__file__).parent.parent / 'import_querys' / 'query.parquet'
@@ -605,6 +766,30 @@ def processar_calculos():
     # Reordenar colunas para garantir que 'capacidade_gondola' seja a última
     cols_order = [c for c in df_export.columns if c != 'capacidade_gondola'] + ['capacidade_gondola']
     df_export = df_export[cols_order]
+
+    # Unificar com os itens que apresentam divergência de embalagem na base original
+    print("\n[UNIFICAÇÃO] Verificando e anexando itens com divergência de embalagem da base ao resultado final...")
+    df_div_emb = obter_itens_diferenca_embalagem(df, dias_relatorio)
+    if not df_div_emb.empty:
+        antes_unif = len(df_export)
+        # Garante a conformidade de tipos e colunas antes de unificar
+        df_export['CODIGO_PRODUTO'] = pd.to_numeric(df_export['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int)
+        df_export['EMPRESA'] = pd.to_numeric(df_export['EMPRESA'], errors='coerce').fillna(-1).astype(int)
+        
+        # Se o resultado exportado só contém itens ativos, garantimos que a adição também seja somente de itens ativos
+        if 'Status' in df_export.columns and not df_div_emb.empty:
+            df_div_emb = df_div_emb[df_div_emb['Status'].isin(['A', 'ATIVO'])].copy()
+            
+        cols_comuns = [c for c in cols_order if c in df_div_emb.columns]
+        df_unificado = pd.concat([df_export, df_div_emb[cols_comuns]], ignore_index=True)
+        
+        # Remove duplicidades mantendo a projeção do cálculo principal onde já existia (keep='first')
+        df_export = df_unificado.drop_duplicates(subset=['CODIGO_PRODUTO', 'EMPRESA'], keep='first').copy()
+        adicionados = len(df_export) - antes_unif
+        print(f"=> {adicionados} novos itens exclusivos com divergência de embalagem foram adicionados à planilha unificada.")
+        print(f"=> Sem duplicidade (itens que já possuíam projeção no cálculo mantiveram a recomendação principal). Total unificado: {len(df_export)} itens.")
+    else:
+        print("=> Nenhum item com divergência de embalagem pendente encontrado na base.")
         
     # Ordena pelo código do produto e depois pela empresa
     if 'CODIGO_PRODUTO' in df_export.columns and 'EMPRESA' in df_export.columns:
