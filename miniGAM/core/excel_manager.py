@@ -58,18 +58,19 @@ class ExcelManager:
     @staticmethod
     def normalize_titulo(titulo: Any) -> str:
         """
-        Padroniza o campo 'Título' para comparação exata (remove espaços extras, maiúsculas).
-        Ignora complementos e parcelas (ex: corta tudo a partir do primeiro '-' ou '/').
-        Ex: '1234-700/1' -> '1234'
-            '  001234 / 700 ' -> '1234'
+        Padroniza o título removendo caracteres não alfanuméricos, espaços extras
+        e zeros à esquerda para garantir uma comparação justa (tela x excel).
         """
-        if pd.isna(titulo):
+        if pd.isna(titulo) or titulo is None:
             return ""
         
         import re
         text = str(titulo).strip().upper()
         
-        # Expurgar qualquer caractere especial e números à direita (complementos como -700/1)
+        # Corrige falha comum de OCR onde o '-' é engolido (ex: '189700/1' em vez de '189-700/1')
+        text = re.sub(r'[-/]?700(?:[-/]\d+)?$', '', text)
+        
+        # Expurgar qualquer caractere especial e números à direita (complementos residuais)
         text = re.split(r'[-/]', text)[0]
         
         # Remove espaços extras que o OCR ou Excel possam ter inserido
@@ -199,7 +200,31 @@ class ExcelManager:
                 and abs(len(item["titulo_norm"]) - len(t_norm_tela)) <= 1
             ]
             if not candidatos_parciais:
+                # Busca difusa (Fuzzy Match / Repescagem) em tempo real
+                import difflib
+                candidatos_fuzzy = [
+                    item for item in self.dados_sanitizados
+                    if item.get("status") != "validado" 
+                    and item.get("id") not in self.validados
+                    and abs(item["valor_num"] - v_num_tela) <= tolerancia
+                ]
+                
+                best_match = None
+                best_ratio = 0.0
+                for item in candidatos_fuzzy:
+                    ratio = difflib.SequenceMatcher(None, t_norm_tela, item["titulo_norm"]).ratio()
+                    if ratio > best_ratio:
+                        best_ratio = ratio
+                        best_match = item
+                        
+                if best_match and best_ratio >= 0.7:
+                    best_match["status"] = "validado"
+                    self.validados.add(best_match["id"])
+                    v_tela_str = self.formatar_moeda_br(v_num_tela)
+                    return True, best_match, f"FUZZY OK: Tela '{t_norm_tela}' ~ Excel '{best_match['titulo_norm']}' ({best_ratio*100:.0f}% similar) | R$ {v_tela_str}"
+
                 return False, None, f"Título '{t_norm_tela}' não encontrado na planilha."
+                
             candidatos = candidatos_parciais
 
         for item in candidatos:

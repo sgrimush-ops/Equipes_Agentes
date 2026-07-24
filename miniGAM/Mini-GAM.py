@@ -68,27 +68,35 @@ class MiniGamApp:
 
         self.btn_comecar = tk.Button(
             btn_container, text="▶ COMEÇAR",
-            font=("Segoe UI", 12, "bold"), bg="#2b9348", fg="white",
-            relief="raised", bd=2, width=13, pady=8,
+            font=("Segoe UI", 11, "bold"), bg="#2b9348", fg="white",
+            relief="raised", bd=2, width=11, pady=8,
             command=self.acao_comecar
         )
-        self.btn_comecar.grid(row=0, column=0, padx=6)
+        self.btn_comecar.grid(row=0, column=0, padx=4)
 
         self.btn_parar = tk.Button(
             btn_container, text="⏹ PARAR",
-            font=("Segoe UI", 12, "bold"), bg="#d90429", fg="white",
-            relief="raised", bd=2, width=13, pady=8, state="disabled",
+            font=("Segoe UI", 11, "bold"), bg="#d90429", fg="white",
+            relief="raised", bd=2, width=11, pady=8, state="disabled",
             command=self.acao_parar
         )
-        self.btn_parar.grid(row=0, column=1, padx=6)
+        self.btn_parar.grid(row=0, column=1, padx=4)
 
         self.btn_mapear = tk.Button(
-            btn_container, text="🎯 MAPEAR CHECKLIST",
+            btn_container, text="🎯 MAPEAR",
             font=("Segoe UI", 11, "bold"), bg="#ffb703", fg="#000000",
-            relief="raised", bd=2, width=18, pady=8,
+            relief="raised", bd=2, width=11, pady=8,
             command=self.acao_mapear_checklist
         )
-        self.btn_mapear.grid(row=0, column=2, padx=6)
+        self.btn_mapear.grid(row=0, column=2, padx=4)
+
+        self.btn_auditoria = tk.Button(
+            btn_container, text="🔎 AUDITORIA",
+            font=("Segoe UI", 11, "bold"), bg="#0077b6", fg="white",
+            relief="raised", bd=2, width=13, pady=8,
+            command=self.acao_auditoria
+        )
+        self.btn_auditoria.grid(row=0, column=3, padx=4)
 
         # --- SEÇÃO 2: STATUS DA PLANILHA E CALIBRAÇÃO ---
         info_frame = tk.LabelFrame(
@@ -343,7 +351,133 @@ class MiniGamApp:
         self.runner.executar(
             log_cb=self.log,
             status_cb=self.set_status,
-            finish_cb=self._on_finished
+            finish_cb=self._on_finished,
+            ask_cb=self.ask_round_continue
+        )
+
+    def ask_round_continue(self, rodada: int) -> bool:
+        import threading
+        evento = threading.Event()
+        resultado = [None]
+        self.root.after(0, lambda: self.popup_fim_rodada(evento, resultado, rodada))
+        evento.wait()
+        return resultado[0] == "continuar"
+
+    def popup_fim_rodada(self, evento_conclusao, resultado, rodada):
+        popup = tk.Toplevel(self.root)
+        popup.title(f"Rodada {rodada} Concluída")
+        popup.geometry("380x180")
+        popup.attributes("-topmost", True)
+        popup.configure(bg="#212529")
+        
+        # Centraliza o popup
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (380 // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (180 // 2)
+        popup.geometry(f"+{x}+{y}")
+        
+        lbl_msg = tk.Label(popup, text=f"Rodada {rodada} finalizada.\nDeseja continuar a execução?", font=("Segoe UI", 12, "bold"), bg="#212529", fg="#f8f9fa")
+        lbl_msg.pack(pady=(20, 5))
+        
+        lbl_timer = tk.Label(popup, text="Continuando automaticamente em 10s...", font=("Segoe UI", 10), bg="#212529", fg="#ffb703")
+        lbl_timer.pack()
+        
+        tempo_restante = 10
+        timer_id = None
+        
+        def fechar(resp):
+            nonlocal timer_id
+            if timer_id:
+                popup.after_cancel(timer_id)
+            resultado[0] = resp
+            popup.destroy()
+            evento_conclusao.set()
+
+        def atualizar_timer():
+            nonlocal tempo_restante, timer_id
+            tempo_restante -= 1
+            if tempo_restante > 0:
+                lbl_timer.config(text=f"Continuando automaticamente em {tempo_restante}s...")
+                timer_id = popup.after(1000, atualizar_timer)
+            else:
+                fechar("continuar")
+
+        btn_frame = tk.Frame(popup, bg="#212529")
+        btn_frame.pack(pady=15)
+        
+        btn_cont = tk.Button(btn_frame, text="▶ Continuar", bg="#2b9348", fg="white", font=("Segoe UI", 10, "bold"), width=12, command=lambda: fechar("continuar"))
+        btn_cont.pack(side="left", padx=10)
+        
+        btn_parar = tk.Button(btn_frame, text="⏹ Parar", bg="#d90429", fg="white", font=("Segoe UI", 10, "bold"), width=12, command=lambda: fechar("parar"))
+        btn_parar.pack(side="right", padx=10)
+        
+        timer_id = popup.after(1000, atualizar_timer)
+
+    def ask_audit(self, titulo: str, valor: str) -> bool:
+        import threading
+        evento = threading.Event()
+        resultado = [None]
+        self.root.after(0, lambda: self.popup_auditoria(evento, resultado, titulo, valor))
+        evento.wait()
+        return resultado[0] == "sim"
+
+    def popup_auditoria(self, evento_conclusao, resultado, titulo, valor):
+        popup = tk.Toplevel(self.root)
+        popup.title("Alerta de Auditoria")
+        popup.geometry("450x200")
+        popup.attributes("-topmost", True)
+        popup.configure(bg="#212529")
+        
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (450 // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (200 // 2)
+        popup.geometry(f"+{x}+{y}")
+        
+        lbl_msg = tk.Label(popup, text=f"ALERTA: O item '{titulo}' (R$ {valor})\nestá marcado no Consinco indevidamente!", font=("Segoe UI", 11, "bold"), bg="#212529", fg="#ffb703")
+        lbl_msg.pack(pady=(15, 5))
+        
+        lbl_q = tk.Label(popup, text="Esse produto está marcado corretamente?", font=("Segoe UI", 12, "bold"), bg="#212529", fg="#f8f9fa")
+        lbl_q.pack(pady=(5, 15))
+        
+        def fechar(resp):
+            resultado[0] = resp
+            popup.destroy()
+            evento_conclusao.set()
+
+        btn_frame = tk.Frame(popup, bg="#212529")
+        btn_frame.pack()
+        
+        btn_sim = tk.Button(btn_frame, text="Sim (Manter)", bg="#2b9348", fg="white", font=("Segoe UI", 10, "bold"), width=15, command=lambda: fechar("sim"))
+        btn_sim.pack(side="left", padx=10)
+        
+        btn_nao = tk.Button(btn_frame, text="Não (Desmarcar)", bg="#d90429", fg="white", font=("Segoe UI", 10, "bold"), width=15, command=lambda: fechar("nao"))
+        btn_nao.pack(side="right", padx=10)
+
+    def acao_auditoria(self):
+        if self.runner.is_running:
+            return
+
+        if not self.excel_manager.dados_sanitizados:
+            sucesso, msg = self.excel_manager.carregar_planilha()
+            if not sucesso:
+                messagebox.showwarning("Planilha Ausente", "Por favor, carregue a planilha primeiro.")
+                return
+
+        path_coords = get_coords_filepath()
+        if not os.path.exists(path_coords):
+            messagebox.showwarning("Calibração Necessária", "Você deve clicar no botão 'Mapear Checklist' antes de começar.")
+            return
+
+        self.btn_comecar.config(state="disabled", bg="#6c757d")
+        self.btn_mapear.config(state="disabled")
+        self.btn_auditoria.config(state="disabled", bg="#6c757d")
+        self.btn_parar.config(state="normal", bg="#ef233c")
+
+        self.runner.executar_auditoria(
+            log_cb=self.log,
+            status_cb=self.set_status,
+            finish_cb=self._on_finished,
+            ask_audit_cb=self.ask_audit
         )
 
     def acao_parar(self):
@@ -358,6 +492,7 @@ class MiniGamApp:
     def _restore_buttons(self):
         self.btn_comecar.config(state="normal", bg="#2b9348")
         self.btn_mapear.config(state="normal")
+        self.btn_auditoria.config(state="normal", bg="#0077b6")
         self.btn_parar.config(state="disabled", bg="#6c757d")
         self.set_status("Pronto")
         self.update_calibration_status()

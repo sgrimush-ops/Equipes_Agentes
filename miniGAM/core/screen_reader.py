@@ -220,6 +220,78 @@ class ScreenReader:
             print(f"[ScreenReader OCR ERRO] Falha ao processar OCR na posição ({x}, {y}): {e}")
             return ""
 
+    def is_checkbox_marcado(self, x: int, y: int, size: int = 30) -> bool:
+        """
+        Analisa visualmente a coordenada (x, y) do checkbox usando filtros rigorosos de forma geométrica.
+        Procura especificamente por um quadrado (borda do checkbox) próximo ao clique,
+        e olha o centro absoluto dele, sendo imune a cliques tortos e linhas de grade.
+        """
+        if not HAS_OPENCV:
+            return False
+            
+        try:
+            left = int(x - size / 2)
+            top = int(y - size / 2)
+            bbox = (left, top, left + size, top + size)
+            
+            screenshot = ImageGrab.grab(bbox=bbox)
+            img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
+            # Fundo escuro (selecionado) vs claro
+            bg_is_dark = np.mean(gray) < 127
+            
+            if bg_is_dark:
+                _, thresh = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+            else:
+                _, thresh = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY_INV)
+                
+            contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            
+            best_rect = None
+            min_dist = 9999
+            center_img = size / 2.0
+            
+            for cnt in contours:
+                xr, yr, wr, hr = cv2.boundingRect(cnt)
+                # Um checkbox no Consinco costuma ter entre 10 a 16 pixels
+                if 8 <= wr <= 22 and 8 <= hr <= 22:
+                    aspect_ratio = wr / float(hr)
+                    # Deve ser razoavelmente quadrado
+                    if 0.7 <= aspect_ratio <= 1.3:
+                        cx = xr + wr / 2.0
+                        cy = yr + hr / 2.0
+                        # Distância ao centro do recorte (garante que não pegue scrollbars laterais)
+                        dist = (cx - center_img)**2 + (cy - center_img)**2
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_rect = (xr, yr, wr, hr)
+            
+            if best_rect:
+                xr, yr, wr, hr = best_rect
+                # Ponto central absoluto do checkbox encontrado
+                cx, cy = int(xr + wr / 2.0), int(yr + hr / 2.0)
+                # Miolo cirúrgico de 4x4 pixels
+                miolo = thresh[max(0, cy-2):min(size, cy+2), max(0, cx-2):min(size, cx+2)]
+                ink_pixels = cv2.countNonZero(miolo)
+                # Se há tinta no centro, está marcado
+                is_marked = ink_pixels >= 2
+            else:
+                # Se não tem checkbox, consideramos desmarcado
+                miolo = np.zeros((4,4), dtype=np.uint8)
+                is_marked = False
+            
+            try:
+                cv2.imwrite(os.path.join(self.debug_dir, "ultimo_checkbox_full.png"), thresh)
+                cv2.imwrite(os.path.join(self.debug_dir, "ultimo_checkbox_miolo.png"), miolo)
+            except Exception:
+                pass
+                
+            return is_marked
+        except Exception as e:
+            print(f"[ScreenReader OCR ERRO] Falha ao ler checkbox em ({x}, {y}): {e}")
+            return False
+
     def _get_clipboard_text(self) -> str:
         """Obtém texto do clipboard (modo secundário caso habilitado no futuro)."""
         if HAS_PYPERCLIP:
