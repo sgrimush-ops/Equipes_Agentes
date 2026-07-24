@@ -122,8 +122,8 @@ class MiniGamApp:
         soma_frame.pack(fill="x", pady=(0, 12))
 
         self.lbl_soma_total = tk.Label(
-            soma_frame, text="💰 VALOR SOMADO MARCADO: R$ 0,00",
-            font=("Segoe UI", 12, "bold"), bg="#1a1d20", fg="#55a630"
+            soma_frame, text="💰 MARCADO: R$ 0,00 / R$ 0,00",
+            font=("Segoe UI", 11, "bold"), bg="#1a1d20", fg="#55a630"
         )
         self.lbl_soma_total.pack(side="left")
 
@@ -224,9 +224,13 @@ class MiniGamApp:
         try:
             resumo = self.excel_manager.get_resumo()
             val_soma = resumo.get("valor_somado", 0.0)
+            val_esperado = resumo.get("valor_total_esperado", 0.0)
+            
             val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            self.lbl_soma_total.config(text=f"💰 VALOR SOMADO MARCADO: R$ {val_fmt}")
-            self.lbl_soma_itens.config(text=f"✔ Validados: {resumo['validados']} / {resumo['total']}")
+            esp_fmt = f"{val_esperado:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            self.lbl_soma_total.config(text=f"💰 MARCADO: R$ {val_fmt} / R$ {esp_fmt}")
+            self.lbl_soma_itens.config(text=f"✔ Validados: {resumo.get('validados', 0)} / {resumo.get('total', 0)}")
         except Exception:
             pass
 

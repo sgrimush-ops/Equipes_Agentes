@@ -59,17 +59,27 @@ class ExcelManager:
     def normalize_titulo(titulo: Any) -> str:
         """
         Padroniza o campo 'Título' para comparação exata (remove espaços extras, maiúsculas).
-        Ex: '9-700/1' -> '9-700/1'
-            '  009-700 / 1 ' -> '9-700/1'
+        Ignora complementos e parcelas (ex: corta tudo a partir do primeiro '-' ou '/').
+        Ex: '1234-700/1' -> '1234'
+            '  001234 / 700 ' -> '1234'
         """
         if pd.isna(titulo):
             return ""
+        
+        import re
         text = str(titulo).strip().upper()
-        # Remove espaços extras em volta de barras ou traços
-        text = text.replace(' / ', '/').replace('/ ', '/').replace(' /', '/')
-        text = text.replace(' - ', '-').replace('- ', '-').replace(' -', '-')
-        # Se começar com zeros à esquerda no número do título antes de traço/barra, podemos manter ou limpar
-        # Mas mantendo string limpa para robustez
+        
+        # Expurgar qualquer caractere especial e números à direita (complementos como -700/1)
+        text = re.split(r'[-/]', text)[0]
+        
+        # Remove espaços extras que o OCR ou Excel possam ter inserido
+        text = text.replace(' ', '')
+        
+        # Remove zeros à esquerda para evitar divergências (ex: '009' vs '9')
+        text = text.lstrip('0')
+        if not text:
+            text = '0'
+            
         return text
 
     def carregar_planilha(self, filepath: Optional[str] = None) -> Tuple[bool, str]:
@@ -227,11 +237,16 @@ class ExcelManager:
             item["valor_num"] for item in self.dados_sanitizados 
             if item["status"] == "validado" and isinstance(item.get("valor_num"), (int, float))
         )
+        valor_total_esperado = sum(
+            item["valor_num"] for item in self.dados_sanitizados 
+            if isinstance(item.get("valor_num"), (int, float))
+        )
         return {
             "total": total,
             "validados": validados,
             "pendentes": total - validados,
-            "valor_somado": valor_somado
+            "valor_somado": valor_somado,
+            "valor_total_esperado": valor_total_esperado
         }
 
     def salvar_resultados(self) -> Tuple[bool, str]:
@@ -303,10 +318,13 @@ class ExcelManager:
 
         for t_tela, v_tela in itens_lidos_tela.items():
             t_norm = self.normalize_titulo(t_tela)
+            v_num = self._parse_numeric_value(v_tela)
+            v_fmt = self.formatar_moeda_br(v_num)
+            
             if t_norm and t_norm not in titulos_excel_norm:
                 nao_encontrados.append({
-                    "Título Lido na Tela": t_tela,
-                    "Valor Lido na Tela": v_tela,
+                    "Título (Normalizado)": t_norm,
+                    "Valor": v_fmt,
                     "Observação": "Lançamento visível no Consinco mas NÃO consta na planilha do Excel"
                 })
 

@@ -16,9 +16,10 @@ O **Mini-GAM** é uma solução compacta e autônoma desenvolvida com base nos a
    - A partir das Linhas 1 e 12, o algoritmo **calcula automaticamente as 12 coordenadas equidistantes** de todas as linhas visíveis do grid.
 3. **Botão `▶ COMEÇAR`**:
    - Inicia uma **contagem regressiva de 5 segundos**, dando tempo ao operador para ativar e posicionar o foco na janela "Quitação de Título" do Consinco.
-   - **Consulta Automatizada (Linhas 1 a 12)**: Verifica cada linha na tela com a tabela Excel (`Dados/conferencia.xlsx`), cruzando a coluna `Titulo` e validando a coluna `Valor`. Se exatos, clica com precisão cirúrgica na coordenada salva do checkbox, preenche **`ok`** na coluna **`Marcado`** do Excel em tempo real e pressiona **Seta para Baixo**.
-   - **Rolagem Dinâmica na Linha 12**: Após 11 setas para baixo atingindo a 12ª linha, o robô passa a realizar todas as leituras e marcações **fixamente na linha 12**. Como cada nova seta para baixo renova a linha 12 com o próximo registro da tabela, o robô continua validando, clicando e salvando no Excel até identificar que a informação da linha 12 parou de se renovar (fim da tabela do Consinco).
-   - **Retorno no Excel (`Marcado` = `ok`)**: Todas as linhas confirmadas na tela têm seu status gravado na coluna **`Marcado`** do arquivo `conferencia.xlsx`. Caso você deixe o Excel aberto e travado durante a execução, o robô salva um backup automático chamado `conferencia_conferido.xlsx` para garantir que nenhum dado se perca.
+   - **Validação em duas fases**: o robô executa uma primeira passada descendo pela lista e, em seguida, faz uma segunda passada subindo para re-checar itens pendentes e recuperar registros que possam ter sido perdidos na primeira varredura.
+   - **Comparação com a planilha**: ele lê cada linha da tela, cruza o título com a planilha Excel em `Dados/conferencia.xlsx` e valida o valor. Quando há coincidência, clica no checkbox, marca o item como validado e salva o status em tempo real na coluna **`Marcado`** do Excel.
+   - **Parada inteligente**: a execução pode encerrar antes do fim manual quando a soma acumulada dos valores validados alcança o total esperado da planilha (com pequena tolerância) ou quando a segunda fase chega ao topo da tela sem novas mudanças.
+   - **Retorno no Excel (`Marcado` = `ok`)**: todas as linhas confirmadas na tela têm seu status gravado na coluna **`Marcado`**. Caso você deixe o Excel aberto e travado durante a execução, o robô salva um backup automático chamado `conferencia_conferido.xlsx` para garantir que nenhum dado se perca.
 4. **Botão `⏹ PARAR`**: Interrompe a execução a qualquer momento com segurança.
 5. **Modos de Leitura na Tela**:
    - **OCR Visual (`Tesseract + OpenCV` - Padrão e Recomendado)**: Como a tela de Quitação de Título do Consinco **não permite copiar dados (`Ctrl+C`)**, este modo realiza o recorte em tempo real ao redor da coordenada mapeada. Aplica **upscaling de 2.5x**, **inversão inteligente de cor** (para a linha selecionada em fundo preto e texto branco) e **limiar de Otsu**, garantindo leitura perfeita do Título e Valor com máxima nitidez visual.
@@ -33,7 +34,8 @@ Ao gerar o executável ou copiar para o Pendrive, a estrutura deve ser:
 Mini-GAM_Pendrive/
 │
 ├── Mini-GAM.exe           # Executável principal da interface gráfica
-├── conferencia.xlsx       # Planilha Excel com colunas "Titulo" e "Valor"
+├── Dados/
+│   └── conferencia.xlsx  # Planilha Excel com colunas "Titulo" e "Valor"
 ├── conferencia.csv        # Alternativa CSV (fallback automático)
 ├── coords_minigam.json    # Criado automaticamente após clicar em Mapear Checklist
 └── core/                  # Módulos internos empacotados pelo PyInstaller

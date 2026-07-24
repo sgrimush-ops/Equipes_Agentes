@@ -31,7 +31,12 @@ class MiniGamRunner:
         self.stop_event.set()
         self.is_running = False
 
-    def executar(self, log_cb: Callable[[str], None], status_cb: Callable[[str], None], finish_cb: Callable[[], None], delay_seta: float = 0.45):
+    @staticmethod
+    def _atingiu_valor_total(valor_atual: float, valor_total_planilha: float, tolerancia: float = 0.02) -> bool:
+        """Retorna True quando o somatório acumulado já alcançou o total esperado da planilha."""
+        return valor_atual >= (valor_total_planilha - tolerancia)
+
+    def executar(self, log_cb: Callable[[str], None], status_cb: Callable[[str], None], finish_cb: Callable[[], None], delay_seta: float = 0.85):
         """
         Executa a automação em uma thread separada.
         """
@@ -114,100 +119,61 @@ class MiniGamRunner:
             titulos_checados = 0
             titulos_marcados = 0
             itens_lidos_tela = {}  # {titulo_norm_ou_raw: valor_lido}
+            valor_total_planilha = sum(
+                item["valor_num"] for item in self.excel_manager.dados_sanitizados
+                if isinstance(item.get("valor_num"), (int, float))
+            )
+            valor_total_planilha = round(valor_total_planilha, 2)
+            log_cb(f"[INFO] Valor total da planilha: R$ {self.excel_manager.formatar_moeda_br(valor_total_planilha)}")
 
-            # Loop de validação do grid (Fase 1 - Descendo com Seta Baixo)
-            while not self.stop_event.is_set():
-                if step < 12:
-                    linha_visivel_idx = step
-                else:
-                    linha_visivel_idx = 11
-
-                y_atual = int(linhas_y[linha_visivel_idx])
-                t_lido, v_lido = self.screen_reader.ler_linha(coords, x_valor, y_atual)
-                titulos_checados += 1
-
-                if t_lido and t_lido.strip():
-                    itens_lidos_tela[t_lido.strip()] = v_lido.strip()
-
-                if step >= 12 and t_lido == ultimo_titulo and v_lido == ultimo_valor:
-                    log_cb(f"[FASE 1 CONCLUÍDA] Fim da descida atingido na Linha 12 ('{t_lido}').")
-                    break
-
-                ultimo_titulo = t_lido
-                ultimo_valor = v_lido
-
-                if not t_lido or t_lido.strip() == "":
-                    log_cb(f"[AVISO] Passo {step+1} (Linha {linha_visivel_idx+1} na tela): Campo Título lido vazio. Tentando avançar...")
-                else:
-                    is_valid, item_data, motivo = self.excel_manager.verificar_titulo(t_lido, v_lido)
-
-                    if is_valid:
-                        titulos_marcados += 1
-                        resumo_temp = self.excel_manager.get_resumo()
-                        val_soma = resumo_temp.get("valor_somado", 0.0)
-                        val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                        v_item_fmt = self.excel_manager.formatar_moeda_br(item_data['valor_num'])
-                        log_cb(f"✅ [VALIDADO] Passo {step+1} (Linha {linha_visivel_idx+1}): Título '{t_lido}' | R$ {v_item_fmt} -> Box Marcado! [Soma Acumulada: R$ {val_fmt}]")
-                        try:
-                            self.mouse.position = (int(x_checkbox), y_atual)
-                            time.sleep(0.05)
-                            self.mouse.click(Button.left, 1)
-                            time.sleep(0.15)
-                            self.excel_manager.salvar_resultados()
-                        except Exception as e_click:
-                            log_cb(f"[ERRO CLIQUE] Falha ao clicar no checkbox da linha {linha_visivel_idx+1}: {e_click}")
-                    else:
-                        log_cb(f"⚠️ [PULADO] Passo {step+1} (Linha {linha_visivel_idx+1}): Título '{t_lido}' | Lida Tela R$ {v_lido} -> {motivo}")
-
+            # Loop de validação do grid em quatro passagens de checagem.
+            # A primeira desce, a segunda sobe, a terceira desce, a quarta sobe.
+            for rodada in range(1, 5):
                 if self.stop_event.is_set():
-                    log_cb("[PARADO] Execução interrompida pelo usuário via botão PARAR na Fase 1.")
-                    status_cb("Interrompido")
                     break
 
-                pyautogui.press('down')
-                time.sleep(delay_seta)
-                step += 1
-
-                resumo = self.excel_manager.get_resumo()
-                val_soma = resumo.get("valor_somado", 0.0)
-                val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                status_cb(f"Fase 1 (Down) | Marcados: {titulos_marcados}/{resumo['total']} | Soma: R$ {val_fmt} | Linha {linha_visivel_idx+1}")
-
-            # =========================================================================
-            # FASE 2: Repassagem Subindo com Seta para Cima (UP)
-            # Revisa os itens no retorno para recuperar perdas por piscada ou travamento
-            # =========================================================================
-            if not self.stop_event.is_set():
-                log_cb("[FASE 2 INICIADA] 🔝 Retornando ao topo com Seta para Cima (UP) para re-checar títulos perdidos...")
-                status_cb("Fase 2 (UP): Retornando e re-checando...")
-
-                step_up = 0
-                ultimo_titulo_up = None
-                ultimo_valor_up = None
+                is_descendo = (rodada % 2 != 0)
+                fase = f"FASE {(rodada+1)//2}-{(rodada-1)%2 + 1} ({'Descendo' if is_descendo else 'Subindo'})"
+                log_cb(f"[INFO] Iniciando {fase} (rodada {rodada}/4)")
+                step = 0
+                historico_leituras = []
 
                 while not self.stop_event.is_set():
-                    if step_up < 11:
-                        linha_visivel_idx = 11 - step_up
+                    if is_descendo:
+                        tecla_scroll = 'down'
+                        if step < 12:
+                            linha_visivel_idx = step
+                        else:
+                            linha_visivel_idx = 11
                     else:
-                        linha_visivel_idx = 0
+                        tecla_scroll = 'up'
+                        if step < 12:
+                            linha_visivel_idx = 11 - step
+                        else:
+                            linha_visivel_idx = 0
 
                     y_atual = int(linhas_y[linha_visivel_idx])
                     t_lido, v_lido = self.screen_reader.ler_linha(coords, x_valor, y_atual)
                     titulos_checados += 1
 
-                    if t_lido and t_lido.strip():
+                    if t_lido and t_lido.strip() and len(t_lido.strip()) > 1:
                         itens_lidos_tela[t_lido.strip()] = v_lido.strip()
 
-                    # Só consideramos o topo do sistema (Registro 1) quando já pressionamos UP na Linha 1 (step_up >= 12)
-                    # e a informação na Linha 1 não mudou (a tabela parou de rolar para cima)
-                    if step_up >= 12 and t_lido == ultimo_titulo_up and v_lido == ultimo_valor_up:
-                        log_cb(f"[FASE 2 CONCLUÍDA] A informação na Linha 1 parou de rolar para cima ('{t_lido}'). Topo (Registro 1 do sistema) atingido!")
-                        break
+                    # Detecção inteligente de fim de grid usando histórico (resolve problema do cursor piscando)
+                    historico_leituras.append((t_lido, v_lido))
+                    if len(historico_leituras) > 6:
+                        historico_leituras.pop(0)
 
-                    ultimo_titulo_up = t_lido
-                    ultimo_valor_up = v_lido
+                    if step >= 15:
+                        repeticoes = historico_leituras.count((t_lido, v_lido))
+                        # Se a mesma leitura se repetiu 4 vezes nas ultimas 6 leituras (mesmo com piscadas), chegamos ao fim
+                        if repeticoes >= 4:
+                            log_cb(f"[{fase} CONCLUÍDA] Fim da passagem atingido na extremidade da tabela.")
+                            break
 
-                    if t_lido and t_lido.strip() != "":
+                    if not t_lido or t_lido.strip() == "":
+                        log_cb(f"[AVISO] {fase} | Rodada {rodada} | Passo {step+1} (Linha {linha_visivel_idx+1} na tela): Campo Título lido vazio. Tentando avançar...")
+                    else:
                         is_valid, item_data, motivo = self.excel_manager.verificar_titulo(t_lido, v_lido)
 
                         if is_valid:
@@ -216,7 +182,7 @@ class MiniGamRunner:
                             val_soma = resumo_temp.get("valor_somado", 0.0)
                             val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                             v_item_fmt = self.excel_manager.formatar_moeda_br(item_data['valor_num'])
-                            log_cb(f"🔥 [RECUPERADO NA FASE 2] Título '{t_lido}' | R$ {v_item_fmt} -> Box Marcado! [Soma Acumulada: R$ {val_fmt}]")
+                            log_cb(f"✅ [{fase}] Rodada {rodada} | Passo {step+1} (Linha {linha_visivel_idx+1}): Título '{t_lido}' | R$ {v_item_fmt} -> Box Marcado! [Soma Acumulada: R$ {val_fmt}]")
                             try:
                                 self.mouse.position = (int(x_checkbox), y_atual)
                                 time.sleep(0.05)
@@ -225,38 +191,39 @@ class MiniGamRunner:
                                 self.excel_manager.salvar_resultados()
                             except Exception as e_click:
                                 log_cb(f"[ERRO CLIQUE] Falha ao clicar no checkbox da linha {linha_visivel_idx+1}: {e_click}")
-                        elif "Já validado anteriormente" in motivo:
-                            # Ignora silenciosamente no log itens que já haviam sido marcados com sucesso
-                            pass
                         else:
-                            # Registra apenas se for uma pendência divergente ainda não resolvida
-                            log_cb(f"🔍 [FASE 2 - PENDENTE] Título '{t_lido}' | Lida Tela R$ {v_lido} -> {motivo}")
+                            log_cb(f"⚠️ [{fase}] Rodada {rodada} | Passo {step+1} (Linha {linha_visivel_idx+1}): Título '{t_lido}' | Lida Tela R$ {v_lido} -> {motivo}")
 
                     if self.stop_event.is_set():
-                        log_cb("[PARADO] Execução interrompida pelo usuário via botão PARAR na Fase 2.")
+                        log_cb(f"[PARADO] Execução interrompida pelo usuário na {fase} da rodada {rodada}.")
                         status_cb("Interrompido")
                         break
 
-                    pyautogui.press('up')
+                    pyautogui.press(tecla_scroll)
                     time.sleep(delay_seta)
-                    step_up += 1
+                    step += 1
 
-                resumo = self.excel_manager.get_resumo()
-                val_soma = resumo.get("valor_somado", 0.0)
-                val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                status_cb(f"Fase 2 Concluída | Marcados: {titulos_marcados}/{resumo['total']} | Soma: R$ {val_fmt}")
+                    resumo = self.excel_manager.get_resumo()
+                    val_soma = resumo.get("valor_somado", 0.0)
+                    val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    status_cb(f"{fase} | Rodada {rodada}/4 | Marcados: {titulos_marcados}/{resumo['total']} | Soma: R$ {val_fmt} | Linha {linha_visivel_idx+1}")
+
+                    if self._atingiu_valor_total(val_soma, valor_total_planilha):
+                        log_cb(f"[INFO] Soma acumulada de R$ {val_fmt} atingiu o valor total da planilha ({self.excel_manager.formatar_moeda_br(valor_total_planilha)}). Encerrando a execução.")
+                        break
+
+                if self.stop_event.is_set() or self._atingiu_valor_total(self.excel_manager.get_resumo().get("valor_somado", 0.0), valor_total_planilha):
+                    break
 
             log_cb("[INFO] ===================================================")
             log_cb(f"[INFO] RESUMO FINAL GERAL: {titulos_checados} leituras na tela | {titulos_marcados} marcados com sucesso no Consinco.")
             
-            # Garante o salvamento final na planilha principal
             sucesso_s, msg_s = self.excel_manager.salvar_resultados()
             if sucesso_s:
                 log_cb(f"💾 [SALVO NO EXCEL] {msg_s}")
             else:
                 log_cb(f"⚠️ [AVISO SALVAR] {msg_s}")
 
-            # Gera a planilha de relatorio com itens lidos na tela que não existem no Excel
             msg_relatorio = self.excel_manager.gerar_relatorio_nao_encontrados(itens_lidos_tela)
             log_cb(f"📋 [RELATÓRIO DE LANÇAMENTOS NÃO ENCONTRADOS] {msg_relatorio}")
 
