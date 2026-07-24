@@ -102,7 +102,8 @@ class ScreenReader:
                 pytesseract.pytesseract.tesseract_cmd = caminho
                 print(f"[ScreenReader] Tesseract-OCR configurado com sucesso em: {caminho}")
             else:
-                print("[ScreenReader AVISO] executável 'tesseract.exe' não encontrado nos caminhos padrão. Se o OCR falhar, verifique a instalação.")
+                if not HAS_RAPIDOCR:
+                    print("[ScreenReader AVISO] executável 'tesseract.exe' não encontrado nos caminhos padrão. Se o OCR falhar, verifique a instalação.")
 
     def set_mode(self, mode: str):
         self.mode = mode
@@ -238,8 +239,14 @@ class ScreenReader:
             img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             
-            # Fundo escuro (selecionado) vs claro
-            bg_is_dark = np.mean(gray) < 127
+            # Amostramos pixels apenas à ESQUERDA do checkbox (mesma altura Y).
+            # Ignoramos a direita pois a barra de rolagem do Consinco pode estar lá e
+            # poluir a cor com um tom claro, quebrando a detecção da linha selecionada.
+            mid_y = size // 2
+            bg_samples = [
+                gray[mid_y, 2], gray[mid_y, 4], gray[mid_y, 6], gray[mid_y, 8]
+            ]
+            bg_is_dark = np.median(bg_samples) < 127
             
             if bg_is_dark:
                 _, thresh = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
@@ -269,13 +276,13 @@ class ScreenReader:
             
             if best_rect:
                 xr, yr, wr, hr = best_rect
-                # Ponto central absoluto do checkbox encontrado
-                cx, cy = int(xr + wr / 2.0), int(yr + hr / 2.0)
-                # Miolo cirúrgico de 4x4 pixels
-                miolo = thresh[max(0, cy-2):min(size, cy+2), max(0, cx-2):min(size, cx+2)]
+                # Extrai a área interna do checkbox, cortando 3 pixels de cada borda
+                # Isso garante que capturaremos o 'V' inteiro independente de onde ele estiver desenhado
+                # dentro da caixa, ignorando as bordas perfeitamente.
+                miolo = thresh[yr+3 : yr+hr-3, xr+3 : xr+wr-3]
                 ink_pixels = cv2.countNonZero(miolo)
-                # Se há tinta no centro, está marcado
-                is_marked = ink_pixels >= 2
+                # Se há tinta (>= 4 pixels) dentro da área útil, está marcado
+                is_marked = ink_pixels >= 4
             else:
                 # Se não tem checkbox, consideramos desmarcado
                 miolo = np.zeros((4,4), dtype=np.uint8)
@@ -331,7 +338,7 @@ class ScreenReader:
                 pass
 
     def ler_celula_clipboard(self, x: int, y: int, delay_copia: float = 0.25) -> str:
-        """Modo alternativo via clipboard."""
+        """Modo alternativo via clipboard (Clique -> Ctrl+A -> Ctrl+C)."""
         try:
             self._clear_clipboard()
             time.sleep(0.05)
@@ -339,15 +346,11 @@ class ScreenReader:
             time.sleep(0.05)
             self.mouse.click(Button.left, 1)
             time.sleep(0.1)
+            pyautogui.hotkey('ctrl', 'a')
+            time.sleep(0.1)
             pyautogui.hotkey('ctrl', 'c')
             time.sleep(delay_copia)
             text = self._get_clipboard_text()
-            if not text:
-                self.mouse.click(Button.left, 2)
-                time.sleep(0.1)
-                pyautogui.hotkey('ctrl', 'c')
-                time.sleep(delay_copia)
-                text = self._get_clipboard_text()
             return text.strip()
         except Exception as e:
             print(f"[ScreenReader] Erro na leitura via clipboard em ({x}, {y}): {e}")
@@ -390,9 +393,10 @@ class ScreenReader:
         if self.mode == "ocr":
             # Captura com whitelists otimizadas e salva snippets em debug_ocr/
             t_lido = self.ler_celula_ocr(x_t, y_linha, largura=larg_t, altura=28, num_only=False, debug_name="ultimo_titulo", left_override=left_t)
-            v_lido = self.ler_celula_ocr(x_v, y_linha, largura=larg_v, altura=28, num_only=True, debug_name="ultimo_valor", left_override=left_v)
-            return t_lido, v_lido
+            v_lido = ""
         else:
+            # Clipboard mode (deprecated fallback)
             t_lido = self.ler_celula_clipboard(x_t, y_linha)
-            v_lido = self.ler_celula_clipboard(x_v, y_linha)
-            return t_lido, v_lido
+            v_lido = ""
+            
+        return t_lido, v_lido

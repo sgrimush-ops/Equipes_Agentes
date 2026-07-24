@@ -37,11 +37,15 @@ class CalibradorChecklist(tk.Toplevel):
         self.on_save_callback = on_save_callback
         self.coords: Dict[str, Any] = {
             "x_titulo": None,
-            "x_valor": None,
+            "x_vlr_lateral": None,
+            "y_vlr_lateral": None,
             "x_checkbox": None,
             "y_linha_1": None,
             "y_linha_12": None,
-            "linhas_y": []
+            "linhas_y": [],
+            "x_total_esq": None,
+            "x_total_dir": None,
+            "y_total": None
         }
         self.load_coords()
 
@@ -113,11 +117,11 @@ class CalibradorChecklist(tk.Toplevel):
         self.lbl_titulo = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
         self.lbl_titulo.pack(anchor="w", padx=5)
 
-        # Botão 2: Coluna Valor em Aberto na Linha 1 de dados
+        # Botão 2: Coluna Vlr Pagar/Rec Lateral
         self.btn_valor = tk.Button(
-            body, text="2. Capturar Valor em Aberto (1ª Linha DADOS - 2 CLIQUES: Esq e Dir)",
+            body, text="2. Capturar Vlr Pagar/Rec Lateral (1 CLIQUE no centro)",
             font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#2b2d42", relief="groove",
-            command=lambda: self.start_capture("valor_l1", self.btn_valor, self.lbl_valor)
+            command=lambda: self.start_capture("vlr_lateral", self.btn_valor, self.lbl_valor)
         )
         self.btn_valor.pack(fill="x", pady=4)
         self.lbl_valor = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
@@ -143,6 +147,16 @@ class CalibradorChecklist(tk.Toplevel):
         self.lbl_l12 = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
         self.lbl_l12.pack(anchor="w", padx=5)
 
+        # Botão 5: Total Pagar/Rec
+        self.btn_total = tk.Button(
+            body, text="5. Capturar Total Pagar/Rec (2 CLIQUES: Esq e Dir)",
+            font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#2b2d42", relief="groove",
+            command=lambda: self.start_capture("total", self.btn_total, self.lbl_total)
+        )
+        self.btn_total.pack(fill="x", pady=4)
+        self.lbl_total = tk.Label(body, text="Não definido", font=("Consolas", 9), bg="#f8f9fa", fg="#d90429")
+        self.lbl_total.pack(anchor="w", padx=5)
+
         footer = tk.Frame(self, bg="#f8f9fa", pady=10)
         footer.pack(fill="x", padx=20)
 
@@ -160,23 +174,26 @@ class CalibradorChecklist(tk.Toplevel):
         elif self.coords["x_titulo"] and self.coords["y_linha_1"]:
             self.lbl_titulo.config(text=f"Salvo: X={self.coords['x_titulo']}, Y={self.coords['y_linha_1']}", fg="#2a9d8f")
 
-        if self.coords.get("x_valor_esq") is not None and self.coords.get("x_valor_dir") is not None:
-            w = abs(self.coords["x_valor_dir"] - self.coords["x_valor_esq"])
-            self.lbl_valor.config(text=f"Salvo: Esq={self.coords['x_valor_esq']}, Dir={self.coords['x_valor_dir']} (Largura: {w}px)", fg="#2a9d8f")
-        elif self.coords["x_valor"]:
-            self.lbl_valor.config(text=f"Salvo: X={self.coords['x_valor']}", fg="#2a9d8f")
+        if self.coords.get("x_vlr_lateral") is not None and self.coords.get("y_vlr_lateral") is not None:
+            self.lbl_valor.config(text=f"Salvo: X={self.coords['x_vlr_lateral']}, Y={self.coords['y_vlr_lateral']}", fg="#2a9d8f")
+        elif self.coords.get("x_valor"): # Fallback antigo
+            self.lbl_valor.config(text=f"Salvo: X={self.coords['x_valor']} (Mapeamento Antigo)", fg="#ffb703")
 
         if self.coords["x_checkbox"] and self.coords["y_linha_1"]:
             self.lbl_check_l1.config(text=f"Salvo: X={self.coords['x_checkbox']}, Y={self.coords['y_linha_1']}", fg="#2a9d8f")
         if self.coords["y_linha_12"]:
             self.lbl_l12.config(text=f"Salvo: Y={self.coords['y_linha_12']}", fg="#2a9d8f")
 
-        if all([self.coords["x_titulo"], self.coords["x_valor"], self.coords["x_checkbox"], self.coords["y_linha_1"], self.coords["y_linha_12"]]):
+        if self.coords.get("x_total_esq") is not None and self.coords.get("x_total_dir") is not None:
+            w = abs(self.coords["x_total_dir"] - self.coords["x_total_esq"])
+            self.lbl_total.config(text=f"Salvo: Esq={self.coords['x_total_esq']}, Dir={self.coords['x_total_dir']} (Largura: {w}px)", fg="#2a9d8f")
+
+        if all([self.coords["x_titulo"], self.coords.get("x_vlr_lateral"), self.coords["x_checkbox"], self.coords["y_linha_1"], self.coords["y_linha_12"], self.coords.get("x_total_esq")]):
             self.btn_save.config(state="normal")
 
     def start_capture(self, mode_key: str, btn: tk.Button, lbl: tk.Label):
         orig_text = btn.cget("text")
-        if mode_key in ["titulo_l1", "valor_l1"]:
+        if mode_key in ["titulo_l1", "total"]:
             btn.config(text="👉 1º CLIQUE: Aponte no canto ESQUERDO e clique...", bg="#ffb703", fg="#000000", state="disabled")
             lbl.config(text="Aguardando 1º clique (Canto Esquerdo)...", fg="#e76f51")
         else:
@@ -186,7 +203,7 @@ class CalibradorChecklist(tk.Toplevel):
         threading.Thread(target=self._capture_thread, args=(mode_key, btn, lbl, orig_text), daemon=True).start()
 
     def _capture_thread(self, mode_key: str, btn: tk.Button, lbl: tk.Label, orig_text: str):
-        if mode_key in ["titulo_l1", "valor_l1"]:
+        if mode_key in ["titulo_l1", "total"]:
             x_clicks = []
             y_clicks = []
 
@@ -214,12 +231,10 @@ class CalibradorChecklist(tk.Toplevel):
                 self.coords["x_titulo_dir"] = x_dir
                 self.coords["x_titulo"] = x_centro
                 self.coords["y_linha_1"] = y_centro
-            elif mode_key == "valor_l1":
-                self.coords["x_valor_esq"] = x_esq
-                self.coords["x_valor_dir"] = x_dir
-                self.coords["x_valor"] = x_centro
-                if not self.coords["y_linha_1"]:
-                    self.coords["y_linha_1"] = y_centro
+            elif mode_key == "total":
+                self.coords["x_total_esq"] = x_esq
+                self.coords["x_total_dir"] = x_dir
+                self.coords["y_total"] = y_centro
 
             self.after(0, lambda: self._after_capture_ui(btn, lbl, orig_text, x_centro, y_centro))
         else:
@@ -238,6 +253,9 @@ class CalibradorChecklist(tk.Toplevel):
                 self.coords["x_checkbox"] = click_x
                 if not self.coords["y_linha_1"]:
                     self.coords["y_linha_1"] = click_y
+            elif mode_key == "vlr_lateral":
+                self.coords["x_vlr_lateral"] = click_x
+                self.coords["y_vlr_lateral"] = click_y
             elif mode_key == "linha_12":
                 self.coords["y_linha_12"] = click_y
                 if not self.coords["x_checkbox"]:

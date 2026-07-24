@@ -36,7 +36,7 @@ class MiniGamRunner:
         """Retorna True quando o somatório acumulado já alcançou o total esperado da planilha."""
         return valor_atual >= (valor_total_planilha - tolerancia)
 
-    def executar(self, log_cb: Callable, status_cb: Callable, finish_cb: Callable, ask_cb: Callable = None, delay_seta: float = 0.85):
+    def executar(self, log_cb: Callable, status_cb: Callable, finish_cb: Callable, ask_cb: Callable = None, ask_divergencia_cb: Callable = None, update_consinco_cb: Callable = None, delay_seta: float = 0.85):
         """
         Executa a automação em uma thread separada.
         """
@@ -47,11 +47,11 @@ class MiniGamRunner:
 
         threading.Thread(
             target=self._executar_thread,
-            args=(log_cb, status_cb, finish_cb, ask_cb, delay_seta),
+            args=(log_cb, status_cb, finish_cb, ask_cb, ask_divergencia_cb, update_consinco_cb, delay_seta),
             daemon=True
         ).start()
 
-    def _executar_thread(self, log_cb: Callable[[str], None], status_cb: Callable[[str], None], finish_cb: Callable[[], None], ask_cb: Optional[Callable], delay_seta: float):
+    def _executar_thread(self, log_cb: Callable[[str], None], status_cb: Callable[[str], None], finish_cb: Callable[[], None], ask_cb: Optional[Callable], ask_divergencia_cb: Optional[Callable], update_consinco_cb: Optional[Callable], delay_seta: float):
         try:
             # 1. Verificação de pré-requisitos
             if not self.excel_manager.df is not None:
@@ -77,14 +77,18 @@ class MiniGamRunner:
             x_titulo = coords.get("x_titulo")
             x_valor = coords.get("x_valor")
             x_checkbox = coords.get("x_checkbox")
+            x_total_esq = coords.get("x_total_esq")
+            x_total_dir = coords.get("x_total_dir")
+            y_total = coords.get("y_total")
             linhas_y = coords.get("linhas_y", [])
 
             has_titulo = (coords.get("x_titulo_esq") is not None and coords.get("x_titulo_dir") is not None)
-            has_valor = (coords.get("x_valor_esq") is not None and coords.get("x_valor_dir") is not None)
+            has_vlr_lateral = (coords.get("x_vlr_lateral") is not None)
+            has_total_check = (x_total_esq is not None and x_total_dir is not None and y_total is not None)
 
-            if not (has_titulo and has_valor and x_checkbox) or len(linhas_y) != 12:
-                log_cb("[ERRO] Coordenadas sem limites esquerdo/direito da calibração de 2 cliques. Por favor, execute o 'Mapear Checklist' novamente.")
-                status_cb("Calibração incompleta (Recalibre com 2 cliques)")
+            if not (has_titulo and has_vlr_lateral and x_checkbox and has_total_check) or len(linhas_y) != 12:
+                log_cb("[ERRO] Coordenadas sem limites esquerdo/direito ou faltando Vlr Pagar Lateral. Por favor, execute o 'Mapear Checklist' novamente.")
+                status_cb("Calibração incompleta (Recalibre com novo passo 2)")
                 self.is_running = False
                 finish_cb()
                 return
@@ -155,7 +159,10 @@ class MiniGamRunner:
                             linha_visivel_idx = 0
 
                     y_atual = int(linhas_y[linha_visivel_idx])
-                    t_lido, v_lido = self.screen_reader.ler_linha(coords, x_valor, y_atual)
+                    t_lido, _ = self.screen_reader.ler_linha(coords, None, y_atual)
+                    
+                    # Leitura segura via Clipboard no campo Vlr Pagar/Rec
+                    v_lido = self.screen_reader.ler_celula_clipboard(coords["x_vlr_lateral"], coords["y_vlr_lateral"], delay_copia=0.15)
                     titulos_checados += 1
 
                     if t_lido and t_lido.strip() and len(t_lido.strip()) > 1:
@@ -195,10 +202,44 @@ class MiniGamRunner:
                                 self.mouse.click(Button.left, 1)
                                 time.sleep(0.15)
                                 self.excel_manager.salvar_resultados()
+
+                                # --- NOVO: LER TOTAL DO CONSINCO E VERIFICAR DIVERGÊNCIA ---
+                                if has_total_check:
+                                    time.sleep(0.3) # Espera a soma atualizar na tela do Consinco
+                                    try:
+                                        v_cons_str = self.screen_reader.ler_celula_ocr(
+                                            x_total_esq, y_total,
+                                            largura=(x_total_dir - x_total_esq),
+                                            altura=24,
+                                            left_override=x_total_esq,
+                                            num_only=True
+                                        )
+                                        v_cons = self.excel_manager._parse_numeric_value(v_cons_str)
+                                        if update_consinco_cb:
+                                            update_consinco_cb(v_cons)
+
+                                        if v_cons > 0 and abs(val_soma - v_cons) > 0.05:
+                                            log_cb(f"⚠️ [DIVERGÊNCIA] Soma GAM: R$ {val_fmt} | Total Consinco lido: {v_cons_str}")
+                                            if ask_divergencia_cb:
+                                                continuar = ask_divergencia_cb(val_soma, v_cons)
+                                                if not continuar:
+                                                    self.stop_event.set()
+                                                    log_cb("[PARADO] Execução interrompida por divergência de totais.")
+                                                    status_cb("Interrompido por Divergência")
+                                                    break
+                                    except Exception as e_ocr_total:
+                                        log_cb(f"[AVISO] Falha ao ler Total Pagar/Rec: {e_ocr_total}")
+
                             except Exception as e_click:
                                 log_cb(f"[ERRO CLIQUE] Falha ao clicar no checkbox da linha {linha_visivel_idx+1}: {e_click}")
                         else:
-                            log_cb(f"⚠️ [{fase}] Rodada {rodada} | Passo {step+1} (Linha {linha_visivel_idx+1}): Título '{t_lido}' | Lida Tela R$ {v_lido} -> {motivo}")
+                            # Restaura foco no grid clicando na célula de Título para poder usar a seta (pois o foco ficou no campo lateral)
+                            x_t = coords.get("x_titulo_esq", coords.get("x_titulo", x_checkbox - 100))
+                            self.mouse.position = (int(x_t), y_atual)
+                            time.sleep(0.05)
+                            self.mouse.click(Button.left, 1)
+                            time.sleep(0.05)
+                            log_cb(f"❌ [{fase}] Rodada {rodada} | Passo {step+1}: Título '{t_lido}' | R$ {v_lido} -> {motivo}")
 
                     if self.stop_event.is_set():
                         log_cb(f"[PARADO] Execução interrompida pelo usuário na {fase} da rodada {rodada}.")
@@ -249,109 +290,3 @@ class MiniGamRunner:
             self.is_running = False
             finish_cb()
 
-    def executar_auditoria(self, log_cb: Callable, status_cb: Callable, finish_cb: Callable, ask_audit_cb: Callable, delay_seta: float = 0.85):
-        """Inicia o modo Auditoria em uma thread separada."""
-        if self.is_running:
-            return
-        self.is_running = True
-        self.stop_event.clear()
-        
-        threading.Thread(
-            target=self._executar_auditoria_thread,
-            args=(log_cb, status_cb, finish_cb, ask_audit_cb, delay_seta),
-            daemon=True
-        ).start()
-
-    def _executar_auditoria_thread(self, log_cb: Callable, status_cb: Callable, finish_cb: Callable, ask_audit_cb: Callable, delay_seta: float):
-        try:
-            path_coords = get_coords_filepath()
-            with open(path_coords, 'r', encoding='utf-8') as f:
-                coords = json.load(f)
-            
-            linhas_y = coords.get("linhas_y", [])
-            x_checkbox = coords.get("x_checkbox")
-            if not linhas_y or not x_checkbox:
-                log_cb("[ERRO] Coordenadas incompletas para auditoria.")
-                return
-
-            log_cb("[START] Modo Auditoria Iniciado! Contagem 5s...")
-            for i in range(5, 0, -1):
-                if self.stop_event.is_set(): return
-                status_cb(f"Iniciando em {i}s...")
-                time.sleep(1)
-
-            log_cb("[INFO] Descendo o grid para auditoria...")
-            status_cb("Auditando...")
-
-            step = 0
-            historico_leituras = []
-            
-            while not self.stop_event.is_set():
-                if step < 12:
-                    linha_visivel_idx = step
-                else:
-                    linha_visivel_idx = 11
-
-                y_atual = int(linhas_y[linha_visivel_idx])
-                
-                # Lê título, valor e checkbox
-                t_lido, v_lido = self.screen_reader.ler_linha(coords, y_linha=y_atual)
-                is_marked = self.screen_reader.is_checkbox_marcado(int(x_checkbox), y_atual)
-                
-                if t_lido and t_lido.strip() and len(t_lido.strip()) > 1:
-                    historico_leituras.append((t_lido, v_lido))
-                    if len(historico_leituras) > 6:
-                        historico_leituras.pop(0)
-
-                if step >= 15 and historico_leituras.count((t_lido, v_lido)) >= 4:
-                    log_cb("[INFO] Fim da tabela alcançado.")
-                    break
-
-                if is_marked and t_lido and t_lido.strip() != "":
-                    # Verifica se o item deveria estar marcado
-                    t_norm = self.excel_manager.normalize_titulo(t_lido)
-                    v_num = self.excel_manager._parse_numeric_value(v_lido)
-                    
-                    item_correto = False
-                    for item in self.excel_manager.dados_sanitizados:
-                        if item["titulo_norm"] == t_norm and abs(item["valor_num"] - v_num) <= 0.02:
-                            item_correto = True
-                            break
-                    
-                    if not item_correto:
-                        # Busca difusa (Fuzzy) em caso de pequenos erros de OCR
-                        import difflib
-                        candidatos_fuzzy = [
-                            item for item in self.excel_manager.dados_sanitizados
-                            if abs(item["valor_num"] - v_num) <= 0.02
-                        ]
-                        for item in candidatos_fuzzy:
-                            if difflib.SequenceMatcher(None, t_norm, item["titulo_norm"]).ratio() >= 0.7:
-                                item_correto = True
-                                break
-
-                    if not item_correto:
-                        log_cb(f"⚠️ [ANOMALIA] Item '{t_lido}' (R$ {v_lido}) está MARCADO indevidamente!")
-                        manter = ask_audit_cb(t_lido, v_lido)
-                        if not manter:
-                            log_cb(f"🔨 Desmarcando '{t_lido}'...")
-                            self.mouse.position = (int(x_checkbox), y_atual)
-                            time.sleep(0.05)
-                            self.mouse.click(Button.left, 1)
-                            time.sleep(0.15)
-                        else:
-                            log_cb(f"👍 Mantido marcado pelo usuário: '{t_lido}'")
-
-                pyautogui.press('down')
-                time.sleep(delay_seta)
-                step += 1
-
-            if not self.stop_event.is_set():
-                status_cb("Auditoria Concluída")
-                log_cb("✅ [INFO] Auditoria Concluída com sucesso!")
-        except Exception as e:
-            log_cb(f"[ERRO FATAL] Ocorreu uma exceção inesperada na auditoria: {e}")
-            status_cb("Erro na auditoria")
-        finally:
-            self.is_running = False
-            finish_cb()

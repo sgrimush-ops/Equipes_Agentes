@@ -90,14 +90,6 @@ class MiniGamApp:
         )
         self.btn_mapear.grid(row=0, column=2, padx=4)
 
-        self.btn_auditoria = tk.Button(
-            btn_container, text="🔎 AUDITORIA",
-            font=("Segoe UI", 11, "bold"), bg="#0077b6", fg="white",
-            relief="raised", bd=2, width=13, pady=8,
-            command=self.acao_auditoria
-        )
-        self.btn_auditoria.grid(row=0, column=3, padx=4)
-
         # --- SEÇÃO 2: STATUS DA PLANILHA E CALIBRAÇÃO ---
         info_frame = tk.LabelFrame(
             main_frame, text=" Status de Configuração e Planilha ",
@@ -130,10 +122,16 @@ class MiniGamApp:
         soma_frame.pack(fill="x", pady=(0, 12))
 
         self.lbl_soma_total = tk.Label(
-            soma_frame, text="💰 MARCADO: R$ 0,00 / R$ 0,00",
+            soma_frame, text="💰 MARCADO GAM: R$ 0,00 / R$ 0,00",
             font=("Segoe UI", 11, "bold"), bg="#1a1d20", fg="#55a630"
         )
         self.lbl_soma_total.pack(side="left")
+
+        self.lbl_soma_consinco = tk.Label(
+            soma_frame, text=" 📊 TOTAL CONSINCO: R$ 0,00",
+            font=("Segoe UI", 10, "bold"), bg="#1a1d20", fg="#ffb703"
+        )
+        self.lbl_soma_consinco.pack(side="left", padx=10)
 
         self.lbl_soma_itens = tk.Label(
             soma_frame, text="✔ Validados: 0 / 0",
@@ -228,7 +226,7 @@ class MiniGamApp:
         self.status_bar.config(text=f" Status: {status} ")
         self.update_summary_ui()
 
-    def update_summary_ui(self):
+    def update_summary_ui(self, consinco_val=None):
         try:
             resumo = self.excel_manager.get_resumo()
             val_soma = resumo.get("valor_somado", 0.0)
@@ -237,8 +235,12 @@ class MiniGamApp:
             val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             esp_fmt = f"{val_esperado:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            self.lbl_soma_total.config(text=f"💰 MARCADO: R$ {val_fmt} / R$ {esp_fmt}")
+            self.lbl_soma_total.config(text=f"💰 MARCADO GAM: R$ {val_fmt} / R$ {esp_fmt}")
             self.lbl_soma_itens.config(text=f"✔ Validados: {resumo.get('validados', 0)} / {resumo.get('total', 0)}")
+
+            if consinco_val is not None:
+                cons_fmt = f"{consinco_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                self.lbl_soma_consinco.config(text=f" 📊 TOTAL CONSINCO: R$ {cons_fmt}")
         except Exception:
             pass
 
@@ -295,13 +297,15 @@ class MiniGamApp:
                 with open(path, 'r', encoding='utf-8') as f:
                     coords = json.load(f)
                 linhas_y = coords.get("linhas_y", [])
-                has_2cliques = coords.get("x_titulo_esq") is not None and coords.get("x_valor_esq") is not None
+                has_titulo = coords.get("x_titulo_esq") is not None
+                has_vlr_lateral = coords.get("x_vlr_lateral") is not None
+                has_total = coords.get("x_total_esq") is not None
                 if len(linhas_y) == 12 and abs(linhas_y[11] - linhas_y[0]) < 80:
                     self.lbl_calib.config(text=f"📍 Mapeamento: Inválido (Linhas muito próximas: {abs(linhas_y[11]-linhas_y[0])}px. Recalibre!)", fg="#ef233c")
-                elif has_2cliques and coords.get("x_checkbox") and len(linhas_y) == 12:
-                    self.lbl_calib.config(text="📍 Mapeamento: Mapeado OK (2-cliques esq/dir e 12 linhas salvas)", fg="#55a630")
-                elif coords.get("x_titulo") or coords.get("x_valor") or coords.get("x_checkbox") or coords.get("y_linha_12"):
-                    self.lbl_calib.config(text="📍 Mapeamento: Mapeado OK (Coordenadas salvas em arquivo)", fg="#55a630")
+                elif has_titulo and has_vlr_lateral and has_total and coords.get("x_checkbox") and len(linhas_y) == 12:
+                    self.lbl_calib.config(text="📍 Mapeamento: Completo (Tudo OK!)", fg="#55a630")
+                elif has_titulo and coords.get("x_checkbox"):
+                    self.lbl_calib.config(text="📍 Mapeamento: Faltam Passos 2 ou 5 (Recalibre!)", fg="#ffb703")
                 else:
                     self.lbl_calib.config(text="📍 Mapeamento: Pendente (Clique em 'Mapear Checklist')", fg="#ffb703")
                 return
@@ -332,14 +336,13 @@ class MiniGamApp:
         try:
             with open(path_coords, 'r', encoding='utf-8') as f:
                 coords_check = json.load(f)
-            if coords_check.get("x_titulo_esq") is None or coords_check.get("x_valor_esq") is None:
+            if coords_check.get("x_titulo_esq") is None or coords_check.get("x_vlr_lateral") is None or coords_check.get("x_total_esq") is None:
                 msg_alerta = (
-                    "O arquivo de coordenadas atual é da versão anterior (de 1 clique no meio), "
-                    "sem os limites exatos do Canto Esquerdo e Canto Direito.\n\n"
-                    "Para evitar que números como '69,12' sejam cortados para '9,12', é obrigatório recalibrar agora.\n\n"
-                    "👉 Clique em 'Mapear Checklist' e faça os 2 cliques (canto esquerdo e canto direito) no Título e no Valor em Aberto!"
+                    "O arquivo de coordenadas atual está desatualizado.\n\n"
+                    "Agora o Passo 2 é o clique único no 'Vlr Pagar/Rec Lateral', e o Passo 5 é o Total.\n\n"
+                    "👉 Clique em 'Mapear Checklist' e refaça a calibração completando todos os 5 passos!"
                 )
-                messagebox.showwarning("Recalibração de 2 Cliques Necessária", msg_alerta)
+                messagebox.showwarning("Recalibração Necessária", msg_alerta)
                 return
         except Exception:
             pass
@@ -352,7 +355,9 @@ class MiniGamApp:
             log_cb=self.log,
             status_cb=self.set_status,
             finish_cb=self._on_finished,
-            ask_cb=self.ask_round_continue
+            ask_cb=self.ask_round_continue,
+            ask_divergencia_cb=self.ask_divergencia,
+            update_consinco_cb=lambda val: self.root.after(0, lambda: self.update_summary_ui(val))
         )
 
     def ask_round_continue(self, rodada: int) -> bool:
@@ -413,30 +418,33 @@ class MiniGamApp:
         
         timer_id = popup.after(1000, atualizar_timer)
 
-    def ask_audit(self, titulo: str, valor: str) -> bool:
+    def ask_divergencia(self, val_gam: float, val_cons: float) -> bool:
         import threading
         evento = threading.Event()
         resultado = [None]
-        self.root.after(0, lambda: self.popup_auditoria(evento, resultado, titulo, valor))
+        self.root.after(0, lambda: self.popup_divergencia(evento, resultado, val_gam, val_cons))
         evento.wait()
-        return resultado[0] == "sim"
+        return resultado[0] == "continuar"
 
-    def popup_auditoria(self, evento_conclusao, resultado, titulo, valor):
+    def popup_divergencia(self, evento_conclusao, resultado, val_gam, val_cons):
         popup = tk.Toplevel(self.root)
-        popup.title("Alerta de Auditoria")
-        popup.geometry("450x200")
+        popup.title("Divergência de Totais!")
+        popup.geometry("450x220")
         popup.attributes("-topmost", True)
         popup.configure(bg="#212529")
         
         popup.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (450 // 2)
-        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (200 // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (220 // 2)
         popup.geometry(f"+{x}+{y}")
         
-        lbl_msg = tk.Label(popup, text=f"ALERTA: O item '{titulo}' (R$ {valor})\nestá marcado no Consinco indevidamente!", font=("Segoe UI", 11, "bold"), bg="#212529", fg="#ffb703")
+        v_gam_f = f"{val_gam:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        v_cons_f = f"{val_cons:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        
+        lbl_msg = tk.Label(popup, text=f"DIVERGÊNCIA DETECTADA!\n\nSoma no GAM: R$ {v_gam_f}\nTotal Consinco: R$ {v_cons_f}", font=("Segoe UI", 11, "bold"), bg="#212529", fg="#ffb703")
         lbl_msg.pack(pady=(15, 5))
         
-        lbl_q = tk.Label(popup, text="Esse produto está marcado corretamente?", font=("Segoe UI", 12, "bold"), bg="#212529", fg="#f8f9fa")
+        lbl_q = tk.Label(popup, text="Deseja forçar a continuação?", font=("Segoe UI", 10), bg="#212529", fg="#f8f9fa")
         lbl_q.pack(pady=(5, 15))
         
         def fechar(resp):
@@ -447,38 +455,11 @@ class MiniGamApp:
         btn_frame = tk.Frame(popup, bg="#212529")
         btn_frame.pack()
         
-        btn_sim = tk.Button(btn_frame, text="Sim (Manter)", bg="#2b9348", fg="white", font=("Segoe UI", 10, "bold"), width=15, command=lambda: fechar("sim"))
-        btn_sim.pack(side="left", padx=10)
+        btn_cont = tk.Button(btn_frame, text="⚠️ Ignorar e Continuar", bg="#ffb703", fg="black", font=("Segoe UI", 9, "bold"), width=20, command=lambda: fechar("continuar"))
+        btn_cont.pack(side="left", padx=10)
         
-        btn_nao = tk.Button(btn_frame, text="Não (Desmarcar)", bg="#d90429", fg="white", font=("Segoe UI", 10, "bold"), width=15, command=lambda: fechar("nao"))
-        btn_nao.pack(side="right", padx=10)
-
-    def acao_auditoria(self):
-        if self.runner.is_running:
-            return
-
-        if not self.excel_manager.dados_sanitizados:
-            sucesso, msg = self.excel_manager.carregar_planilha()
-            if not sucesso:
-                messagebox.showwarning("Planilha Ausente", "Por favor, carregue a planilha primeiro.")
-                return
-
-        path_coords = get_coords_filepath()
-        if not os.path.exists(path_coords):
-            messagebox.showwarning("Calibração Necessária", "Você deve clicar no botão 'Mapear Checklist' antes de começar.")
-            return
-
-        self.btn_comecar.config(state="disabled", bg="#6c757d")
-        self.btn_mapear.config(state="disabled")
-        self.btn_auditoria.config(state="disabled", bg="#6c757d")
-        self.btn_parar.config(state="normal", bg="#ef233c")
-
-        self.runner.executar_auditoria(
-            log_cb=self.log,
-            status_cb=self.set_status,
-            finish_cb=self._on_finished,
-            ask_audit_cb=self.ask_audit
-        )
+        btn_parar = tk.Button(btn_frame, text="⏹ Parar Execução", bg="#d90429", fg="white", font=("Segoe UI", 9, "bold"), width=15, command=lambda: fechar("parar"))
+        btn_parar.pack(side="right", padx=10)
 
     def acao_parar(self):
         if self.runner.is_running:
@@ -492,7 +473,6 @@ class MiniGamApp:
     def _restore_buttons(self):
         self.btn_comecar.config(state="normal", bg="#2b9348")
         self.btn_mapear.config(state="normal")
-        self.btn_auditoria.config(state="normal", bg="#0077b6")
         self.btn_parar.config(state="disabled", bg="#6c757d")
         self.set_status("Pronto")
         self.update_calibration_status()
