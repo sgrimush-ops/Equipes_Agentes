@@ -338,19 +338,30 @@ class ScreenReader:
                 pass
 
     def ler_celula_clipboard(self, x: int, y: int, delay_copia: float = 0.25) -> str:
-        """Modo alternativo via clipboard (Clique -> Ctrl+A -> Ctrl+C)."""
+        """Modo alternativo via clipboard (Duplo Clique -> Ctrl+C -> Ctrl+A -> Ctrl+C)."""
         try:
             self._clear_clipboard()
             time.sleep(0.05)
             self.mouse.position = (int(x), int(y))
             time.sleep(0.05)
-            self.mouse.click(Button.left, 1)
-            time.sleep(0.1)
-            pyautogui.hotkey('ctrl', 'a')
+            
+            # Tentativa 1: Duplo clique
+            self.mouse.click(Button.left, 2)
             time.sleep(0.1)
             pyautogui.hotkey('ctrl', 'c')
             time.sleep(delay_copia)
             text = self._get_clipboard_text()
+            
+            if not text.strip():
+                # Tentativa 2: Ctrl+A
+                self.mouse.click(Button.left, 1)
+                time.sleep(0.1)
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.1)
+                pyautogui.hotkey('ctrl', 'c')
+                time.sleep(delay_copia)
+                text = self._get_clipboard_text()
+                
             return text.strip()
         except Exception as e:
             print(f"[ScreenReader] Erro na leitura via clipboard em ({x}, {y}): {e}")

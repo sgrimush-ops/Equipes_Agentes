@@ -132,9 +132,9 @@ class MiniGamRunner:
             valor_total_planilha = round(valor_total_planilha, 2)
             log_cb(f"[INFO] Valor total da planilha: R$ {self.excel_manager.formatar_moeda_br(valor_total_planilha)}")
 
-            # Loop de validação do grid em quatro passagens de checagem.
-            # A primeira desce, a segunda sobe, a terceira desce, a quarta sobe.
-            for rodada in range(1, 5):
+            # Loop de validação do grid em duas passagens de checagem.
+            # A primeira desce, a segunda sobe.
+            for rodada in range(1, 3):
                 if self.stop_event.is_set():
                     break
 
@@ -253,7 +253,7 @@ class MiniGamRunner:
                     resumo = self.excel_manager.get_resumo()
                     val_soma = resumo.get("valor_somado", 0.0)
                     val_fmt = f"{val_soma:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    status_cb(f"{fase} | Rodada {rodada}/4 | Marcados: {titulos_marcados}/{resumo['total']} | Soma: R$ {val_fmt} | Linha {linha_visivel_idx+1}")
+                    status_cb(f"{fase} | Rodada {rodada}/2 | Marcados: {titulos_marcados}/{resumo['total']} | Soma: R$ {val_fmt} | Linha {linha_visivel_idx+1}")
 
                     if self._atingiu_valor_total(val_soma, valor_total_planilha):
                         log_cb(f"[INFO] Soma acumulada de R$ {val_fmt} atingiu o valor total da planilha ({self.excel_manager.formatar_moeda_br(valor_total_planilha)}). Encerrando a execução.")
@@ -262,7 +262,7 @@ class MiniGamRunner:
                 if self.stop_event.is_set() or self._atingiu_valor_total(self.excel_manager.get_resumo().get("valor_somado", 0.0), valor_total_planilha):
                     break
 
-                if rodada < 4 and ask_cb and not self.stop_event.is_set():
+                if rodada < 2 and ask_cb and not self.stop_event.is_set():
                     if not self._atingiu_valor_total(self.excel_manager.get_resumo().get("valor_somado", 0.0), valor_total_planilha):
                         continuar = ask_cb(rodada)
                         if not continuar:
