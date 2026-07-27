@@ -23,6 +23,14 @@ def principal():
     print("Carregando dados para painel detalhado...")
     df = pd.read_parquet(arquivo_entrada)
 
+    # Salvar cópia detalhada no histórico automaticamente
+    dir_historico = base_dir / "historico_ruptura"
+    dir_historico.mkdir(exist_ok=True)
+    arquivo_detalhado = dir_historico / f"ruptura_snapshot_{date.today().strftime('%Y-%m-%d')}_detalhe.parquet"
+    if not arquivo_detalhado.exists():
+        df.to_parquet(arquivo_detalhado, index=False)
+        print(f"Snapshot detalhado salvo no histórico: {arquivo_detalhado}")
+
     if 'QTD_VENDIDA' not in df.columns and 'QTD_VENDIDA_PERIODO' in df.columns:
         df['QTD_VENDIDA'] = df['QTD_VENDIDA_PERIODO']
 

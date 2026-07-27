@@ -15,10 +15,10 @@ arquivo_parquet = base_dir / 'ean_dun.parquet'
 
 # 1. Verificação de existência
 if not arquivo_txt.exists():
-    print(f"❌ Arquivo não encontrado: {arquivo_txt}")
+    print(f"[ERRO] Arquivo não encontrado: {arquivo_txt}")
     raise SystemExit(1)
 
-print(f"📂 Lendo: {arquivo_txt}")
+print(f"[INFO] Lendo: {arquivo_txt}")
 
 # 2. Ingestão respeitando o padrão Pt-BR (sep=';', encoding='utf-8-sig')
 df = pd.read_csv(
@@ -52,11 +52,11 @@ for col in df.select_dtypes(include=['object']).columns:
 
 # 4. Exportar para Parquet
 df.to_parquet(arquivo_parquet, index=False)
-print(f"✅ Parquet gerado: {arquivo_parquet}")
+print(f"[SUCESSO] Parquet gerado: {arquivo_parquet}")
 
 # 5. Validação de integridade
 df_check = pd.read_parquet(arquivo_parquet)
 if df_check.shape == df.shape:
-    print(f"✅ SUCESSO: {df_check.shape[0]} linhas × {df_check.shape[1]} colunas intactas.")
+    print(f"[SUCESSO] {df_check.shape[0]} linhas × {df_check.shape[1]} colunas intactas.")
 else:
-    print(f"❌ ALERTA! Divergência: origem {df.shape} vs parquet {df_check.shape}")
+    print(f"[ALERTA] Divergência: origem {df.shape} vs parquet {df_check.shape}")
