@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 import pandas as pd
 
+DIAS_MINIMOS_CADASTRO = 45
+
 def processar_sem_venda(
     origem_parquet: Path,
     destino_xlsx: Path | None = None,
@@ -18,7 +20,8 @@ def processar_sem_venda(
     df = pd.read_parquet(origem_parquet)
     
     # Preencher vazios para evitar erros de comparacao
-    if 'DATA_CADASTRO_PRODUTO' in df.columns:
+    tem_data_cadastro = 'DATA_CADASTRO_PRODUTO' in df.columns
+    if tem_data_cadastro:
         # Converter para data e calcular dias ate hoje
         df['DATA_CADASTRO_OBJ'] = pd.to_datetime(df['DATA_CADASTRO_PRODUTO'], format='%d/%m/%Y', errors='coerce')
         df['DIAS_CADASTRO'] = (pd.Timestamp.today().normalize() - df['DATA_CADASTRO_OBJ']).dt.days
@@ -42,6 +45,15 @@ def processar_sem_venda(
     
     # Filtrar Sem Venda: Nao teve vendas mas TEM estoque fisico maior que zero na loja
     df_sem_venda = df[(df['QTD_VENDIDA_PERIODO'] <= 0) & (df['QUANTIDADE_DISPONIVEL'] > 0)].copy()
+
+    # Expurgo: remover itens com cadastro recente (< 45 dias)
+    if tem_data_cadastro:
+        df_sem_venda = df_sem_venda[df_sem_venda['DIAS_CADASTRO'] >= DIAS_MINIMOS_CADASTRO]
+
+    # Expurgo: remover produtos de CESTA BASICA
+    if 'DESCRICAO_PRODUTO' in df_sem_venda.columns:
+        descricao = df_sem_venda['DESCRICAO_PRODUTO'].astype(str)
+        df_sem_venda = df_sem_venda[~descricao.str.contains('CESTA BASICA', case=False, na=False)]
     
     # Adicionar o estoque do CD na base
     df_sem_venda = df_sem_venda.merge(estoque_cd, on='CODIGO_PRODUTO', how='left')

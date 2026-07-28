@@ -65,4 +65,14 @@ except Exception as e:
 
 # limpar tela com cls e depois msg de finalizado
 os.system('cls')
-print("[OK] Processo concluído!")   
+
+# Executar a sincronização com AppSheet
+print("\n[INFO] Iniciando sincronização com AppSheet...")
+try:
+    import subprocess
+    sync_script_path = os.path.join(base_dir, 'sync_query_to_sheets.py')
+    subprocess.run([sys.executable, sync_script_path], check=True, cwd=base_dir)
+except Exception as e:
+    print(f"⚠️ Aviso: Falha ao executar a sincronização com AppSheet: {e}")
+
+print("\n[OK] Processo concluído!")   
