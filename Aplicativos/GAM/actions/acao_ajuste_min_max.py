@@ -364,59 +364,58 @@ class AcaoAjusteMinMax(BaseAction):
             pyautogui.press('up')
             time.sleep(0.1)
             
-            # Lógica de iteração de lojas de 1 até a última loja com dados
-            for num_loja in range(1, ultima_loja + 1):
+            # Lógica otimizada de salto direto para as lojas alvo
+            lojas_validas = []
+            for k, v in lojas_processar.items():
+                if not (pd.isna(v['MINIMO']) and pd.isna(v['MAXIMO'])):
+                    lojas_validas.append(k)
+            lojas_validas.sort()
+
+            loja_atual = 1
+            for num_loja in lojas_validas:
                 # Verificando pause/stop event constantemente
                 if stop_event and stop_event.is_set(): return
                 while pause_event and pause_event.is_set(): time.sleep(0.5)
 
-                if num_loja in lojas_processar:
-                    # Loja existe na planilha
-                    min_val = lojas_processar[num_loja]['MINIMO']
-                    max_val = lojas_processar[num_loja]['MAXIMO']
-                    
-                    # Se estiver vazio (NaN) em min_val e max_val, trata a loja como ignorada
-                    if pd.isna(min_val) and pd.isna(max_val):
-                        if num_loja != ultima_loja:
-                            pyautogui.press('down')
-                        time.sleep(0.1)
-                        continue
+                saltos = num_loja - loja_atual
+                if saltos > 0:
+                    _pause_old = pyautogui.PAUSE
+                    pyautogui.PAUSE = 0.0
+                    pyautogui.press('down', presses=saltos, interval=0.02)
+                    pyautogui.PAUSE = _pause_old
+                    time.sleep(0.15) # Breve pausa para a tela do Consinco estabilizar após o salto rápido
+                    loja_atual = num_loja
 
-                    # Converte para inteiro preservando o 0
-                    min_val = int(min_val) if not pd.isna(min_val) else ""
-                    max_val = int(max_val) if not pd.isna(max_val) else ""
+                min_val = lojas_processar[num_loja]['MINIMO']
+                max_val = lojas_processar[num_loja]['MAXIMO']
 
-                    if update_callback:
-                        update_callback({
-                            'log': (
-                                f'Loja {num_loja} | Produto: {int(codigo_produto)} - {descricao_produto} | '
-                                f'Escrevendo min={min_val!r} max={max_val!r}'
-                            )
-                        })
+                # Converte para inteiro preservando o 0
+                min_val = int(min_val) if not pd.isna(min_val) else ""
+                max_val = int(max_val) if not pd.isna(max_val) else ""
 
-                    # Escreve mínimo diretamente no campo atual
-                    if min_val != "":
-                        escrever_valor_campo(min_val)
-                    pyautogui.press('tab')
-                    time.sleep(SLEEP_TAB)
+                if update_callback:
+                    update_callback({
+                        'log': (
+                            f'Loja {num_loja} | Produto: {int(codigo_produto)} - {descricao_produto} | '
+                            f'Escrevendo min={min_val!r} max={max_val!r}'
+                        )
+                    })
 
-                    # Escreve máximo
-                    if max_val != "":
-                        escrever_valor_campo(max_val)
+                # Escreve mínimo diretamente no campo atual
+                if min_val != "":
+                    escrever_valor_campo(min_val)
+                pyautogui.press('tab')
+                time.sleep(SLEEP_TAB)
 
-                    time.sleep(SLEEP_CAMPO)
+                # Escreve máximo
+                if max_val != "":
+                    escrever_valor_campo(max_val)
 
-                    # Voltar para mínimo e ir para próxima loja.
-                    if num_loja != ultima_loja:
-                        pyautogui.hotkey('shift', 'tab')
-                        time.sleep(SLEEP_NAVEGACAO)
-                        pyautogui.press('down')
-                        time.sleep(SLEEP_CAMPO)
-                else:
-                    # Loja não existe na planilha, focar no próximo usando seta baixo
-                    if num_loja != ultima_loja:
-                        pyautogui.press('down')
-                    time.sleep(SLEEP_CAMPO)
+                time.sleep(SLEEP_CAMPO)
+
+                # Voltar para a coluna de Mínimo, mantendo-se na mesma linha
+                pyautogui.hotkey('shift', 'tab')
+                time.sleep(SLEEP_NAVEGACAO)
 
             # Finalizar essa etapa com a gravação "F4"
             pyautogui.press('f4')
