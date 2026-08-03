@@ -228,90 +228,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     ])
 
 
-def carregar_lookup_pontos_extras(arquivo_pontos_extras):
-    """
-    Carrega pontos extras vigentes e retorna lookup com soma por (produto, loja).
-    """
-    lookup_min = {}
-    lookup_max = {}
 
-    if not arquivo_pontos_extras.exists():
-        print(f"[AVISO] Arquivo '{arquivo_pontos_extras.name}' não encontrado. Sem soma de ponto extra.")
-        return lookup_min, lookup_max
-
-    print(f"Carregando pontos extras de '{arquivo_pontos_extras.name}'...")
-
-    try:
-        try:
-            df_pe = pd.read_csv(arquivo_pontos_extras, sep=';', dtype=str, encoding='utf-8')
-        except UnicodeDecodeError:
-            df_pe = pd.read_csv(arquivo_pontos_extras, sep=';', dtype=str, encoding='cp1252')
-
-        df_pe.columns = df_pe.columns.astype(str).str.strip()
-
-        colunas_obrigatorias = [
-            'LOJA',
-            'COD_PRODUTO',
-            'MINIMO_PONTO_EXTRA',
-            'MAXIMO_PONTO_EXTRA',
-        ]
-        faltantes = [c for c in colunas_obrigatorias if c not in df_pe.columns]
-        if faltantes:
-            print(
-                '[AVISO] Pontos extras ignorado. Colunas ausentes: '
-                + ', '.join(faltantes)
-            )
-            return lookup_min, lookup_max
-
-        if 'SITUACAO_VIGENCIA' in df_pe.columns:
-            situacao = df_pe['SITUACAO_VIGENCIA'].fillna('').astype(str).str.strip().str.upper()
-            df_pe = df_pe[situacao == 'VIGENTE'].copy()
-
-        if 'STATUS_ITEM_EMP' in df_pe.columns:
-            status_item = df_pe['STATUS_ITEM_EMP'].fillna('').astype(str).str.strip().str.upper()
-            df_pe = df_pe[status_item == 'A'].copy()
-
-        if 'INICIO_VIGENCIA' in df_pe.columns and 'FIM_VIGENCIA' in df_pe.columns:
-            hoje = pd.Timestamp(datetime.now().date())
-            inicio = pd.to_datetime(df_pe['INICIO_VIGENCIA'], dayfirst=True, errors='coerce')
-            fim = pd.to_datetime(df_pe['FIM_VIGENCIA'], dayfirst=True, errors='coerce')
-
-            sem_data = inicio.isna() | fim.isna()
-            dentro_periodo = (inicio <= hoje) & (fim >= hoje)
-            df_pe = df_pe[sem_data | dentro_periodo].copy()
-
-        if df_pe.empty:
-            print('Nenhum ponto extra vigente encontrado para considerar no cálculo.')
-            return lookup_min, lookup_max
-
-        df_pe['LOJA_INT'] = pd.to_numeric(df_pe['LOJA'], errors='coerce').fillna(-1).astype(int)
-        df_pe['COD_PRODUTO_INT'] = pd.to_numeric(df_pe['COD_PRODUTO'], errors='coerce').fillna(-1).astype(int)
-        df_pe['MINIMO_PONTO_EXTRA_INT'] = pd.to_numeric(df_pe['MINIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
-        df_pe['MAXIMO_PONTO_EXTRA_INT'] = pd.to_numeric(df_pe['MAXIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
-
-        df_pe = df_pe[(df_pe['LOJA_INT'] > 0) & (df_pe['COD_PRODUTO_INT'] > 0)].copy()
-        if df_pe.empty:
-            print('Nenhum ponto extra válido encontrado após saneamento.')
-            return lookup_min, lookup_max
-
-        agrupado = (
-            df_pe.groupby(['COD_PRODUTO_INT', 'LOJA_INT'], as_index=False)[
-                ['MINIMO_PONTO_EXTRA_INT', 'MAXIMO_PONTO_EXTRA_INT']
-            ]
-            .sum()
-        )
-
-        for _, row in agrupado.iterrows():
-            chave = (int(row['COD_PRODUTO_INT']), int(row['LOJA_INT']))
-            lookup_min[chave] = int(row['MINIMO_PONTO_EXTRA_INT'])
-            lookup_max[chave] = int(row['MAXIMO_PONTO_EXTRA_INT'])
-
-        print(f"Sucesso: {len(agrupado)} combinações produto/loja com ponto extra mapeadas.")
-        return lookup_min, lookup_max
-
-    except Exception as e:
-        print(f"Erro ao carregar pontos extras: {e}")
-        return lookup_min, lookup_max
 
 
 def _resolver_coluna(df, candidatos, nome_logico):
@@ -389,28 +306,27 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
             df,
             ['ATIVO_COMPRA', 'STATUS_COMPRA', 'STATUSCOMPRA'],
         )
+        col_min_pe = _resolver_coluna_opcional(df, ['MINIMO_PONTO_EXTRA'])
+        col_max_pe = _resolver_coluna_opcional(df, ['MAXIMO_PONTO_EXTRA'])
+        col_disp = _resolver_coluna_opcional(df, ['QUANTIDADE_DISPONIVEL', 'ESTOQUE_ATUAL'])
     except KeyError as e:
         print(f"[AVISO] Falha ao resolver colunas para divergência de embalagem: {e}")
         return pd.DataFrame()
 
-    work = df[
-        [
-            col_produto,
-            col_descricao,
-            col_emb,
-            col_empresa,
-            col_min,
-            col_max,
-        ]
-    ].copy()
-    work.columns = [
-        'CODIGO_PRODUTO',
-        'DESCRICAO_PRODUTO',
-        'EMBL_TRANSFERENCIA',
-        'EMPRESA',
-        'MINIMO',
-        'MAXIMO',
-    ]
+    renames = {
+        col_produto: 'CODIGO_PRODUTO',
+        col_descricao: 'DESCRICAO_PRODUTO',
+        col_emb: 'EMBL_TRANSFERENCIA',
+        col_empresa: 'EMPRESA',
+        col_min: 'MINIMO',
+        col_max: 'MAXIMO',
+    }
+    if col_min_pe: renames[col_min_pe] = 'MINIMO_PONTO_EXTRA'
+    if col_max_pe: renames[col_max_pe] = 'MAXIMO_PONTO_EXTRA'
+    if col_disp: renames[col_disp] = 'QUANTIDADE_DISPONIVEL'
+
+    work = df[list(renames.keys())].copy()
+    work = work.rename(columns=renames)
 
     if col_status_compra and col_status_compra in df.columns:
         work['Status'] = df[col_status_compra].astype(str).str.strip().str.upper()
@@ -465,6 +381,9 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         'VENDA_MEDIA': 0.0,
         'QUANTIDADE_ESTOQUE_MINIMO': resultado['MINIMO'].astype(int),
         'QUANTIDADE_ESTOQUE_MAXIMO': resultado['MAXIMO'].astype(int),
+        'MINIMO_PONTO_EXTRA': resultado['MINIMO_PONTO_EXTRA'].fillna(0).astype(int) if 'MINIMO_PONTO_EXTRA' in resultado.columns else 0,
+        'MAXIMO_PONTO_EXTRA': resultado['MAXIMO_PONTO_EXTRA'].fillna(0).astype(int) if 'MAXIMO_PONTO_EXTRA' in resultado.columns else 0,
+        'QUANTIDADE_DISPONIVEL': resultado['QUANTIDADE_DISPONIVEL'].fillna(0).astype(int) if 'QUANTIDADE_DISPONIVEL' in resultado.columns else 0,
         'REGRA_MINIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'REGRA_MAXIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'Status': resultado['Status'],
@@ -555,28 +474,35 @@ def processar_calculos():
     )
     df['DIAS_RELATORIO_VENDA'] = dias_relatorio
 
-    # Somar ponto extra (campanha) ao estoque cadastrado da loja para comparar sugestoes.
-    pontos_extras_path = Path(__file__).parent.parent / 'import_querys' / 'pontos_extras.txt'
-    lookup_min_pe, lookup_max_pe = carregar_lookup_pontos_extras(pontos_extras_path)
+    # Salva uma cópia da base antes de somar os pontos extras para avaliar a divergência de embalagem real
+    df_original = df.copy()
 
-    df['CODIGO_PRODUTO_INT_KEY'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int)
-    df['CODIGO_EMPRESA_INT_KEY'] = pd.to_numeric(df['CODIGO_EMPRESA'], errors='coerce').fillna(-1).astype(int)
-
+    # Utilizar ponto extra (campanha) originado nativamente da extração do banco (query.parquet)
     df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
+    
+    if 'MINIMO_PONTO_EXTRA' in df.columns and 'MAXIMO_PONTO_EXTRA' in df.columns:
+        df['MINIMO_PONTO_EXTRA'] = pd.to_numeric(df['MINIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
+        df['MAXIMO_PONTO_EXTRA'] = pd.to_numeric(df['MAXIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
+        
+        df['QUANTIDADE_ESTOQUE_MINIMO'] += df['MINIMO_PONTO_EXTRA']
+        df['QUANTIDADE_ESTOQUE_MAXIMO'] += df['MAXIMO_PONTO_EXTRA']
+        
+        linhas_com_ponto_extra = int(((df['MINIMO_PONTO_EXTRA'] > 0) | (df['MAXIMO_PONTO_EXTRA'] > 0)).sum())
+        print(
+            'Base de comparação atualizada com ponto extra: '
+            f'{linhas_com_ponto_extra} linhas receberam soma de campanha nativa.'
+        )
+    else:
+        df['MINIMO_PONTO_EXTRA'] = 0
+        df['MAXIMO_PONTO_EXTRA'] = 0
+        print("[AVISO] Colunas MINIMO_PONTO_EXTRA ou MAXIMO_PONTO_EXTRA não encontradas no Parquet. Nenhuma campanha extra adicionada.")
 
-    chaves_produto_loja = list(zip(df['CODIGO_PRODUTO_INT_KEY'], df['CODIGO_EMPRESA_INT_KEY']))
-    df['MINIMO_PONTO_EXTRA'] = [lookup_min_pe.get(chave, 0) for chave in chaves_produto_loja]
-    df['MAXIMO_PONTO_EXTRA'] = [lookup_max_pe.get(chave, 0) for chave in chaves_produto_loja]
-
-    df['QUANTIDADE_ESTOQUE_MINIMO'] = df['QUANTIDADE_ESTOQUE_MINIMO'] + df['MINIMO_PONTO_EXTRA']
-    df['QUANTIDADE_ESTOQUE_MAXIMO'] = df['QUANTIDADE_ESTOQUE_MAXIMO'] + df['MAXIMO_PONTO_EXTRA']
-
-    linhas_com_ponto_extra = int(((df['MINIMO_PONTO_EXTRA'] > 0) | (df['MAXIMO_PONTO_EXTRA'] > 0)).sum())
-    print(
-        'Base de comparação atualizada com ponto extra: '
-        f'{linhas_com_ponto_extra} linhas receberam soma de campanha.'
-    )
+    col_disp = _resolver_coluna_opcional(df, ['QUANTIDADE_DISPONIVEL', 'ESTOQUE_ATUAL'])
+    if col_disp:
+        df['QUANTIDADE_DISPONIVEL'] = pd.to_numeric(df[col_disp], errors='coerce').fillna(0).astype(int)
+    else:
+        df['QUANTIDADE_DISPONIVEL'] = 0
 
     # Carregar capacidade.xlsx para construir o lookup de gôndola
     capacidade_path = Path(__file__).parent / 'capacidade.xlsx'
@@ -699,13 +625,15 @@ def processar_calculos():
     print("      (Exporta a base total, englobando altas e baixas com alteração relevante)")
     print("\n[3] - Gerar APENAS sugestões para DIMINUIR")
     print("      (Filtra os casos onde o Novo Mínimo Calculado é menor que o Atual vigente (loja + ponto extra))")
+    print("\n[4] - Gerar APENAS AUMENTOS e REDUÇÕES (Os dois extremos)")
+    print("      (Filtra os casos onde há alteração no Mínimo, ignorando itens onde apenas o Máximo mudou)")
     print("="*50)
     
     while True:
-        opcao = input("-> Digite a opção escolhida (1, 2 ou 3): ").strip()
-        if opcao in ['1', '2', '3']:
+        opcao = input("-> Digite a opção escolhida (1, 2, 3 ou 4): ").strip()
+        if opcao in ['1', '2', '3', '4']:
             break
-        print("x Opção inválida. Digite 1, 2 ou 3.")
+        print("x Opção inválida. Digite 1, 2, 3 ou 4.")
         
     if opcao == '1':
         print("\n=> Filtrando exclusivamente os produtos apontando para AUMENTO...")
@@ -713,6 +641,9 @@ def processar_calculos():
     elif opcao == '3':
         print("\n=> Filtrando exclusivamente os produtos apontando para REDUÇÃO...")
         df_resultado = df[df['MINIMO'] < df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
+    elif opcao == '4':
+        print("\n=> Filtrando exclusivamente os produtos com apontamento de AUMENTO ou REDUÇÃO...")
+        df_resultado = df[df['MINIMO'] != df['QUANTIDADE_ESTOQUE_MINIMO']].copy()
     else:
         print("\n=> Exportando todos os produtos com alteração relevante...")
         df_resultado = df.copy()
@@ -731,8 +662,9 @@ def processar_calculos():
     # Adiciona coluna 'Status' como última coluna, baseada em STATUS_COMPRA da query.parquet
     colunas_finais = [
         'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
-        'CODIGO_EMPRESA', 'MINIMO', 'MAXIMO',
+        'CODIGO_EMPRESA', 'QUANTIDADE_DISPONIVEL', 'MINIMO', 'MAXIMO',
         'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
+        'MINIMO_PONTO_EXTRA', 'MAXIMO_PONTO_EXTRA',
         'REGRA_MINIMO', 'REGRA_MAXIMO', 'CAPACIDADE_GONDOLA_SUG'
     ]
     cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
@@ -768,8 +700,8 @@ def processar_calculos():
     df_export = df_export[cols_order]
 
     # Unificar com os itens que apresentam divergência de embalagem na base original
-    print("\n[UNIFICAÇÃO] Verificando e anexando itens com divergência de embalagem da base ao resultado final...")
-    df_div_emb = obter_itens_diferenca_embalagem(df, dias_relatorio)
+    print("\n[UNIFICAÇÃO] Verificando e anexando itens com divergência de embalagem da base original ao resultado final...")
+    df_div_emb = obter_itens_diferenca_embalagem(df_original, dias_relatorio)
     if not df_div_emb.empty:
         antes_unif = len(df_export)
         # Garante a conformidade de tipos e colunas antes de unificar

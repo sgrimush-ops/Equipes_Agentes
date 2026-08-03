@@ -101,13 +101,13 @@ class OrderProcessorUnico:
             time.sleep(0.5)
             
             # na sequencia precisamos de 6 tab, para chegar na empresa de faturamento; digitar nesse campo 015
-            for _ in range(6): pyautogui.press('tab')
+            pyautogui.press('tab', presses=6, interval=0.05)
             time.sleep(0.2)
             pyautogui.write('015')
             time.sleep(0.2)
             
             # após mais 6 tab, selecionar o comprador "SUPPLY"
-            for _ in range(6): pyautogui.press('tab')
+            pyautogui.press('tab', presses=6, interval=0.05)
             time.sleep(0.2)
             pyautogui.write('S')
             time.sleep(0.1)
@@ -115,7 +115,7 @@ class OrderProcessorUnico:
             time.sleep(0.1)
             
             # agora teclar 5 tab para chegar em Tipo de pedido, 2 vezes "seta baixo"
-            for _ in range(5): pyautogui.press('tab')
+            pyautogui.press('tab', presses=5, interval=0.1)
             time.sleep(0.2)
             pyautogui.press('down', presses=2)
             time.sleep(0.2)

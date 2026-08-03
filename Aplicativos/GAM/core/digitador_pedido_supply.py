@@ -117,13 +117,13 @@ class OrderProcessorSupply:
                 time.sleep(0.5)
                 
                 # na sequencia precisamos de 6 tab, para chegar na empresa de faturamento; digitar nesse campo 015
-                for _ in range(6): pyautogui.press('tab')
+                pyautogui.press('tab', presses=6, interval=0.05)
                 time.sleep(0.2)
                 pyautogui.write('015')
                 time.sleep(0.2)
                 
                 # após mais 6 tab, selecionar o comprador padrão (SUPPLY)
-                for _ in range(6): pyautogui.press('tab')
+                pyautogui.press('tab', presses=6, interval=0.05)
                 time.sleep(0.5)
                 
                 # Verificação inteligente: se já for SUPPLY, não mexe
@@ -154,10 +154,8 @@ class OrderProcessorSupply:
                 time.sleep(0.3)
                 
                 # agora teclar 4 tab para chegar em Tipo de pedido (ajustado pelo tab extra acima), 2 vezes "seta baixo"
-                for _ in range(4): 
-                    pyautogui.press('tab')
-                    time.sleep(0.15) # Evita o bipe de saturação de teclado
-                pyautogui.press('down', presses=2)
+                pyautogui.press('tab', presses=4, interval=0.1) # Evita o bipe de saturação de teclado
+                pyautogui.press('down', presses=2, interval=0.1)
                 time.sleep(0.2)
 
                 if stop_event and stop_event.is_set(): return
@@ -254,53 +252,7 @@ class OrderProcessorSupply:
                     if stop_event and stop_event.is_set(): return
                     time.sleep(1)
                 
-                # ========= VERIFICAÇÃO FINAL APÓS SALVAR =========
-                # Limpar clipboard com pyperclip (mais seguro que shell/subprocess)
-                import pyperclip
-                try:
-                    pyperclip.copy("")
-                except Exception:
-                    pass
-                
-                # Clica na coordenada calibrada (com Pynput) para focar e fugir da armadilha de DPI de monitores distantes
-                pos_comprador = self.coords.get("posicao_comprador")
-                if not pos_comprador: pos_comprador = [1920, 767]
-                
-                mouse_ctrl.position = (pos_comprador[0], pos_comprador[1])
-                time.sleep(0.2)
-                mouse_ctrl.click(Button.left, 1)
-                
-                time.sleep(0.5)
-                # Garante seleção total do combo e cópia
-                pyautogui.hotkey('ctrl', 'a')
-                time.sleep(0.1)
-                pyautogui.hotkey('ctrl', 'c')
-                time.sleep(0.4)
-                
-                comprador_atual = ""
-                try:
-                    comprador_atual = pyperclip.paste().strip().upper()
-                except Exception:
-                    pass
-                
-                precisa_f4 = False
-                if not comprador_atual:
-                    pass # Se ler falhou, não faz ajuste as cegas
-                elif "SUPPLY" in comprador_atual:
-                    pass  # Tudo certo
-                elif "WETER" in comprador_atual or "WERTER" in comprador_atual:
-                    pyautogui.press('up')
-                    precisa_f4 = True
-                elif "SANDRO" in comprador_atual:
-                    pyautogui.press('down')
-                    precisa_f4 = True
-                    
-                if precisa_f4:
-                    if update_callback: update_callback({'status': f'Salvando ajuste de comprador (F4)...'})
-                    time.sleep(1.0)
-                    pyautogui.press('f4')
-                    time.sleep(2.0)
-                # =================================================
+
 
                 # Limpar a tela para a próxima loja
                 pyautogui.press('f2')
