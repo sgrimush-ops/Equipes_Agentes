@@ -131,64 +131,99 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
                 capacity = int(round((sum(caps) / len(caps)) * 1.25))
                 usa_semelhanca = True
 
-    # Regra 8 & 9 & 10: Máximo
-    usar_capacidade = False
-    if capacity is not None and capacity > 0:
-        # Regra 9: Venda média maior que a capacidade -> a venda deve ser respeitada (ignora capacidade)
-        # E se o estoque mínimo for maior ou igual à capacidade, também devemos ignorar a capacidade
-        if venda_media <= capacity and min_floor_or_sales < capacity:
-            usar_capacidade = True
+    pe_min = int(row.get('MINIMO_PONTO_EXTRA', 0))
+    pe_max = int(row.get('MAXIMO_PONTO_EXTRA', 0))
 
-    if usar_capacidade:
-        # Tentar encaixar o mínimo dentro da capacidade respeitando a margem de 30% a 40% (alvo 35%)
-        # K_max é o maior número de embalagens que podemos retirar da capacidade sem violar o mínimo/piso
+    if pe_max > 0 or pe_min > 0:
+        ideal_min = math.ceil(min_floor_or_sales)
         if embalagem == 1:
-            K_max = int(math.floor(capacity - min_floor_or_sales))
-            K_target = int(round(0.35 * capacity))
+            ideal_max = max(10, ideal_min + math.ceil((0.35 / 0.65) * ideal_min))
         else:
-            K_max = int(math.floor((capacity - min_floor_or_sales) / embalagem))
-            K_target = int(round((0.35 * capacity) / embalagem))
-
-        if K_max >= 1:
-            # Conseguimos respeitar a capacidade como máximo!
-            K = max(1, min(K_max, K_target))
-            if embalagem == 1:
-                min_novo = capacity - K
+            ideal_max = ideal_min + max(1, math.ceil(((0.35 / 0.65) * ideal_min) / embalagem)) * embalagem
+            
+        cap_val = capacity if (capacity is not None and capacity > 0) else 0
+        total_capacity = cap_val + pe_max
+        
+        if ideal_max > total_capacity:
+            max_novo = ideal_max - pe_max
+            min_novo = ideal_min - pe_min
+            if min_novo < min_floor:
+                min_novo = math.ceil(min_floor)
+            if embalagem == 1 and max_novo < min_novo + 1:
+                max_novo = min_novo + 1
+            elif embalagem > 1 and max_novo < min_novo + embalagem:
+                max_novo = min_novo + embalagem
+            regra_maximo = 'PE_ABSORVIDO_VENDA_ALTA'
+        else:
+            if cap_val > 0:
+                if embalagem == 1:
+                    K_target = int(round(0.35 * cap_val))
+                    K_max = int(math.floor(cap_val - min_floor))
+                    if K_max >= 1:
+                        min_novo = cap_val - max(1, min(K_max, K_target))
+                        max_novo = cap_val
+                    else:
+                        min_novo = math.ceil(min_floor)
+                        max_novo = min_novo + 1
+                else:
+                    K_target = int(round((0.35 * cap_val) / embalagem))
+                    K_max = int(math.floor((cap_val - min_floor) / embalagem))
+                    if K_max >= 1:
+                        min_novo = cap_val - max(1, min(K_max, K_target)) * embalagem
+                        max_novo = cap_val
+                    else:
+                        min_novo = math.ceil(min_floor)
+                        max_novo = min_novo + embalagem
+                regra_maximo = 'PE_ESTETICA_GONDOLA'
             else:
-                min_novo = capacity - K * embalagem
-            max_novo = capacity
-            regra_maximo = 'CAPACIDADE_DIRETA_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_DIRETA'
+                min_novo = math.ceil(min_floor)
+                max_novo = min_novo + (embalagem if embalagem > 1 else 1)
+                if embalagem == 1 and max_novo < 10:
+                    max_novo = 10
+                regra_maximo = 'PE_ESTETICA_PISO'
+    else:
+        # Regra 8 & 9 & 10: Máximo (Lógica Padrão sem Ponto Extra)
+        usar_capacidade = False
+        if capacity is not None and capacity > 0:
+            if venda_media <= capacity and min_floor_or_sales < capacity:
+                usar_capacidade = True
+
+        if usar_capacidade:
+            if embalagem == 1:
+                K_max = int(math.floor(capacity - min_floor_or_sales))
+                K_target = int(round(0.35 * capacity))
+            else:
+                K_max = int(math.floor((capacity - min_floor_or_sales) / embalagem))
+                K_target = int(round((0.35 * capacity) / embalagem))
+
+            if K_max >= 1:
+                K = max(1, min(K_max, K_target))
+                min_novo = capacity - K * (1 if embalagem == 1 else embalagem)
+                max_novo = capacity
+                regra_maximo = 'CAPACIDADE_DIRETA_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_DIRETA'
+            else:
+                min_novo = math.ceil(min_floor_or_sales)
+                max_novo = min_novo + (1 if embalagem == 1 else embalagem)
+                regra_maximo = 'CAPACIDADE_ESTOURADA_MIN_ALTO_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_ESTOURADA_MIN_ALTO'
         else:
-            # Conflito: para manter o estoque mínimo/piso, precisamos de mais espaço que a capacidade.
-            # O máximo deve subir além da capacidade por pelo menos 1 embalagem.
+            if capacity is not None and capacity > 0:
+                if venda_media > capacity:
+                    regra_maximo = 'CAP_IGNORADA_VENDA_ALTA_SEMELHANCA' if usa_semelhanca else 'CAP_IGNORADA_VENDA_ALTA'
+                else:
+                    regra_maximo = 'CAP_IGNORADA_MINIMO_ALTO_SEMELHANCA' if usa_semelhanca else 'CAP_IGNORADA_MINIMO_ALTO'
+            else:
+                regra_maximo = 'SEM_CAPACIDADE'
+
             min_novo = math.ceil(min_floor_or_sales)
             if embalagem == 1:
-                max_novo = min_novo + 1
+                target_diff = math.ceil((0.35 / 0.65) * min_novo)
+                max_novo = max(10, min_novo + target_diff)
             else:
-                max_novo = min_novo + embalagem
-            regra_maximo = 'CAPACIDADE_ESTOURADA_MIN_ALTO_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_ESTOURADA_MIN_ALTO'
-    else:
-        # Sem capacidade cadastrada, ou capacidade ignorada por conta de venda alta/mínimo alto
-        if capacity is not None and capacity > 0:
-            if venda_media > capacity:
-                regra_maximo = 'CAP_IGNORADA_VENDA_ALTA_SEMELHANCA' if usa_semelhanca else 'CAP_IGNORADA_VENDA_ALTA'
-            else:
-                regra_maximo = 'CAP_IGNORADA_MINIMO_ALTO_SEMELHANCA' if usa_semelhanca else 'CAP_IGNORADA_MINIMO_ALTO'
-        else:
-            regra_maximo = 'SEM_CAPACIDADE'
+                target_diff = (0.35 / 0.65) * min_novo
+                K = max(1, math.ceil(target_diff / embalagem))
+                max_novo = min_novo + K * embalagem
+            regra_maximo += '_ESTOQUE_SEGURANCA'
 
-        # Formação padrão de estoque de segurança (alvo 35% de diferença do máximo, ou seja, max = min / 0.65)
-        min_novo = math.ceil(min_floor_or_sales)
-        if embalagem == 1:
-            target_diff = math.ceil((0.35 / 0.65) * min_novo)
-            max_novo = min_novo + target_diff
-            max_novo = max(10, max_novo) # Piso de máximo para unitários (Regra 4)
-            regra_maximo += '_ESTOQUE_SEGURANCA'
-        else:
-            target_diff = (0.35 / 0.65) * min_novo
-            K = max(1, math.ceil(target_diff / embalagem))
-            max_novo = min_novo + K * embalagem
-            regra_maximo += '_ESTOQUE_SEGURANCA'
 
     # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima)
     if embalagem % 2 == 0:
@@ -561,20 +596,22 @@ def processar_calculos():
         axis=1,
     )
     
-    # 3. Aplicar Filtro de Diferença Mínima de 5 unidades ou 10% de variação
-    print("Filtrando alterações irrelevantes (< 5 unidades de diferença ou < 10% de variação)...")
+    # 3. Aplicar Filtro de Diferença Mínima (>= 5 unidades no mínimo)
+    print("Filtrando alterações irrelevantes (< 5 unidades de diferença no mínimo)...")
     df['MINIMO'] = pd.to_numeric(df['MINIMO'], errors='coerce').fillna(0).astype(int)
     df['MAXIMO'] = pd.to_numeric(df['MAXIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
 
-    # Condição de exclusão da linha: (diferença < 5 unidades OU variação < 10%),
-    # EXCETO se o valor original estiver violando o piso mínimo (60% da embalagem ou 5 para unitários)
+    # Condição de exclusão da linha: diferença do mínimo menor que 5 unidades
+    # Exceções (Conflitos resolvidos):
+    # 1. Produto sem mínimo no sistema (0)
+    # 2. Produto violando o piso inegociável da embalagem
+    # 3. Divergência de embalagem (já tratada ao final via 'df_div_emb')
     min_floor = df['EMBL_TRANSFERENCIA_NUM'].apply(lambda emb: 5.0 if emb == 1 else math.ceil(0.60 * emb))
     diff_min = (df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs()
-    variation = diff_min / df['QUANTIDADE_ESTOQUE_MINIMO'].replace(0, 1)
 
-    manter = ((diff_min >= 5) & (variation >= 0.10)) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
+    manter = (diff_min >= 5) | (df['QUANTIDADE_ESTOQUE_MINIMO'] == 0) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
     df = df[manter].copy()
 
     # Re-aplicar regras de paridade e proporcionalidade no resultado final
