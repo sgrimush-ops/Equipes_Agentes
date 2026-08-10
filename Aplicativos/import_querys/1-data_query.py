@@ -75,4 +75,12 @@ try:
 except Exception as e:
     print(f"⚠️ Aviso: Falha ao executar a sincronização com AppSheet: {e}")
 
+# Executar a sincronização com o ProjetoBak
+print("\n[INFO] Iniciando upload para o ProjetoBak (GitHub)...")
+try:
+    sync_projetobak_path = os.path.join(base_dir, 'sync_projetobak.py')
+    subprocess.run([sys.executable, sync_projetobak_path], check=True, cwd=base_dir)
+except Exception as e:
+    print(f"⚠️ Aviso: Falha ao executar a sincronização com o ProjetoBak: {e}")
+
 print("\n[OK] Processo concluído!")   
