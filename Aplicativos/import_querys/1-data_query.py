@@ -75,12 +75,12 @@ try:
 except Exception as e:
     print(f"⚠️ Aviso: Falha ao executar a sincronização com AppSheet: {e}")
 
-# Executar a sincronização com o ProjetoBak
-print("\n[INFO] Iniciando upload para o ProjetoBak (GitHub)...")
+# Executar o upload silencioso para o Banco de Dados do Render
+print("\n[INFO] Iniciando upload para o banco de dados (API Invisível)...")
 try:
-    sync_projetobak_path = os.path.join(base_dir, 'sync_projetobak.py')
-    subprocess.run([sys.executable, sync_projetobak_path], check=True, cwd=base_dir)
+    upload_db_path = os.path.join(base_dir, 'upload_direto_banco.py')
+    subprocess.run([sys.executable, upload_db_path], check=True, cwd=base_dir)
 except Exception as e:
-    print(f"⚠️ Aviso: Falha ao executar a sincronização com o ProjetoBak: {e}")
+    print(f"⚠️ Aviso: Falha ao fazer o upload para o banco de dados: {e}")
 
 print("\n[OK] Processo concluído!")   
