@@ -24,6 +24,7 @@ import actions.acao_digitar_pedido_CD_016
 import actions.acao_digitar_pedido_supply
 import actions.acao_fechar_tela_ativa
 import actions.acao_manutencao_mix
+import actions.acao_manutencao_abastecimento
 import actions.acao_preparar_manual_supply
 import actions.acao_preparar_pedido_loja
 import actions.acao_sair_tela_consinco
