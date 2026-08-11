@@ -22,6 +22,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_estoque_em_transito.md`: desmistificacao da coluna QTDTRANSITO enganosa e a rota correta via MSU_PSITEMRECEBER para encontrar estoques rodando no caminhao.
 - `aprendizado_filtros_consulta_criacao.md`: guia sobre criacao de filtros antes do Run no Totvs Consinco (Var-F7, LT1, LS1, NR1, DT1).
 - `aprendizado_abc_vendas_formato_comprador_filtros.md`: regras praticas de filtros e corte por quantidade (`NR1`) em subqueries previas antes de joins pesados.
+- `aprendizado_auditoria_precos_promocoes.md`: como espelhar a tela nativa de histórico via `MAD_PRODLOGPRECO`, a mecânica do registro automático zero para fim de promoção e o efeito cascata de defasagem de preço base.
 
 ## Arquitetura do Consinco e do BI
 - `arquitetura_monitor_consico_totvs.md`: fluxo real das telas Consinco e uso de `SEQCONSULTA`.
