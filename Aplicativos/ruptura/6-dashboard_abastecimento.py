@@ -142,11 +142,11 @@ def principal():
     # Preparar opções dos Dropdowns
     lojas = sorted([int(x) for x in df['CODIGO_EMPRESA'].dropna().unique()])
     
-    options_formas = '<option value="TODOS">TODAS AS FORMAS DE ABASTECIMENTO</option>'
+    options_formas = '<option value="TODOS">FORMAS ABASTECIMENTO</option>'
     for f in formas:
         options_formas += f'<option value="{f}">{f}</option>'
         
-    options_compradores = '<option value="TODOS">TODOS OS COMPRADORES</option>'
+    options_compradores = '<option value="TODOS">COMPRADORES</option>'
     for c in compradores:
         options_compradores += f'<option value="{c}">{c}</option>'
         
@@ -359,7 +359,6 @@ def principal():
 
         function renderChart(plotData, tituloExtensao) {
             let layout = {
-                title: "Desempenho por Filial - " + tituloExtensao,
                 barmode: 'group',
                 xaxis: {title: "Filial (Loja)", automargin: true, tickangle: -45},
                 legend: {title: {text: "Métricas"}, orientation: 'h', y: 1.1},
