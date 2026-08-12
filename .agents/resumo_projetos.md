@@ -71,15 +71,7 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Funcionamento:** O usuário aciona o agente neste diretório fornecendo filtros e lógicas. O agente utiliza a skill `gerar_consultas_consinco` e o dicionário de dados local para formatar queries de acordo com o padrão TOTVS Consinco.
   - **Sucesso (V4.3):** Validado o template `abc_vendas_subgrupo.sql` com agregação de rede (14 lojas) e exclusão blindada via `NOT EXISTS`.
 
-## 12. memoria_squad
-* **Propósito:** Camada de inteligência persistente da Squad usando Banco de Dados Vetorial.
-* **Principais Arquivos:** `kernel.py`, `seed_memory.py`.
-* **Funcionamento:** Armazena e recupera conhecimentos, regras e lições aprendidas via busca semântica (ChromaDB), garantindo que a Squad "aprenda" com o tempo.
 
-## 13. mcp_squad
-* **Propósito:** Conectividade oficial via Model Context Protocol (MCP).
-* **Principais Arquivos:** `office_server.py`.
-* **Funcionamento:** Provê interface padronizada para que agentes externos e scripts locais manipulem arquivos Excel e CSV de forma segura e estruturada.
 
 ## 14. min_e_max
 * **Propósito:** Cálculo e parametrização de estoques mínimos e máximos da rede.
@@ -87,17 +79,7 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Funcionamento:** Lógica para garantir a fluidez do abastecimento baseando-se em vendas e coberturas.
 * **Regra Crítica (Min/Max):** As colunas de Min/Max no Consinco são **baseadas em CAIXAS** (unidade de embalagem), não em unidades avulsas. Ao comparar estoque disponível (em unidades) com Min/Max, SEMPRE converta para a mesma unidade multiplicando Min/Max pelo fator da embalagem (`EMBL_COMPRA`). Nunca compare unidades vs caixas diretamente.
 
-## 15. wiki_interna (v2.0 - Estabilizada)
-* **Propósito:** Wiki corporativa para centralização de documentação técnica, processos e gestão de melhorias da rede Baklizi.
-* **Principais Arquivos:** `wiki_comentarios.gs` (Backend), `index.html` (Frontend), Google Sheets (Database).
-* **Funcionamento:** Sistema de chamados e FAQ dinâmico com:
-  - **Arquitetura SPA (Single Page):** Navegação entre telas e login sem `location.reload()`, prevenindo "telas brancas" e garantindo fluidez em ambientes restritos.
-  - **Estrutura Rígida de 12 Colunas:** Mapeamento fixo (A-L) que garante a integridade total dos dados (ID, Categoria, Título, Descrição, Status, Data, Imagem, Repórter, Responsável, Solução, Img Solução, Prioridade).
-  - **RBAC Avançado (PIN):** 
-    - **Moderador (0104):** Banner Vermelho. Aprovação com definição de prioridade (1-4) e exclusão física de registros reprovados.
-    - **Consultor (2512):** Banner Azul. Acesso exclusivo à Área de Resolução Técnica para registro de solução oficial com anexo de evidência.
-  - **Gestão de Evidências:** Fluxo assíncrono de upload de imagens (Base64 -> Google Drive) com geração automática de links públicos.
-  - **Blindagem Técnica:** Todas as diretrizes de manutenção estão fixadas no manual em `.agents/best-practices/wiki_baklizi_best_practices.md`.
+
 
 ---
 > **Nota de Contexto:** Estes projetos seguem `rules.md` deste ecossistema (usam Pandas, pathlib, openpyxl, com try-excepts e isolamentos em Parquet e automação via GAM).

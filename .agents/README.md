@@ -19,7 +19,7 @@ A pasta `.agents` centraliza toda a inteligência do projeto, facilitando manute
 
 - `.agents/agents/` → especialista-dados.agent.md, runner.pipeline.md, office_server.py
 - `.agents/skills/` → gemini-api-dev/, consulta-criacao-filtros/, etc.
-- `.agents/squads/` → varejo-insight/, squad.yaml, _memory/
+- `.agents/squads/` → (Atualmente focada em automações, sem squads fictícias)
 - `.agents/rules/` → rules.md
 - `.agents/memory/` → kernel.py, seed_memory.py
 - `.agents/logs/` → janitor_log.txt

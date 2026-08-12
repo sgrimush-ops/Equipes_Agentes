@@ -63,7 +63,7 @@ Este documento contém as regras obrigatórias para a criação e manutenção d
 
 ## 8. Ecossistema de IA e Automação (RPA)
 
-- **Memória Persistente:** Sempre que uma regra de negócio complexa ou um erro de sistema for resolvido, o agente deve considerar adicionar essa lição à memória vetorial via `memoria_squad/kernel.py` para evitar reincidência.
+
 - **Visão em RPA:** Scripts de automação (RPA) devem preferir o uso do `VisionEngine` (OpenCV Multi-Scale) em vez de coordenadas fixas ou `matchTemplate` simples, garantindo portabilidade entre diferentes resoluções de tela e DPIs do Windows.
 - **Acurácia Multi-Monitor (DPI):** Quando for OBRIGATÓRIO o uso de coordenadas físicas de mouse calibradas num ambiente Windows com múltiplos monitores, é PROIBIDO usar `pyautogui.click()` para execução, pois a virtualização de DPI causa desvios ("miss-clicks" que acionam o Menu Iniciar em telas estendidas). **Utilize sempre `pynput.mouse.Controller`** para executar cliques baseados em calibrações extraídas pelo próprio `pynput.mouse.Listener`, garantindo paridade de escala 1:1.
 - **Prevenção de Foco (Subprocess):** Em robôs de automação de interface, JAMAIS utilize `shell=True` in `subprocess.run` (exs: `clip.exe`). Isso gera popups de CMD assíncronos que roubam o foco da janela principal. Utilize `creationflags=subprocess.CREATE_NO_WINDOW`.
@@ -93,17 +93,4 @@ Este módulo possui regras estruturais fixas para garantir a integridade das mé
 - **Rastreabilidade (Snapshots):** Todo processamento de ruptura deve gerar e preservar um snapshot diário em `.parquet` na pasta `historico_ruptura/` para fins de auditoria e evolução temporal.
 - **Integridade de Merges:** No script `gerar_dashboard_comprador.py`, a base primordial do `df_resumo` deve ser o mix de produtos para evitar que compradores com base zerada em um dos canais desapareçam do relatório.
 
-## 10. Desenvolvimento Web (Wiki / Google Apps Script)
 
-- **10.1 Padrão ES5 (OBRIGATÓRIO):** Devido a restrições de parser em infraestruturas corporativas legado, é **proibido** o uso de JavaScript moderno (ES6+).
-    - Use `var` em vez de `let/const`.
-    - Use `function()` em vez de arrow functions `() =>`.
-    - Use concatenação `'a' + b` em vez de template literals `` `a${b}` ``.
-    - Use callbacks tradicionais no `FileReader` e `google.script.run` (proibido async/await/Promises explícitas no client).
-- **10.2 Resiliência de Conexão (Watchdog):** Toda chamada ao servidor deve ter um cronômetro (Watchdog) de 10-12s. Se falhar, exiba um erro vermelho com botão de "Tentar Novamente" (Reset). Nunca deixe o usuário no spinner infinito.
-- **10.3 Sanitização (Anti-Crash):** Toda string vinda do Sheets deve passar por `esc()` no frontend. Caracteres especiais (aspas, crases) não sanitizados quebram o código JS e travam a página.
-- **10.4 Injeção via Hidden Input:** Para passar IDs da URL para o script, use `<input type="hidden" id="raw_id">`. Ler direto do scriptlet no JS causa erros de parse se o valor for nulo.
-- **10.5 Layout de Formulário (Regra 100%):** Todos os componentes de formulário (`label`, `input`, `select`, `textarea`) devem ser `display: block` e `width: 100%`. É proibido layout inline/lado-a-lado em telas de cadastro para garantir legibilidade profissional.
-- **10.6 Anexos Versáteis:** Use sempre o **Card de Download** (📎) com link direto do Drive. Proibido o uso de tags `<img>` para arquivos do Drive (bloqueado por CSP).
-- **10.7 Upload Híbrido:** O sistema de upload deve aceitar multiplicidade de extensões (`image/*,.pdf,.xlsx,.xls,.docx`) e o backend deve preservar o MIME Type original enviado pelo cliente, nunca forçando `image/png`.
-- **10.8 Deploy:** Sempre instrua o usuário a gerar uma "Nova Versão" no editor do Google Apps Script após cada alteração para que o cache seja limpo.
