@@ -160,7 +160,7 @@ class AbastecimentoProcessor:
 
                 # 1. Pressiona F2 para limpar/preparar a tela
                 pyautogui.press('f2')
-                time.sleep(0.5)
+                time.sleep(1.0)
                 
                 # 1.5 Clica no campo de código do produto
                 self._click(self.coords['campo_codigo_abastecimento'])
@@ -176,7 +176,7 @@ class AbastecimentoProcessor:
                 
                 # 4. Clica no botão de família
                 self._click(self.coords['botao_familia_abastecimento'])
-                time.sleep(1.0) # Aguarda abrir a tela de família
+                time.sleep(1.5) # Aguarda abrir a tela de família
                 
                 # 5. Clica na aba divisão
                 self._click(self.coords['aba_divisao_abastecimento'])
@@ -200,7 +200,7 @@ class AbastecimentoProcessor:
                 
                 # 10. Tecla f10 duas vezes (fechar aba da categoria, depois aba da família)
                 pyautogui.press('f10')
-                time.sleep(0.5)
+                time.sleep(1.0)
                 pyautogui.press('f10')
                 time.sleep(0.8)
 
