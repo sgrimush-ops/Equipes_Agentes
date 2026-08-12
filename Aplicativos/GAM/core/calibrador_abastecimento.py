@@ -17,7 +17,7 @@ class AbastecimentoCalibrationWindow(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Calibração - Forma de Abastecimento")
-        self.geometry("500x500")
+        self.geometry("500x650")
         
         self.coords = {}
         self.load_existing_coords()
@@ -31,7 +31,11 @@ class AbastecimentoCalibrationWindow(tk.Toplevel):
             "posicao_M_abastecimento",
             "posicao_C_abastecimento",
             "posicao_L_abastecimento",
-            "posicao_I_abastecimento"
+            "posicao_I_abastecimento",
+            "aba_logis_abast_abastecimento",
+            "aba_geral_abastecimento",
+            "linha_cd15_abastecimento",
+            "linha_cd16_abastecimento"
         ]
             
         self.buttons = {}
@@ -52,6 +56,10 @@ class AbastecimentoCalibrationWindow(tk.Toplevel):
         self.create_calibration_row(container, "7. Posição C", "posicao_C_abastecimento")
         self.create_calibration_row(container, "8. Posição L", "posicao_L_abastecimento")
         self.create_calibration_row(container, "9. Posição I (Inversa)", "posicao_I_abastecimento")
+        self.create_calibration_row(container, "10. Aba Empresa/Segmento", "aba_logis_abast_abastecimento")
+        self.create_calibration_row(container, "11. Aba Geral", "aba_geral_abastecimento")
+        self.create_calibration_row(container, "12. Linha CD15 (Emp/Segm)", "linha_cd15_abastecimento")
+        self.create_calibration_row(container, "13. Linha CD16 (Emp/Segm)", "linha_cd16_abastecimento")
 
         self.btn_save = tk.Button(self, text="Salvar Calibração e Fechar", command=self.save_coords, bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"))
         self.btn_save.pack(fill="x", padx=20, pady=15)
