@@ -29,13 +29,19 @@ SELECT * FROM (
         P.DESCCOMPLETA AS DESC_PRODUTO,
         C.CATEGORIA AS DEPARTAMENTO,
         COMP.COMPRADOR AS COMPRADOR,
+        FD.FORMAABASTECIMENTO AS FORMA_ABASTECIMENTO,
         NVL(EST_CD.ESTOQUE_CD, 0) AS ESTOQUE_CD
     FROM MAP_PRODUTO P
     INNER JOIN MAP_FAMILIA F ON P.SEQFAMILIA = F.SEQFAMILIA
     INNER JOIN ENTRADAS_LOJA EL ON P.SEQPRODUTO = EL.SEQPRODUTO
     LEFT JOIN ENTRADAS_CD ECD ON P.SEQPRODUTO = ECD.SEQPRODUTO
-    LEFT JOIN MAP_FAMDIVCATEG FDC ON F.SEQFAMILIA = FDC.SEQFAMILIA AND FDC.NRODIVISAO = 1 AND FDC.STATUS = 'A'
-    LEFT JOIN MAP_CATEGORIA C ON FDC.SEQCATEGORIA = C.SEQCATEGORIA AND C.NRODIVISAO = 1 AND C.TIPCATEGORIA = 'M'
+    LEFT JOIN (
+        SELECT FDC.SEQFAMILIA, C.CATEGORIA
+        FROM MAP_FAMDIVCATEG FDC
+        INNER JOIN MAP_CATEGORIA C ON FDC.SEQCATEGORIA = C.SEQCATEGORIA AND C.NRODIVISAO = 1
+        WHERE FDC.NRODIVISAO = 1 AND FDC.STATUS = 'A' AND C.TIPCATEGORIA = 'M' AND C.NIVELHIERARQUIA = 1
+        GROUP BY FDC.SEQFAMILIA, C.CATEGORIA
+    ) C ON C.SEQFAMILIA = F.SEQFAMILIA
     LEFT JOIN MAP_FAMDIVISAO FD ON F.SEQFAMILIA = FD.SEQFAMILIA AND FD.NRODIVISAO = 1
     LEFT JOIN MAX_COMPRADOR COMP ON FD.SEQCOMPRADOR = COMP.SEQCOMPRADOR
     LEFT JOIN (
@@ -56,6 +62,7 @@ SELECT * FROM (
             AND PE.STATUSCOMPRA = 'A'
             AND PE.NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 16, 17, 18)
       )
+      AND INSTR(UPPER(NVL(:LT1, 'L,M,C,I')), UPPER(FD.FORMAABASTECIMENTO)) > 0
 )
 ORDER BY DESC_PRODUTO ASC
 ```
@@ -73,6 +80,12 @@ ORDER BY DESC_PRODUTO ASC
 - **Tipo**: Lista
 - **Descrição**: Selecione o Comprador
 - **Valor padrão**: ` TODOS OS COMPRADORES`
+
+### Filtro 3: Tipo de Abastecimento
+- **Variável**: `LT1`
+- **Tipo**: Literal
+- **Descrição**: Tipo Abastecimento (L,M,C,I)
+- **Valor padrão**: `L,M,C,I`
 
 ## 4. SQL das Listas LSx
 
@@ -97,4 +110,5 @@ SELECT DISTINCT TO_CHAR(C.SEQCOMPRADOR) || ' - ' || NVL(C.APELIDO, C.COMPRADOR) 
 3. Clique em **Var - F7** no menu superior.
 4. Cadastre a variável **LS1** (Lista), informando a descrição e colando o script SQL da lista LS1 dentro do campo correspondente.
 5. Cadastre a variável **LS2** (Lista), informando a descrição e colando o script SQL da lista LS2 dentro do campo correspondente.
-6. Pressione **Ok** e depois **Executar (F8)**. As caixas de seleção aparecerão antes do carregamento dos dados.
+6. Cadastre a variável **LT1** (Literal), coloque a descrição "Tipo Abastecimento (L,M,C,I)" e defina o valor padrão como `L,M,C,I`.
+7. Pressione **Ok** e depois **Executar (F8)**. As caixas de seleção aparecerão antes do carregamento dos dados.
