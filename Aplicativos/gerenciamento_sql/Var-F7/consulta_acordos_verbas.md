@@ -34,12 +34,12 @@ Unificar em uma única consulta performática para a Consulta Criação todas as
 - `VLR_FIN_A_VENCER`: valor financeiro a vencer, formatado em reais (`R$ 0.000,00`).
 - `VLR_EM_ABERTO`: valor monetário ainda pendente/em aberto (soma sincronizada dos valores a vencer/vencidos ou saldo da verba), formatado em reais (`R$ 0.000,00`).
 - `VLR_FIN_VENCIDO`: valor financeiro vencido, formatado em reais (`R$ 0.000,00`).
-- `VLR_JA_QUITADO`: valor monetário já pago/abatido ou liquidado no financeiro (`VALOR_ACORDO - VLR_EM_ABERTO`), formatado em reais (`R$ 0.000,00`).
+- `VLR_JA_QUITADO`: soma de `FI_TITULO.VLRPAGO` dos títulos vinculados ao processo do acordo; usa o cálculo anterior somente quando não houver título financeiro vinculado, formatado em reais (`R$ 0.000,00`).
 - `VALOR_SALDO_ACORDO`: saldo disponível do acordo na conta corrente/abatimento, formatado em reais (`R$ 0.000,00`).
 - `VALOR_UTILIZADO_PRODUTO`: valor utilizado no produto, formatado em reais (`R$ 0.000,00`).
 - `TOTAL_PARCELAS`: quantidade total de parcelas programadas/geradas para o acordo.
-- `PARCELAS_PAGAS`: quantidade de parcelas já liquidadas no contas a pagar/receber (`ABERTOQUITADO = 'Q'`).
-- `PARCELAS_PENDENTES`: quantidade de parcelas em aberto/pendentes de pagamento (`ABERTOQUITADO = 'A'`).
+- `PARCELAS_PAGAS`: quantidade de parcelas já liquidadas no contas a pagar/receber (`ABERTOQUITADO = 'Q'`). Pagamento parcial não quita a parcela.
+- `PARCELAS_PENDENTES`: total de parcelas menos as parcelas quitadas, incluindo parcelas com pagamento parcial.
 
 ## Variáveis para cadastrar em Var - F7
 Os filtros antes do Run na Consulta Criação dependem do cadastro manual em **Var - F7**:
