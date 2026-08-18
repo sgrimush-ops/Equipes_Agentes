@@ -47,15 +47,14 @@ def principal():
         df['QTD_VENDIDA'] = 0
 
     print("Gerando flags booleanas...")
-    df['is_rup_cd'] = (df['CODIGO_EMPRESA'] == 15) & ((df['QUANTIDADE_DISPONIVEL'] <= 0) | (df['QUANTIDADE_DISPONIVEL'] < df['EMBL_TRANSFERENCIA']))
+    df['is_rup_cd'] = (df['CODIGO_EMPRESA'] == 15) & (df['FORMA_ABASTECIMENTO'].isin(['M', 'C'])) & ((df['QUANTIDADE_DISPONIVEL'] <= 0) | (df['QUANTIDADE_DISPONIVEL'] < df['EMBL_TRANSFERENCIA']))
     df['is_rup_loja'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0)
     df['is_rup_neg'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] < 0)
+    df['is_rup_cross'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0) & (df['FORMA_ABASTECIMENTO'] == 'I')
     if 'QTD_PEND_PEDTRANSF' in df.columns:
         df['is_rup_pend'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0) & ((df['QTD_PEND_PEDCOMPRA'] > 0) | (df['QTD_PEND_PEDTRANSF'] > 0))
-        df['is_est_pend'] = (df['QUANTIDADE_DISPONIVEL'] > 0) & ((df['QTD_PEND_PEDCOMPRA'] > 0) | (df['QTD_PEND_PEDTRANSF'] > 0))
     else:
         df['is_rup_pend'] = (df['CODIGO_EMPRESA'] != 15) & (df['QUANTIDADE_DISPONIVEL'] <= 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
-        df['is_est_pend'] = (df['QUANTIDADE_DISPONIVEL'] > 0) & (df['QTD_PEND_PEDCOMPRA'] > 0)
 
     print("Agregando métricas por Produto e Empresa...")
     if 'QTD_PEND_PEDTRANSF' in df.columns:
@@ -68,7 +67,7 @@ def principal():
             RUP_LOJA=('is_rup_loja', 'max'),
             RUP_NEG=('is_rup_neg', 'max'),
             RUP_PEND=('is_rup_pend', 'max'),
-            EST_PEND=('is_est_pend', 'max')
+            RUP_CROSS=('is_rup_cross', 'max')
         ).reset_index()
         df_grouped['PEDIDOS'] = df_grouped['PEDIDOS_COMPRA'] + df_grouped['PEDIDOS_TRANSF']
     else:
@@ -80,7 +79,7 @@ def principal():
             RUP_LOJA=('is_rup_loja', 'max'),
             RUP_NEG=('is_rup_neg', 'max'),
             RUP_PEND=('is_rup_pend', 'max'),
-            EST_PEND=('is_est_pend', 'max')
+            RUP_CROSS=('is_rup_cross', 'max')
         ).reset_index()
         df_grouped['PEDIDOS_TRANSF'] = 0.0
         df_grouped['PEDIDOS'] = df_grouped['PEDIDOS_COMPRA']
@@ -99,7 +98,8 @@ def principal():
                 'PEDIDOS_CD_TRANSF': 0,
                 'PEDIDOS_CD_COMPRA': 0,
                 'VENDA_CD': 0,
-                'RUPTURA_CD': False
+                'RUPTURA_CD': False,
+                'BASE_LOJA': 0
             }
         
         empresa = int(row['CODIGO_EMPRESA'])
@@ -111,7 +111,7 @@ def principal():
             'r_l': bool(row['RUP_LOJA']),
             'r_n': bool(row['RUP_NEG']),
             'r_p': bool(row['RUP_PEND']),
-            'e_p': bool(row['EST_PEND'])
+            'r_c': bool(row['RUP_CROSS'])
         }
         
         if empresa == 15:
@@ -122,6 +122,10 @@ def principal():
             produtos_dict[key]['RUPTURA_CD'] = bool(row['RUP_CD'])
         else:
             produtos_dict[key]['LOJAS_MAP'][str(empresa)] = metrics
+
+    # Calcular Base Loja (quantidade de filiais != 15 onde o produto está ativo)
+    for p in produtos_dict.values():
+        p['BASE_LOJA'] = len(p['LOJAS_MAP'])
 
     final_data = list(produtos_dict.values())
     dados_json = json.dumps(final_data)
@@ -160,7 +164,7 @@ def principal():
             .btn-rup-loja { background-color: #636EFA; color: white; border: none; }
             .btn-rup-neg { background-color: #800080; color: white; border: none; }
             .btn-rup-pend { background-color: #FFD700; color: black; border: none; }
-            .btn-est-pend { background-color: #00CC96; color: white; border: none; }
+            .btn-cross { background-color: #8E24AA; color: white; border: none; }
             .active-metric { outline: 3px solid #333; transform: scale(1.05); }
             .cd-column { background-color: #fff4f2 !important; font-weight: bold; }
         </style>
@@ -193,7 +197,7 @@ def principal():
                     <button class="btn btn-metric btn-rup-loja" id="btn_rup_loja" onclick="mudarVisao('RUPTURA_LOJA')">Ruptura Loja</button>
                     <button class="btn btn-metric btn-rup-neg" id="btn_rup_neg" onclick="mudarVisao('RUPTURA_NEG')">Estoque Neg. Loja</button>
                     <button class="btn btn-metric btn-rup-pend" id="btn_rup_pend" onclick="mudarVisao('RUPTURA_PEND')">Rup. Loja Pend.</button>
-                    <button class="btn btn-metric btn-est-pend" id="btn_est-pend" onclick="mudarVisao('ESTOQUE_PEND')">Est. com Ped.</button>
+                    <button class="btn btn-metric btn-cross" id="btn_cross" onclick="mudarVisao('CROSSDOCKING')">Crossdocking</button>
                     <span id="contador-linhas" class="ms-3 text-muted fw-bold"></span>
                 </div>
             </div>
@@ -202,9 +206,10 @@ def principal():
                 <table class="table table-striped table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>COD. PŔODUTO</th>
+                            <th>COD. PRODUTO</th>
                             <th style="text-align: left;">DESCRIÇÃO</th>
-                            <th id="col-dinamica">LOJAS</th>
+                            <th>Base Lojas</th>
+                            <th id="col-dinamica">LOJAS (Filtro)</th>
                             <th class="cd-column">Estoque CD 15</th>
                             <th id="header-estoque">Estoque Local</th>
                             <th id="header-pedidos-transf">Pedidos Trans (Local)</th>
@@ -249,8 +254,16 @@ def principal():
         function mudarVisao(novaVisao) {
             visaoAtual = novaVisao;
             document.querySelectorAll('.btn-metric').forEach(btn => btn.classList.remove('active-metric'));
-            const btnMap = {'RUPTURA_CD': 'btn_rup_cd', 'RUPTURA_LOJA': 'btn_rup_loja', 'RUPTURA_NEG': 'btn_rup_neg', 'RUPTURA_PEND': 'btn_rup_pend', 'ESTOQUE_PEND': 'btn_est-pend'};
-            document.getElementById(btnMap[visaoAtual]).classList.add('active-metric');
+            const btnMap = {
+                'RUPTURA_CD': 'btn_rup_cd',
+                'RUPTURA_LOJA': 'btn_rup_loja',
+                'RUPTURA_NEG': 'btn_rup_neg',
+                'RUPTURA_PEND': 'btn_rup_pend',
+                'CROSSDOCKING': 'btn_cross'
+            };
+            if (btnMap[visaoAtual]) {
+                document.getElementById(btnMap[visaoAtual]).classList.add('active-metric');
+            }
             renderTable();
         }
 
@@ -275,10 +288,10 @@ def principal():
                     if (visaoAtual === 'RUPTURA_LOJA') return prod.RUPTURA_CD;
                     if (visaoAtual === 'RUPTURA_NEG') return has_neg;
                     if (visaoAtual === 'RUPTURA_PEND') return prod.RUPTURA_CD && has_pend;
-                    if (visaoAtual === 'ESTOQUE_PEND') return (!prod.RUPTURA_CD) && has_pend;
+                    if (visaoAtual === 'CROSSDOCKING') return false;
                 }
                 const lojasMap = prod.LOJAS_MAP;
-                const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'ESTOQUE_PEND': 'e_p'};
+                const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'CROSSDOCKING': 'r_c'};
                 const flag = flagMap[visaoAtual];
                 if (lojaSel === "TODAS") {
                     return Object.values(lojasMap).some(m => m[flag]);
@@ -289,6 +302,11 @@ def principal():
 
             dFinal = dadosAtuais.filter(match);
             dFinal.sort((a, b) => {
+                let baseA = a.BASE_LOJA !== undefined ? a.BASE_LOJA : Object.keys(a.LOJAS_MAP || {}).length;
+                let baseB = b.BASE_LOJA !== undefined ? b.BASE_LOJA : Object.keys(b.LOJAS_MAP || {}).length;
+                if (baseB !== baseA) {
+                    return baseB - baseA;
+                }
                 let vA = 0, vB = 0;
                 if (lojaSel === "TODAS") {
                     vA = Object.values(a.LOJAS_MAP).reduce((s, m) => s + (m.vda || 0), 0) + (a.VENDA_CD || 0);
@@ -312,7 +330,7 @@ def principal():
             exibe.forEach(row => {
                 let est_loc = 0, ped_transf_loc = 0, ped_forn_loc = 0, vda_loc = 0;
                 let lojas_list = "";
-                const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'ESTOQUE_PEND': 'e_p'};
+                const flagMap = {'RUPTURA_LOJA': 'r_l', 'RUPTURA_NEG': 'r_n', 'RUPTURA_PEND': 'r_p', 'CROSSDOCKING': 'r_c'};
                 const flag = flagMap[visaoAtual] || 'r_l';
 
                 if (lojaSel === "TODAS") {
@@ -335,8 +353,6 @@ def principal():
                         lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
                     } else if (visaoAtual === 'RUPTURA_PEND' && row.RUPTURA_CD && (row.PEDIDOS_CD_COMPRA > 0 || row.PEDIDOS_CD_TRANSF > 0)) {
                         lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
-                    } else if (visaoAtual === 'ESTOQUE_PEND' && (!row.RUPTURA_CD) && (row.PEDIDOS_CD_COMPRA > 0 || row.PEDIDOS_CD_TRANSF > 0)) {
-                        lojas_list += (lojas_list ? ", " : "") + "15 (CD)";
                     }
                 } else if (lojaSel === "15") {
                     est_loc = row.ESTOQUE_CD || 0;
@@ -353,9 +369,12 @@ def principal():
                     lojas_list = lojaSel;
                 }
 
+                const base_lojas_count = row.BASE_LOJA !== undefined ? row.BASE_LOJA : Object.keys(row.LOJAS_MAP).length;
+
                 tbody += `<tr>
                     <td class="fw-bold">${row.CODIGO_PRODUTO}</td>
                     <td style="text-align: left;">${row.DESCRICAO_PRODUTO}</td>
+                    <td class="fw-bold text-secondary">${base_lojas_count}</td>
                     <td><span class="fw-bold text-muted" title="${lojas_list}">${lojas_list.length > 30 ? lojas_list.substring(0,27)+'...' : lojas_list}</span></td>
                     <td class="cd-column">${fmtNum(row.ESTOQUE_CD)}</td>
                     <td class="${est_loc < 0 ? 'text-danger fw-bold' : ''}">${fmtNum(est_loc)}</td>
@@ -367,7 +386,7 @@ def principal():
             
             document.getElementById("tabela-body").innerHTML = tbody;
             if (dFinal.length > 2000) {
-                document.getElementById("tabela-body").innerHTML += `<tr><td colspan="8" class="text-center text-muted p-3">Exibindo apenas os 2000 itens com maior venda para melhor performance. Refine o filtro para ver mais.</td></tr>`;
+                document.getElementById("tabela-body").innerHTML += `<tr><td colspan="9" class="text-center text-muted p-3">Exibindo apenas os 2000 itens com maior base de loja para melhor performance. Refine o filtro para ver mais.</td></tr>`;
             }
         }
         window.onload = aplicarFiltros;
@@ -414,7 +433,7 @@ def principal():
             lojas_rup = [l for l, m in p['LOJAS_MAP'].items() if m['r_l']]
             lojas_neg = [l for l, m in p['LOJAS_MAP'].items() if m['r_n']]
             lojas_pend = [l for l, m in p['LOJAS_MAP'].items() if m['r_p']]
-            lojas_est_ped = [l for l, m in p['LOJAS_MAP'].items() if m['e_p']]
+            lojas_cross = [l for l, m in p['LOJAS_MAP'].items() if m.get('r_c', False)]
             
             est_loc = sum(m['est'] for m in p['LOJAS_MAP'].values())
             ped_transf_loc = sum(m.get('ped_tran', 0) for m in p['LOJAS_MAP'].values())
@@ -424,6 +443,7 @@ def principal():
             rows_excel.append({
                 'Cód. Produto': p['CODIGO_PRODUTO'],
                 'Descrição': p['DESCRICAO_PRODUTO'],
+                'Base Lojas': len(p['LOJAS_MAP']),
                 'Ruptura CD?': 'SIM' if p['RUPTURA_CD'] else 'NÃO',
                 'Estoque CD': p['ESTOQUE_CD'],
                 'Ped. Transf CD': p.get('PEDIDOS_CD_TRANSF', 0),
@@ -431,7 +451,7 @@ def principal():
                 'Lojas c/ Ruptura': ", ".join(lojas_rup),
                 'Lojas c/ Est. Negativo': ", ".join(lojas_neg),
                 'Lojas c/ Rup. Pendente': ", ".join(lojas_pend),
-                'Lojas c/ Est e Pedido': ", ".join(lojas_est_ped),
+                'Lojas c/ Crossdocking': ", ".join(lojas_cross),
                 'Estoque Local (Rede)': est_loc,
                 'Ped. Transf Local (Rede)': ped_transf_loc,
                 'Ped. Forn Local (Rede)': ped_forn_loc,
@@ -446,7 +466,7 @@ def principal():
             (df_comp['Lojas c/ Ruptura'] != "") |
             (df_comp['Lojas c/ Est. Negativo'] != "") |
             (df_comp['Lojas c/ Rup. Pendente'] != "") |
-            (df_comp['Lojas c/ Est e Pedido'] != "")
+            (df_comp['Lojas c/ Crossdocking'] != "")
         )
         df_comp_filtrado = df_comp[mask_tem_problema]
         
@@ -456,11 +476,13 @@ def principal():
             file_name = f"{primeiro_nome}_{hoje_str}.xlsx"
             file_path = pasta_excel / file_name
             
-            # Ordenar alfabeticamente pela Descrição do Produto, como solicitado
-            df_comp_filtrado = df_comp_filtrado.sort_values(by='Descrição', ascending=True)
+            # Ordenar por Base Lojas DESC e Venda DESC
+            df_comp_filtrado = df_comp_filtrado.sort_values(by=['Base Lojas', 'Qtd. Vendida (Rede)'], ascending=[False, False])
             df_comp_filtrado.to_excel(file_path, index=False)
+
             
     print(f"Todas as planilhas geradas em: {pasta_excel}")
 
 if __name__ == '__main__':
     principal()
+

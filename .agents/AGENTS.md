@@ -35,3 +35,11 @@ Ao criar automações desktop ou protótipos em Python para interagir visualment
 2. **PyInstaller com RapidOCR:** É obrigatório usar `collect_submodules('rapidocr_onnxruntime')` além de `collect_data_files` nos arquivos `.spec` para evitar `AttributeError: module 'ch_ppocr_v3_det' has no attribute 'TextDetector'`.
 3. **Mecânica de Rolagem no Consinco (Seta para Baixo):** Mapeie as `N` linhas visíveis iniciais (`step 0 até N-1`). A partir da `N`-ésima linha (`step >= N`), fixe a ancoragem de leitura e clique na coordenada `Y` da última linha visível, pois o foco permanece travado e os registros sobem na tabela.
 4. **Isolamento de Coluna OCR via Recorte Assimetricamente Estreito:** Em colunas adjacentes a datas (ex: Valor ao lado de Vencimento), recorte caixas estreitas à direita (`[x - 20, y - 10, x + 65, y + 10]`) para impedir a captura acidental de anos (`2026`).
+
+---
+
+# Permissões e Autonomia no Workspace `Equipes_Agentes`
+
+- **Acesso Total e Sem Bloqueio:** O agente possui **acesso total** e **permissão contínua irrestrita** em todos os diretórios e arquivos dentro da pasta `Equipes_Agentes`.
+- **Execução Direta Sem Solicitar Confirmação:** Não é necessário solicitar aprovações ou confirmações prévias para ler, criar, editar arquivos, refatorar código ou executar scripts/comandos no terminal dentro de `Equipes_Agentes`. O agente deve agir com total autonomia e proatividade.
+

@@ -48,10 +48,7 @@ rodar_script("Dashboard de Compradores", script_dashboard)
 script_loja = base_dir / "3-dashboard_loja.py"
 rodar_script("Ranking de Lojas", script_loja)
 
-# 4. Executar o dashboard forma abastecimento
-script_abastecimento = base_dir / "6-dashboard_abastecimento.py"
-rodar_script("Dashboard Forma Abastecimento", script_abastecimento)
-
 # limpar tela com cls e depois msg de finalizado
 os.system('cls')
 print("[OK] Processo concluído!")
+
