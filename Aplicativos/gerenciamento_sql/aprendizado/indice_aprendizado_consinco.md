@@ -23,6 +23,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_filtros_consulta_criacao.md`: guia sobre criacao de filtros antes do Run no Totvs Consinco (Var-F7, LT1, LS1, NR1, DT1).
 - `aprendizado_abc_vendas_formato_comprador_filtros.md`: regras praticas de filtros e corte por quantidade (`NR1`) em subqueries previas antes de joins pesados.
 - `aprendizado_auditoria_precos_promocoes.md`: como espelhar a tela nativa de histórico via `MAD_PRODLOGPRECO`, a mecânica do registro automático zero para fim de promoção e o efeito cascata de defasagem de preço base.
+- `aprendizado_acordos_verbas_financeiro_sellout.md`: arquitetura de fechamento financeiro em 2 níveis (Acordo + Produto) para monitor de acordos e verbas (`MSUV_ACORDOPROMOC` e `FI_TITULO`), fidelidade literal aos status do ERP (`Aprovado`, `Financeiro`, `Direito`, `Quitado`), regra estrita de quitação financeira real (NF de compra Sell-In não é quitação), isolamento estrito entre filiais e matriz, e resolução de erros ORA-00979, ORA-00904, ORA-00937 e ORA-00936.
 
 ## Arquitetura do Consinco e do BI
 - `arquitetura_monitor_consico_totvs.md`: fluxo real das telas Consinco e uso de `SEQCONSULTA`.

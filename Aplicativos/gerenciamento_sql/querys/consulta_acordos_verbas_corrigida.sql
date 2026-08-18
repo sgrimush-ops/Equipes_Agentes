@@ -1,9 +1,10 @@
 SELECT * FROM (
     WITH CTE_TITULOS_ACORDO AS (
-        SELECT DISTINCT
+        SELECT /*+ MATERIALIZE */ DISTINCT
             NROACORDO,
             NROEMPRESA,
             SEQTITULO,
+            OBRIGDIREITO,
             ABERTOQUITADO,
             VLRPAGO,
             DTAVENCIMENTO,
@@ -11,8 +12,9 @@ SELECT * FROM (
         FROM (
             SELECT
                 TR.NROACORDO,
-                TR.NROEMPRACORDOPROMOC AS NROEMPRESA,
+                NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA) AS NROEMPRESA,
                 T.SEQTITULO,
+                T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
@@ -20,14 +22,16 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOTITULORECEB TR
                 ON TR.LINKERP = T.SEQTITULO
+               AND T.NROEMPRESA = NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA)
             WHERE T.SITUACAO != 'C'
 
             UNION
 
             SELECT
                 TR.NROACORDO,
-                TR.NROEMPRACORDOPROMOC AS NROEMPRESA,
+                NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA) AS NROEMPRESA,
                 T.SEQTITULO,
+                T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
@@ -36,15 +40,17 @@ SELECT * FROM (
             INNER JOIN MSU_ACORDOTITULORECEB TR
                 ON TR.NUMERONF = T.NRODOCUMENTO
                AND TR.SEQPESSOA = T.SEQPESSOA
-               AND TR.SERIENF = T.SERIEDOC
+               AND T.NROEMPRESA = NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA)
             WHERE T.SITUACAO != 'C'
+              AND T.OBRIGDIREITO = 'D'
 
             UNION
 
             SELECT
                 CC.NROACORDO,
-                CC.NROEMPRESAACORDO AS NROEMPRESA,
+                NVL(CC.NROEMPRESAACORDO, T.NROEMPRESA) AS NROEMPRESA,
                 T.SEQTITULO,
+                T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
@@ -52,6 +58,7 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_CCACORDOPROMOC CC
                 ON CC.SEQTITULO = T.SEQTITULO
+               AND T.NROEMPRESA = NVL(CC.NROEMPRESAACORDO, T.NROEMPRESA)
             WHERE CC.SEQTITULO IS NOT NULL
               AND T.SITUACAO != 'C'
 
@@ -59,8 +66,9 @@ SELECT * FROM (
 
             SELECT
                 CD.NROACORDO,
-                CD.NROEMPRESA AS NROEMPRESA,
+                NVL(CD.NROEMPRESA, T.NROEMPRESA) AS NROEMPRESA,
                 T.SEQTITULO,
+                T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
@@ -68,6 +76,7 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_CCDIVIDA CD
                 ON CD.SEQTITULO = T.SEQTITULO
+               AND T.NROEMPRESA = NVL(CD.NROEMPRESA, T.NROEMPRESA)
             WHERE CD.SEQTITULO IS NOT NULL
               AND T.SITUACAO != 'C'
 
@@ -77,6 +86,7 @@ SELECT * FROM (
                 A.NROACORDO,
                 A.NROEMPRESA,
                 T.SEQTITULO,
+                T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
@@ -87,14 +97,16 @@ SELECT * FROM (
                AND TOA.USUCANCELOU IS NULL
             INNER JOIN FI_TITULO T
                 ON T.SEQTITULO = TOA.SEQTITULO
+               AND T.NROEMPRESA = A.NROEMPRESA
             WHERE T.SITUACAO != 'C'
 
             UNION
 
             SELECT
                 A.NROACORDO,
-                A.NROEMPRACORDOPROMOC AS NROEMPRESA,
+                A.NROEMPRESA,
                 T.SEQTITULO,
+                T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
@@ -102,31 +114,37 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOPROMOC A
                 ON A.SEQFORNECEDOR = T.SEQPESSOA
+               AND T.NROEMPRESA = A.NROEMPRESA
                AND (
                     T.NRODOCUMENTO = A.NROACORDO
                     OR T.NROTITULO = A.NROACORDO
+                    OR (A.SEQPROCESSO IS NOT NULL AND (T.NRODOCUMENTO = A.SEQPROCESSO OR T.NROTITULO = A.SEQPROCESSO))
                )
-               AND T.NROEMPRESA = A.NROEMPRACORDOPROMOC
             WHERE T.SITUACAO != 'C'
-              AND T.CODESPECIE IN (
-                    'VERBA',
-                    'ACORDO',
-                    'ACRCIM',
-                    'ACRCOM',
-                    'ACRINT',
-                    'ACRLOG',
-                    'ACRMKT',
-                    'ACRPRE',
-                    'ACRTRO',
-                    'DEVREC',
-                    'BONIF',
-                    'VEXTRA'
+              AND T.OBRIGDIREITO = 'D'
+              AND (
+                    T.SERIEDOC IN ('ACO', 'ACR', 'VRB', 'VER', 'BON', 'DEV')
+                    OR T.CODESPECIE IN (
+                        'DESPRE',
+                        'VERBA',
+                        'ACORDO',
+                        'ACRCIM',
+                        'ACRCOM',
+                        'ACRINT',
+                        'ACRLOG',
+                        'ACRMKT',
+                        'ACRPRE',
+                        'ACRTRO',
+                        'DEVREC',
+                        'BONIF',
+                        'VEXTRA'
+                    )
               )
         )
     ),
 
     CTE_VALORES_BRUTOS AS (
-        SELECT
+        SELECT /*+ MATERIALIZE */
             A.NROEMPRESA,
             A.NROACORDO,
             AC.SEQPROCESSO,
@@ -189,6 +207,39 @@ SELECT * FROM (
             MAX(SUBSTR(A.NUMERONF, 1, 250)) AS NUMERONF,
             A.NROPEDIDOSUPRIM,
 
+            (
+                SELECT MAX(
+                    CASE
+                        WHEN TA.OBRIGDIREITO = 'D' THEN 'Direito'
+                        WHEN TA.OBRIGDIREITO = 'O' THEN 'Obrigação'
+                        ELSE TA.OBRIGDIREITO
+                    END
+                )
+                FROM CTE_TITULOS_ACORDO TA
+                WHERE TA.NROACORDO = A.NROACORDO
+                  AND TA.NROEMPRESA = A.NROEMPRESA
+            ) AS DIREITO_OBRIGACAO,
+
+            CASE
+                WHEN (
+                    SELECT COUNT(*)
+                    FROM CTE_TITULOS_ACORDO TA
+                    WHERE TA.NROACORDO = A.NROACORDO
+                      AND TA.NROEMPRESA = A.NROEMPRESA
+                ) > 0 THEN
+                    CASE
+                        WHEN (
+                            SELECT COUNT(*)
+                            FROM CTE_TITULOS_ACORDO TA
+                            WHERE TA.NROACORDO = A.NROACORDO
+                              AND TA.NROEMPRESA = A.NROEMPRESA
+                              AND TA.ABERTOQUITADO = 'A'
+                        ) > 0 THEN 'Aberto'
+                        ELSE 'Quitado'
+                    END
+                ELSE 'Sem Título'
+            END AS ABERTO_QUITADO,
+
             NVL(
                 MAX(A.VLRFINVENCIDO),
                 fValorTitAcordo(
@@ -222,7 +273,7 @@ SELECT * FROM (
 
             NVL(
                 (
-                    SELECT SUM(VC.VLRUTILIZADAVERBA)
+                    SELECT SUM(VC.VLRUTILIZADOVERBA)
                     FROM MRLV_VERBACONSUMIDA VC
                     WHERE VC.APPORIGEM = 2
                       AND VC.STATUSVERBA != 'R'
@@ -309,9 +360,13 @@ SELECT * FROM (
                 THEN
                     NVL(MIN(A.VLRSALDOACORDO), 0)
                     + NVL(MAX(A.VLRUTILPROD), 0)
+                WHEN A.SEQPRODUTO IS NOT NULL
+                 AND NVL(MAX(A.VLRUTILPROD), 0) > 0
+                THEN
+                    NVL(MAX(A.VLRUTILPROD), 0)
                 ELSE
                     A.VLRACORDO
-            END AS PROD_VLRACORDO
+            END AS PROD_PESO
 
         FROM MSUV_ACORDOPROMOC A
         INNER JOIN GE_PESSOA B
@@ -325,7 +380,7 @@ SELECT * FROM (
         WHERE A.NROEMPRESA IN (#LT1)
           AND A.STATUS NOT IN (#LT2)
           AND TRUNC(A.DTAEMISSAO) BETWEEN :DT1 AND :DT2
-          AND (NVL(:NR1, 0) = 0 OR A.NROACORDO = :NR1)
+          AND (NVL(TO_NUMBER(:NR1), 0) = 0 OR A.NROACORDO = TO_NUMBER(:NR1))
 
           AND (
                 NVL(TRIM(:LS1), '0 - TODOS')
@@ -359,22 +414,6 @@ SELECT * FROM (
                 )
           )
 
-          AND (
-                NVL(TRIM(:LS3), '0 - TODOS')
-                IN ('0 - TODOS', 'TODOS', '', '0')
-                OR (
-                    INSTR(:LS3, ' - ') > 0
-                    AND A.STATUS =
-                        TO_NUMBER(
-                            SUBSTR(
-                                :LS3,
-                                1,
-                                INSTR(:LS3, ' - ') - 1
-                            )
-                        )
-                )
-          )
-
         GROUP BY
             A.NROEMPRESA,
             A.NROACORDO,
@@ -391,108 +430,175 @@ SELECT * FROM (
             A.VLRACORDO
     ),
 
-    CTE_VALORES_PRE AS (
-        SELECT
+    CTE_ACORDO_HEADER AS (
+        SELECT /*+ MATERIALIZE */
             NROEMPRESA,
             NROACORDO,
-            SEQPROCESSO,
-            SEQFORNECEDOR,
-            NOMERAZAO,
-            DESCACORDO,
-            DTAEMISSAO,
-            APELIDO,
-            STATUS,
-            TIPOACORDO,
-            SEQPRODUTO,
-            QTDUTILIZADAVERBA,
-            DTAFINALVERBA,
-            DTAVENCIMENTO,
-            ULTIMO_RECEBIMENTO,
-            NUMERONF,
-            NROPEDIDOSUPRIM,
+            MAX(RAW_VLRQUITADO) AS ACORDO_RAW_QUITADO,
+            MAX(RAW_VLRFINVENCIDO) AS ACORDO_RAW_VENCIDO,
+            MAX(RAW_VLRFINAVENCER) AS ACORDO_RAW_AVENCER,
+            MAX(RAW_VLRSALDOACORDO) AS ACORDO_RAW_SALDO,
+            SUM(PROD_PESO) AS ACORDO_SUM_PESO,
 
-            PROD_VLRACORDO AS VLRACORDO,
+            GREATEST(
+                CASE
+                    WHEN COUNT(DISTINCT SEQPRODUTO) > 1
+                     AND SUM(PROD_PESO) > 0
+                    THEN SUM(PROD_PESO)
+                    ELSE MAX(RAW_VLRACORDO)
+                END,
+                NVL(MAX(RAW_VLRQUITADO), 0)
+                + NVL(MAX(RAW_VLRFINVENCIDO), 0)
+                + NVL(MAX(RAW_VLRFINAVENCER), 0),
+                NVL(MAX(RAW_VLRFINVENCIDO), 0)
+                + NVL(MAX(RAW_VLRFINAVENCER), 0)
+            ) AS ACORDO_VLR_TOTAL
+        FROM CTE_VALORES_BRUTOS
+        GROUP BY
+            NROEMPRESA,
+            NROACORDO
+    ),
+
+    CTE_ACORDO_FINANCEIRO AS (
+        SELECT /*+ MATERIALIZE */
+            H.NROEMPRESA,
+            H.NROACORDO,
+            H.ACORDO_VLR_TOTAL AS VLR_TOTAL_ACORDO,
+            H.ACORDO_SUM_PESO,
 
             CASE
-                WHEN RAW_VLRQUITADO IS NOT NULL
-                 AND SUM(PROD_VLRACORDO)
-                     OVER (
-                         PARTITION BY NROEMPRESA, NROACORDO
-                     ) > 0
-                THEN
-                    ROUND(
-                        RAW_VLRQUITADO *
-                        (
-                            PROD_VLRACORDO /
-                            SUM(PROD_VLRACORDO)
-                            OVER (
-                                PARTITION BY NROEMPRESA, NROACORDO
-                            )
-                        ),
-                        2
-                    )
-                ELSE
-                    0
+                WHEN NVL(H.ACORDO_RAW_QUITADO, 0) > 0
+                THEN LEAST(H.ACORDO_VLR_TOTAL, H.ACORDO_RAW_QUITADO)
+                ELSE 0
+            END AS ACORDO_VLR_QUITADO,
+
+            GREATEST(
+                0,
+                H.ACORDO_VLR_TOTAL - LEAST(H.ACORDO_VLR_TOTAL, NVL(H.ACORDO_RAW_QUITADO, 0))
+            ) AS ACORDO_VLR_ABERTO,
+
+            LEAST(
+                GREATEST(
+                    0,
+                    H.ACORDO_VLR_TOTAL - LEAST(H.ACORDO_VLR_TOTAL, NVL(H.ACORDO_RAW_QUITADO, 0))
+                ),
+                NVL(H.ACORDO_RAW_VENCIDO, 0)
+            ) AS ACORDO_VLR_VENCIDO
+
+        FROM CTE_ACORDO_HEADER H
+    ),
+
+    CTE_VALORES_PRE AS (
+        SELECT
+            B.NROEMPRESA,
+            B.NROACORDO,
+            B.SEQPROCESSO,
+            B.SEQFORNECEDOR,
+            B.NOMERAZAO,
+            B.DESCACORDO,
+            B.DTAEMISSAO,
+            B.APELIDO,
+            B.STATUS,
+            B.TIPOACORDO,
+            B.SEQPRODUTO,
+            B.QTDUTILIZADAVERBA,
+            B.DTAFINALVERBA,
+            B.DTAVENCIMENTO,
+            B.ULTIMO_RECEBIMENTO,
+            B.NUMERONF,
+            B.NROPEDIDOSUPRIM,
+            B.DIREITO_OBRIGACAO,
+            B.ABERTO_QUITADO,
+
+            CASE
+                WHEN F.ACORDO_SUM_PESO > 0
+                THEN ROUND(
+                    F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO),
+                    2
+                )
+                ELSE F.VLR_TOTAL_ACORDO
+            END AS VLRACORDO,
+
+            CASE
+                WHEN F.ACORDO_SUM_PESO > 0
+                THEN ROUND(
+                    F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO),
+                    2
+                )
+                ELSE F.ACORDO_VLR_QUITADO
             END AS CALC_VLRQUITADO,
 
             CASE
-                WHEN SUM(PROD_VLRACORDO)
-                     OVER (
-                         PARTITION BY NROEMPRESA, NROACORDO
-                     ) > 0
+                WHEN F.ACORDO_SUM_PESO > 0
                 THEN
-                    ROUND(
-                        RAW_VLRFINVENCIDO *
-                        (
-                            PROD_VLRACORDO /
-                            SUM(PROD_VLRACORDO)
-                            OVER (
-                                PARTITION BY NROEMPRESA, NROACORDO
-                            )
-                        ),
+                    ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                    -
+                    ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                ELSE F.ACORDO_VLR_ABERTO
+            END AS CALC_VLR_EM_ABERTO,
+
+            LEAST(
+                CASE
+                    WHEN F.ACORDO_SUM_PESO > 0
+                    THEN
+                        ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                        -
+                        ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                    ELSE F.ACORDO_VLR_ABERTO
+                END,
+                CASE
+                    WHEN F.ACORDO_SUM_PESO > 0
+                    THEN ROUND(
+                        F.ACORDO_VLR_VENCIDO * (B.PROD_PESO / F.ACORDO_SUM_PESO),
                         2
                     )
-                ELSE
-                    RAW_VLRFINVENCIDO
-            END AS CALC_VLRFINVENCIDO,
+                    ELSE F.ACORDO_VLR_VENCIDO
+                END
+            ) AS CALC_VLRFINVENCIDO,
 
             CASE
-                WHEN SUM(PROD_VLRACORDO)
-                     OVER (
-                         PARTITION BY NROEMPRESA, NROACORDO
-                     ) > 0
+                WHEN B.SEQPRODUTO IS NOT NULL
+                 AND B.TIPOACORDO = 2
+                 AND (
+                    CASE
+                        WHEN F.ACORDO_SUM_PESO > 0
+                        THEN ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                        ELSE F.VLR_TOTAL_ACORDO
+                    END
+                 ) >= NVL(B.VLRUTILPROD, 0)
                 THEN
-                    ROUND(
-                        RAW_VLRFINAVENCER *
-                        (
-                            PROD_VLRACORDO /
-                            SUM(PROD_VLRACORDO)
-                            OVER (
-                                PARTITION BY NROEMPRESA, NROACORDO
-                            )
-                        ),
-                        2
-                    )
+                    (
+                        CASE
+                            WHEN F.ACORDO_SUM_PESO > 0
+                            THEN ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                            ELSE F.VLR_TOTAL_ACORDO
+                        END
+                    ) - NVL(B.VLRUTILPROD, 0)
                 ELSE
-                    RAW_VLRFINAVENCER
-            END AS CALC_VLRFINAVENCER,
-
-            CASE
-                WHEN SEQPRODUTO IS NOT NULL
-                 AND TIPOACORDO = 2
-                 AND PROD_VLRACORDO >= NVL(VLRUTILPROD, 0)
-                THEN
-                    PROD_VLRACORDO - NVL(VLRUTILPROD, 0)
-                ELSE
-                    RAW_VLRSALDOACORDO
+                    CASE
+                        WHEN F.ACORDO_VLR_ABERTO = 0
+                        THEN 0
+                        ELSE
+                            CASE
+                                WHEN F.ACORDO_SUM_PESO > 0
+                                THEN
+                                    ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                                    -
+                                    ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                                ELSE F.ACORDO_VLR_ABERTO
+                            END
+                    END
             END AS VLRSALDOACORDO,
 
-            VLRUTILPROD,
-            TOTAL_PARCELAS,
-            PARCELAS_PAGAS,
-            PARCELAS_PENDENTES
+            B.VLRUTILPROD,
+            B.TOTAL_PARCELAS,
+            B.PARCELAS_PAGAS,
+            B.PARCELAS_PENDENTES
 
-        FROM CTE_VALORES_BRUTOS
+        FROM CTE_VALORES_BRUTOS B
+        INNER JOIN CTE_ACORDO_FINANCEIRO F
+            ON F.NROEMPRESA = B.NROEMPRESA
+           AND F.NROACORDO = B.NROACORDO
     ),
 
     CTE_BASE AS (
@@ -514,94 +620,40 @@ SELECT * FROM (
             ULTIMO_RECEBIMENTO,
             NUMERONF,
             NROPEDIDOSUPRIM,
+            DIREITO_OBRIGACAO,
+            ABERTO_QUITADO,
 
             CALC_VLRFINVENCIDO AS VLRFINVENCIDO,
-            CALC_VLRFINAVENCER AS VLRFINAVENCER,
-
             VLRACORDO,
+            CALC_VLR_EM_ABERTO AS VLR_EM_ABERTO,
+            CALC_VLRQUITADO AS VLR_JA_QUITADO,
             VLRSALDOACORDO,
             VLRUTILPROD,
 
             TOTAL_PARCELAS,
             PARCELAS_PAGAS,
-            PARCELAS_PENDENTES,
-
-            CASE
-                WHEN CALC_VLRQUITADO > 0
-                THEN
-                    LEAST(
-                        VLRACORDO,
-                        CALC_VLRQUITADO
-                    )
-                ELSE
-                    GREATEST(
-                        0,
-                        VLRACORDO -
-                        CASE
-                            WHEN TIPOACORDO = 1
-                              OR NVL(CALC_VLRFINVENCIDO, 0)
-                               + NVL(CALC_VLRFINAVENCER, 0) > 0
-                            THEN
-                                NVL(CALC_VLRFINVENCIDO, 0)
-                                + NVL(CALC_VLRFINAVENCER, 0)
-                            ELSE
-                                NVL(VLRSALDOACORDO, 0)
-                        END
-                    )
-            END AS VLR_JA_QUITADO,
-
-            CASE
-                WHEN CALC_VLRQUITADO > 0
-                THEN
-                    GREATEST(
-                        0,
-                        VLRACORDO - CALC_VLRQUITADO
-                    )
-                WHEN TIPOACORDO = 1
-                  OR NVL(CALC_VLRFINVENCIDO, 0)
-                   + NVL(CALC_VLRFINAVENCER, 0) > 0
-                THEN
-                    NVL(CALC_VLRFINVENCIDO, 0)
-                    + NVL(CALC_VLRFINAVENCER, 0)
-                ELSE
-                    NVL(VLRSALDOACORDO, 0)
-            END AS VLR_EM_ABERTO
+            PARCELAS_PENDENTES
 
         FROM CTE_VALORES_PRE
     ),
 
-    CTE_CLASSIFICADA AS (
-        SELECT
+    CTE_CLASSIFICADA_PRE AS (
+        SELECT /*+ MATERIALIZE */
             X.*,
 
             CASE
-                WHEN X.STATUS = 1 THEN 'EM ANDAMENTO'
-                WHEN X.STATUS = 2 THEN 'CANCELADO'
-                WHEN X.STATUS = 3 THEN 'CONCLUIDO'
-                WHEN X.STATUS = 4 THEN 'INTERROMPIDA'
-                ELSE 'NAO INFORMADO'
+                WHEN X.STATUS = 1 THEN 'Aprovado'
+                WHEN X.STATUS = 2 THEN 'Cancelado'
+                WHEN X.STATUS = 3 THEN 'Concluido'
+                WHEN X.STATUS = 4 THEN 'Interrompido'
+                ELSE 'Pendente'
             END AS STATUS_ACORDO,
 
             CASE
-                WHEN X.STATUS = 2
-                THEN 'CANCELADO'
-
-                WHEN NVL(X.VLR_EM_ABERTO, 0) <= 0
-                THEN 'QUITADO'
-
-                WHEN NVL(X.VLR_EM_ABERTO, 0) > 0
-                 AND NVL(X.TOTAL_PARCELAS, 0) = 0
-                THEN 'EM ABERTO - SEM PARCELAMENTO IDENTIFICADO'
-
-                WHEN NVL(X.VLR_JA_QUITADO, 0) <= 0
-                THEN 'EM ABERTO'
-
-                WHEN NVL(X.VLR_EM_ABERTO, 0) > 0
-                 AND NVL(X.VLR_JA_QUITADO, 0) > 0
-                THEN 'PARCIALMENTE QUITADO'
-
-                ELSE 'NAO CLASSIFICADO'
-            END AS SITUACAO_FINANCEIRA,
+                WHEN X.STATUS = 2 THEN 'Cancelado'
+                WHEN NVL(X.TOTAL_PARCELAS, 0) > 0 THEN 'Financeiro'
+                ELSE 'Pendente'
+            END AS SITUACAO_ACORDO,
 
             CASE
                 WHEN NVL(X.VLR_EM_ABERTO, 0) > 0
@@ -612,86 +664,75 @@ SELECT * FROM (
         FROM CTE_BASE X
     ),
 
+    CTE_CLASSIFICADA AS (
+        SELECT /*+ MATERIALIZE */
+            C.*
+        FROM CTE_CLASSIFICADA_PRE C
+        WHERE (
+            NVL(TRIM(:LS3), '0 - TODOS') IN ('0 - TODOS', 'TODOS', '', '0')
+            OR (
+                (SUBSTR(TRIM(:LS3), 1, 1) = '1' OR INSTR(UPPER(:LS3), 'QUITADO') > 0)
+                AND C.ABERTO_QUITADO = 'Quitado'
+            )
+            OR (
+                (SUBSTR(TRIM(:LS3), 1, 1) = '2' OR (SUBSTR(TRIM(:LS3), 1, 1) = '3' AND INSTR(UPPER(:LS3), 'ABERTO') > 0))
+                AND C.ABERTO_QUITADO = 'Aberto'
+            )
+            OR (
+                (SUBSTR(TRIM(:LS3), 1, 1) = '4' OR INSTR(UPPER(:LS3), 'PARCELA') > 0 OR INSTR(UPPER(:LS3), 'TITULO') > 0 OR INSTR(UPPER(:LS3), 'PENDENTE') > 0)
+                AND C.ABERTO_QUITADO = 'Sem Título'
+            )
+            OR (
+                (SUBSTR(TRIM(:LS3), 1, 1) = '5' OR INSTR(UPPER(:LS3), 'CANCEL') > 0)
+                AND C.STATUS_ACORDO = 'Cancelado'
+            )
+            OR C.ABERTO_QUITADO = TRIM(:LS3)
+        )
+    ),
+
+    CTE_TOTAIS_VALORES AS (
+        SELECT
+            NVL(SUM(VLRACORDO), 0) AS TOTAL_VLRACORDO,
+            NVL(SUM(VLRSALDOACORDO), 0) AS TOTAL_VLRSALDO,
+            NVL(SUM(VLRFINVENCIDO), 0) AS TOTAL_VLRFINVENCIDO,
+            NVL(SUM(VLRUTILPROD), 0) AS TOTAL_VLRUTILPROD,
+            NVL(SUM(VLR_JA_QUITADO), 0) AS TOTAL_VLR_QUITADO,
+            NVL(SUM(VLR_EM_ABERTO), 0) AS TOTAL_VLR_ABERTO
+        FROM CTE_CLASSIFICADA
+    ),
+
+    CTE_TOTAIS_PARCELAS AS (
+        SELECT
+            NVL(SUM(TOTAL_PARCELAS), 0) AS TOTAL_PARC_GERADAS,
+            NVL(SUM(PARCELAS_PAGAS), 0) AS TOTAL_PARC_PAGAS,
+            NVL(SUM(PARCELAS_PENDENTES), 0) AS TOTAL_PARC_PENDENTES
+        FROM (
+            SELECT
+                NROACORDO,
+                NROEMPRESA,
+                MAX(TOTAL_PARCELAS) AS TOTAL_PARCELAS,
+                MAX(PARCELAS_PAGAS) AS PARCELAS_PAGAS,
+                MAX(PARCELAS_PENDENTES) AS PARCELAS_PENDENTES
+            FROM CTE_CLASSIFICADA
+            GROUP BY
+                NROACORDO,
+                NROEMPRESA
+        )
+    ),
+
     CTE_TOTAIS AS (
         SELECT
-            (
-                SELECT NVL(SUM(VLRACORDO), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLRACORDO,
-
-            (
-                SELECT NVL(SUM(VLRSALDOACORDO), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLRSALDO,
-
-            (
-                SELECT NVL(SUM(VLRFINVENCIDO), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLRFINVENCIDO,
-
-            (
-                SELECT NVL(SUM(VLRFINAVENCER), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLRFINAVENCER,
-
-            (
-                SELECT NVL(SUM(VLRUTILPROD), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLRUTILPROD,
-
-            (
-                SELECT NVL(SUM(VLR_JA_QUITADO), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLR_QUITADO,
-
-            (
-                SELECT NVL(SUM(VLR_EM_ABERTO), 0)
-                FROM CTE_CLASSIFICADA
-            ) AS TOTAL_VLR_ABERTO,
-
-            (
-                SELECT NVL(SUM(TOTAL_PARCELAS), 0)
-                FROM (
-                    SELECT
-                        NROACORDO,
-                        NROEMPRESA,
-                        MAX(TOTAL_PARCELAS) AS TOTAL_PARCELAS
-                    FROM CTE_CLASSIFICADA
-                    GROUP BY
-                        NROACORDO,
-                        NROEMPRESA
-                )
-            ) AS TOTAL_PARC_GERADAS,
-
-            (
-                SELECT NVL(SUM(PARCELAS_PAGAS), 0)
-                FROM (
-                    SELECT
-                        NROACORDO,
-                        NROEMPRESA,
-                        MAX(PARCELAS_PAGAS) AS PARCELAS_PAGAS
-                    FROM CTE_CLASSIFICADA
-                    GROUP BY
-                        NROACORDO,
-                        NROEMPRESA
-                )
-            ) AS TOTAL_PARC_PAGAS,
-
-            (
-                SELECT NVL(SUM(PARCELAS_PENDENTES), 0)
-                FROM (
-                    SELECT
-                        NROACORDO,
-                        NROEMPRESA,
-                        MAX(PARCELAS_PENDENTES) AS PARCELAS_PENDENTES
-                    FROM CTE_CLASSIFICADA
-                    GROUP BY
-                        NROACORDO,
-                        NROEMPRESA
-                )
-            ) AS TOTAL_PARC_PENDENTES
-
-        FROM DUAL
+            V.TOTAL_VLRACORDO,
+            V.TOTAL_VLRSALDO,
+            V.TOTAL_VLRFINVENCIDO,
+            V.TOTAL_VLRUTILPROD,
+            V.TOTAL_VLR_QUITADO,
+            V.TOTAL_VLR_ABERTO,
+            P.TOTAL_PARC_GERADAS,
+            P.TOTAL_PARC_PAGAS,
+            P.TOTAL_PARC_PENDENTES
+        FROM CTE_TOTAIS_VALORES V
+        CROSS JOIN CTE_TOTAIS_PARCELAS P
     )
 
     SELECT
@@ -704,7 +745,9 @@ SELECT * FROM (
         DATA_EMISSAO,
         COMPRADOR,
         STATUS_ACORDO,
-        SITUACAO_FINANCEIRA,
+        SITUACAO_ACORDO,
+        DIREITO_OBRIGACAO,
+        ABERTO_QUITADO,
         TIPO_ACORDO,
         CODIGO_PRODUTO,
         QTD_UTILIZADA_VERBA,
@@ -738,7 +781,9 @@ SELECT * FROM (
             X.APELIDO AS COMPRADOR,
 
             X.STATUS_ACORDO,
-            X.SITUACAO_FINANCEIRA,
+            X.SITUACAO_ACORDO,
+            NVL(X.DIREITO_OBRIGACAO, 'Sem Título') AS DIREITO_OBRIGACAO,
+            NVL(X.ABERTO_QUITADO, 'Sem Título') AS ABERTO_QUITADO,
 
             CASE
                 WHEN X.TIPOACORDO = 1 THEN 'VERBA EXTRA'
@@ -833,7 +878,9 @@ SELECT * FROM (
             NULL AS COMPRADOR,
 
             NULL AS STATUS_ACORDO,
-            NULL AS SITUACAO_FINANCEIRA,
+            NULL AS SITUACAO_ACORDO,
+            NULL AS DIREITO_OBRIGACAO,
+            NULL AS ABERTO_QUITADO,
 
             NULL AS TIPO_ACORDO,
             NULL AS CODIGO_PRODUTO,
