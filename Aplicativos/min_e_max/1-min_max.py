@@ -10,7 +10,9 @@ def converter_para_csv(arquivo_parquet=None):
     Lê o arquivo query.parquet e exporta ajustepp.xlsx, sem recalcular mínimos/máximos.
     """
     if arquivo_parquet is None:
-        arquivo_parquet = Path(__file__).parent.parent / 'query.parquet'
+        p1 = Path(__file__).parent.parent / 'import_querys' / 'query.parquet'
+        p2 = Path(__file__).parent.parent / 'query.parquet'
+        arquivo_parquet = p1 if p1.exists() else p2
     else:
         arquivo_parquet = Path(arquivo_parquet)
     if not arquivo_parquet.exists():
@@ -344,6 +346,7 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         col_min_pe = _resolver_coluna_opcional(df, ['MINIMO_PONTO_EXTRA'])
         col_max_pe = _resolver_coluna_opcional(df, ['MAXIMO_PONTO_EXTRA'])
         col_disp = _resolver_coluna_opcional(df, ['QUANTIDADE_DISPONIVEL', 'ESTOQUE_ATUAL'])
+        col_forma_abast = _resolver_coluna_opcional(df, ['FORMA_ABASTECIMENTO', 'FORMAABASTECIMENTO', 'FORMA_DE_ABASTECIMENTO', 'TIPO_ABASTECIMENTO'])
     except KeyError as e:
         print(f"[AVISO] Falha ao resolver colunas para divergência de embalagem: {e}")
         return pd.DataFrame()
@@ -359,6 +362,7 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
     if col_min_pe: renames[col_min_pe] = 'MINIMO_PONTO_EXTRA'
     if col_max_pe: renames[col_max_pe] = 'MAXIMO_PONTO_EXTRA'
     if col_disp: renames[col_disp] = 'QUANTIDADE_DISPONIVEL'
+    if col_forma_abast: renames[col_forma_abast] = 'FORMA_ABASTECIMENTO'
 
     work = df[list(renames.keys())].copy()
     work = work.rename(columns=renames)
@@ -422,7 +426,8 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         'REGRA_MINIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'REGRA_MAXIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'Status': resultado['Status'],
-        'capacidade_gondola': None
+        'capacidade_gondola': None,
+        'FORMA_ABASTECIMENTO': resultado['FORMA_ABASTECIMENTO'] if 'FORMA_ABASTECIMENTO' in resultado.columns else None
     })
 
     return df_div
@@ -520,13 +525,10 @@ def processar_calculos():
         df['MINIMO_PONTO_EXTRA'] = pd.to_numeric(df['MINIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
         df['MAXIMO_PONTO_EXTRA'] = pd.to_numeric(df['MAXIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
         
-        df['QUANTIDADE_ESTOQUE_MINIMO'] += df['MINIMO_PONTO_EXTRA']
-        df['QUANTIDADE_ESTOQUE_MAXIMO'] += df['MAXIMO_PONTO_EXTRA']
-        
         linhas_com_ponto_extra = int(((df['MINIMO_PONTO_EXTRA'] > 0) | (df['MAXIMO_PONTO_EXTRA'] > 0)).sum())
         print(
-            'Base de comparação atualizada com ponto extra: '
-            f'{linhas_com_ponto_extra} linhas receberam soma de campanha nativa.'
+            'Campanhas de ponto extra identificadas na base: '
+            f'{linhas_com_ponto_extra} linhas possuem ponto extra ativo.'
         )
     else:
         df['MINIMO_PONTO_EXTRA'] = 0
@@ -657,11 +659,11 @@ def processar_calculos():
     print("           OPÇÕES DE RELATÓRIO / EXPORTAÇÃO")
     print("="*50)
     print("[1] - Gerar APENAS sugestões para AUMENTAR")
-    print("      (Filtra os casos onde o Novo Mínimo Calculado é maior que o Atual vigente (loja + ponto extra))")
+    print("      (Filtra os casos onde o Novo Mínimo Calculado é maior que o Atual vigente no sistema)")
     print("\n[2] - Gerar TOTAL")
     print("      (Exporta a base total, englobando altas e baixas com alteração relevante)")
     print("\n[3] - Gerar APENAS sugestões para DIMINUIR")
-    print("      (Filtra os casos onde o Novo Mínimo Calculado é menor que o Atual vigente (loja + ponto extra))")
+    print("      (Filtra os casos onde o Novo Mínimo Calculado é menor que o Atual vigente no sistema)")
     print("\n[4] - Gerar APENAS AUMENTOS e REDUÇÕES (Os dois extremos)")
     print("      (Filtra os casos onde há alteração no Mínimo, ignorando itens onde apenas o Máximo mudou)")
     print("="*50)
@@ -696,13 +698,14 @@ def processar_calculos():
     else:
         print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada no resultado. Exportando todos os itens!")
 
-    # Adiciona coluna 'Status' como última coluna, baseada em STATUS_COMPRA da query.parquet
+    # Adiciona coluna 'Status' e prepara colunas para exportação
     colunas_finais = [
         'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
         'CODIGO_EMPRESA', 'QUANTIDADE_DISPONIVEL', 'MINIMO', 'MAXIMO',
         'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
         'MINIMO_PONTO_EXTRA', 'MAXIMO_PONTO_EXTRA',
-        'REGRA_MINIMO', 'REGRA_MAXIMO', 'CAPACIDADE_GONDOLA_SUG'
+        'REGRA_MINIMO', 'REGRA_MAXIMO', 'CAPACIDADE_GONDOLA_SUG',
+        'FORMA_ABASTECIMENTO'
     ]
     cols_existentes = [c for c in colunas_finais if c in df_resultado.columns]
     df_export = df_resultado[cols_existentes].copy()
@@ -732,9 +735,12 @@ def processar_calculos():
         'CODIGO_EMPRESA': 'EMPRESA'
     })
         
-    # Reordenar colunas para garantir que 'capacidade_gondola' seja a última
-    cols_order = [c for c in df_export.columns if c != 'capacidade_gondola'] + ['capacidade_gondola']
-    df_export = df_export[cols_order]
+    # Reordenar colunas para garantir que 'capacidade_gondola' e 'FORMA_ABASTECIMENTO' fiquem no final
+    cols_base = [c for c in df_export.columns if c not in ['capacidade_gondola', 'FORMA_ABASTECIMENTO']]
+    cols_order = cols_base + ['capacidade_gondola']
+    if 'FORMA_ABASTECIMENTO' in df_export.columns:
+        cols_order.append('FORMA_ABASTECIMENTO')
+    df_export = df_export[[c for c in cols_order if c in df_export.columns]]
 
     # Unificar com os itens que apresentam divergência de embalagem na base original
     print("\n[UNIFICAÇÃO] Verificando e anexando itens com divergência de embalagem da base original ao resultado final...")
@@ -754,6 +760,7 @@ def processar_calculos():
         
         # Remove duplicidades mantendo a projeção do cálculo principal onde já existia (keep='first')
         df_export = df_unificado.drop_duplicates(subset=['CODIGO_PRODUTO', 'EMPRESA'], keep='first').copy()
+        df_export = df_export[[c for c in cols_order if c in df_export.columns]]
         adicionados = len(df_export) - antes_unif
         print(f"=> {adicionados} novos itens exclusivos com divergência de embalagem foram adicionados à planilha unificada.")
         print(f"=> Sem duplicidade (itens que já possuíam projeção no cálculo mantiveram a recomendação principal). Total unificado: {len(df_export)} itens.")

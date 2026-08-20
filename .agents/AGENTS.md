@@ -26,6 +26,19 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 4. **Proibição Absoluta de Comentários no Código SQL:**
    O parser/validador do Totvs Consinco remove quebras de linha em alguns cenários e tenta executar a query em uma única string de texto. Se houver qualquer comentário no estilo `-- comentário` ou `/* comentário */` inserido no meio do script, o Consinco transformará o restante do código válido em um comentário gigantesco, resultando em erro fatal (`missing expression`, etc). **NUNCA comente dentro dos arquivos SQL!**
 
+5. **Proibição de Operadores Aritméticos Externos a Blocos `CASE` (Prevenção de `ORA-00936`):**
+   Nunca envolva uma expressão `CASE` com parênteses para aplicar operações matemáticas fora dela (ex: `( CASE WHEN ... END ) - NVL(...)`). O parser do Consinco interpreta o `)` após o `END` como encerramento do `CASE` e acusa erro de sintaxe no `-` antes do `ELSE`. **Aplique sempre a aritmética internamente em cada ramo `THEN` e `ELSE`.**
+
+6. **Alinhamento Rigoroso 1-para-1 em `UNION` e `UNION ALL` (Prevenção de `ORA-01790`):**
+   Todos os blocos de um `UNION` ou `UNION ALL` (como dados principais vs `TOTAL GERAL ->`) devem possuir a **exata mesma quantidade de colunas**, a **mesma ordem posicional** e os **mesmos tipos de dados**. Colunas de ordenação interna devem ser espelhadas em todos os blocos do `UNION`.
+
+7. **Filtros Multi-Valores em Binds (`:LT3`) via `INSTR` (Evitar Falhas de Bind Delphi):**
+   Nunca utilize subconsultas com `CONNECT BY` em CTEs materializadas para separar strings com vírgula. Utilize sempre a busca nativa por delimitadores:
+   `INSTR(',' || UPPER(REPLACE(:LT3, ' ', '')) || ',', ',' || UPPER(TRIM(COLUNA)) || ',') > 0`.
+
+8. **Compatibilidade Estrita com as Variáveis da Tela (`Var - F7`):**
+   O SQL não deve depender de macros `#LTx` que não estejam cadastradas no formulário da tela atual. Se as macros de loja ou status não existirem no `Var - F7`, use os valores fixos no código (`IN (1,2...18,50,900)` e `NOT IN (2)`) para evitar que a substituição vazia resulte em `IN ()` e `ORA-00936`.
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

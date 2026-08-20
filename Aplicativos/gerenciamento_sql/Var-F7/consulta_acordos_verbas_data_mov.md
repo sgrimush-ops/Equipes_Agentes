@@ -10,7 +10,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - **`CTE_TITULOS_ACORDO`**: Unifica via 6 uniões seguras todos os títulos vinculados ao acordo no Contas a Receber (`MSU_ACORDOTITULORECEB`, `MSU_CCACORDOPROMOC`, `MSU_CCDIVIDA`, `FI_TITOPERACAO` via processo e relacionamento direto por documento/espécie).
 - **`CTE_OPERACOES_TITULO`**: Coleta e indexa de forma materializada em RAM (`/*+ MATERIALIZE */`) as operações financeiras em `FI_TITOPERACAO` vinculadas estritamente aos títulos do acordo, capturando o usuário (`USUALTERACAO`), a data da operação (`DTAOPERACAO`) e o timestamp da alteração (`DTAHORAALTERACAO`).
 - **`CTE_TITULOS_RESUMO`**: Agrega os dados financeiros e de auditoria por acordo (`NROACORDO`, `NROEMPRESA`), identificando a bandeira `TEVE_MOV_QUITACAO_PERIODO = 1` quando houver quitação ou movimentação/operação entre `:DT1` e `:DT2`.
-- **`CTE_VALORES_BRUTOS`**: Aplica o filtro de quitação no período (`TR.TEVE_MOV_QUITACAO_PERIODO = 1`), filtros de loja (`#LT1`), expurgo de cancelados (`#LT2`), **usuários da manutenção (`:LT3`)**, comprador (`:LS1`), fornecedor (`:LS2`) e número do acordo (`:NR1`).
+- **`CTE_VALORES_BRUTOS`**: Aplica o filtro de quitação no período (`TR.TEVE_MOV_QUITACAO_PERIODO = 1`), filtros de loja (`#LT1`), expurgo de cancelados (`#LT2`), **usuários da manutenção (`:LT3`)** via comparação por lista separada por vírgula com `INSTR`, comprador (`:LS1`), fornecedor (`:LS2`) e número do acordo (`:NR1`).
 - **Rateio e Fechamento em 2 Níveis**: Cabeçalho do acordo (`CTE_ACORDO_HEADER` / `CTE_ACORDO_FINANCEIRO`) com rateio exato por produto (`CTE_VALORES_PRE`), garantindo $\text{VLR\_JA\_QUITADO} + \text{VLR\_EM\_ABERTO} = \text{VALOR\_ACORDO}$ e diferença zero no total.
 - **Coluna de Auditoria**: `USUARIO_DATA_HORA_ALTERACAO` trazendo o operador responsável e o instante da alteração no formato `USUARIO - DD/MM/YYYY HH24:MI:SS`.
 
@@ -35,15 +35,14 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `ULTIMO_RECEBIMENTO`: data da quitação/última liquidação formatada (`DD/MM/YYYY`).
 - `NUMERO_NF`: número do documento fiscal.
 - `NUMERO_PEDIDO_SUPRIMENTO`: número do pedido de compra/suprimento.
-- `VALOR_ACORDO`: valor total do acordo (`R$ 0.000,00`).
-- `VLR_EM_ABERTO`: valor pendente em aberto (`R$ 0.000,00`).
+- `VALOR_ACORDO`: valor total bruto do acordo (`R$ 0.000,00`).
 - `VLR_FIN_VENCIDO`: valor vencido em aberto (`R$ 0.000,00`).
-- `VLR_JA_QUITADO`: valor financeiro efetivamente quitado (`R$ 0.000,00`).
-- `VALOR_SALDO_ACORDO`: saldo disponível do acordo (`R$ 0.000,00`).
+- `VLR_JA_QUITADO`: valor financeiro acumulado efetivamente quitado até o momento (`R$ 0.000,00`).
 - `VALOR_UTILIZADO_PRODUTO`: valor abatido em produtos (`R$ 0.000,00`).
 - `TOTAL_PARCELAS`: total de parcelas geradas/programadas.
 - `PARCELAS_PAGAS`: total de parcelas liquidadas.
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
+- `VALOR_ULTIMO_PAGAMENTO`: valor monetário da última operação/manutenção financeira realizada no título (`FI_TITOPERACAO.VLROPERACAO`) vinculada ao operador (ex: `R$ 500,00`).
 - `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação/quitação registrada (`USUARIO - DD/MM/YYYY HH24:MI:SS`).
 
 ## Variáveis para cadastrar em Var - F7
@@ -64,7 +63,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - **Tipo:** Literal
 - **Descrição:** Usuarios da Manutenção
 - **Valor padrão:** `0` (ou deixe vazio / `TODOS` para não filtrar por usuário, ou digite logins separados por vírgula ex: `veridi,debco`)
-- **Instrução p/ o usuário:** Digite um ou mais logins de usuários separados por vírgula (ex: `veridi,debco`). O filtro é insensível a maiúsculas/minúsculas. Para trazer todos os usuários, informe `0` ou `TODOS`.
+- **Instrução p/ o usuário:** Digite um ou mais logins de usuários separados por vírgula (ex: `veridi,debco`). O filtro remove espaços e não diferencia maiúsculas/minúsculas. Para trazer todos os usuários, informe `0` ou `TODOS`.
 
 ### NR1
 - **Tipo:** Numérico
