@@ -32,7 +32,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `QTD_UTILIZADA_VERBA`: quantidade utilizada/abatida da verba.
 - `DATA_FINAL_VERBA`: data de vigência final da verba formatada (`DD/MM/YYYY`).
 - `VENCIMENTO_EM_ABERTO`: menor data de vencimento com saldo pendente (`DD/MM/YYYY`).
-- `ULTIMO_RECEBIMENTO`: data da quitação/última liquidação formatada (`DD/MM/YYYY`).
+- `ULTIMO_RECEBIMENTO`: data da quitação/última liquidação ou da última operação/lançamento de manutenção realizada pelo usuário (`DTA_ULTIMA_ALTERACAO`) formatada (`DD/MM/YYYY`).
 - `NUMERO_NF`: número do documento fiscal.
 - `NUMERO_PEDIDO_SUPRIMENTO`: número do pedido de compra/suprimento.
 - `VALOR_ACORDO`: valor total bruto do acordo (`R$ 0.000,00`).

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zona SQL - Simulador & Mentor Consinco (Oracle ERP)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Top Header Navigation -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-badge">
+                    <span class="logo-icon">⚡</span>
+                    <div class="logo-text">
+                        <h1>ZONA SQL <span class="badge-oracle">CONSINCO ORACLE</span></h1>
+                        <p class="subtitle">Simulador de Execução, Dicionário & Mentor em Tempo Real</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="db-status-pill">
+                    <span class="status-dot green pulse"></span>
+                    <span class="status-label">Simulador Local Ativo:</span>
+                    <span class="status-val">4.515 Tabelas Dicionário | Dados Reais de Varejo</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <button id="btn-toggle-varf7" class="btn btn-secondary" title="Abrir Painel de Variáveis de Tela (Var - F7)">
+                    <span class="btn-icon">⚙️</span> Var - F7
+                </button>
+                <button id="btn-clean-sql" class="btn btn-outline" title="Remover todos os comentários e formatar para o SGI Totvs">
+                    <span class="btn-icon">🧹</span> Limpar p/ Consinco
+                </button>
+                <button id="btn-explain-sql" class="btn btn-purple" title="Explicar detalhadamente o que a consulta faz">
+                    <span class="btn-icon">✨</span> Explicar Query
+                </button>
+                <button id="btn-run-query" class="btn btn-primary btn-glow" title="Executar Consulta (Ctrl + Enter)">
+                    <span class="btn-icon">▶</span> Executar <kbd>Ctrl+Enter</kbd>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main 3-Column Workspace -->
+        <div class="workspace-layout">
+            
+            <!-- Left Column: Table & Dictionary Explorer -->
+            <aside class="sidebar-left">
+                <div class="sidebar-header">
+                    <div class="tab-pills">
+                        <button class="tab-pill active" data-tab="tab-tables">📁 Tabelas</button>
+                        <button class="tab-pill" data-tab="tab-dict">📚 Dicionário</button>
+                        <button class="tab-pill" data-tab="tab-snippets">💡 Modelos</button>
+                    </div>
+                </div>
+
+                <!-- Tab 1: Tabelas Ativas com Dados -->
+                <div id="tab-tables" class="tab-content active">
+                    <div class="search-box">
+                        <input type="text" id="search-tables-input" placeholder="Filtrar tabelas (ex: MAP, MRL, FI)...">
+                    </div>
+                    <div class="tables-tree-container" id="tables-list">
+                        <!-- Carregado via JS -->
+                        <div class="loading-spinner">Carregando tabelas...</div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Dicionário Completo de 4.515 Tabelas -->
+                <div id="tab-dict" class="tab-content">
+                    <div class="search-box">
+                        <input type="text" id="search-dict-input" placeholder="Buscar 4.515 tabelas/colunas...">
+                        <button id="btn-search-dict" class="btn-search-icon">🔍</button>
+                    </div>
+                    <div class="dict-results-container" id="dict-results">
+                        <div class="empty-state">
+                            <p>Digite o nome de uma tabela (ex: <code>MSU_</code>, <code>MBI_</code>, <code>FI_</code>) ou coluna (ex: <code>QTDVDA</code>, <code>ESTQLOJA</code>) para buscar no catálogo oficial.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Modelos & Snippets Rápidos Consinco -->
+                <div id="tab-snippets" class="tab-content">
+                    <div class="snippets-list" id="snippets-list">
+                        <!-- Modelos prontos -->
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center Column: SQL Editor & Result Grid -->
+            <main class="main-editor-area">
+                
+                <!-- Drawer Superior: Var - F7 (Simulador de Variáveis de Tela Consinco) -->
+                <div id="varf7-drawer" class="varf7-container collapsed">
+                    <div class="varf7-header">
+                        <div class="varf7-title">
+                            <span class="varf7-icon">⚡</span>
+                            <strong>Simulador de Variáveis de Tela (Var - F7 Totvs SGI)</strong>
+                        </div>
+                        <div class="varf7-actions">
+                            <button id="btn-reset-varf7" class="btn-link">Restaurar Padrões</button>
+                            <button id="btn-close-varf7" class="btn-close">✕</button>
+                        </div>
+                    </div>
+                    <div class="varf7-grid">
+                        <div class="varf7-item">
+                            <label>:NROEMPRESA <span class="var-badge">Empresa</span></label>
+                            <select id="bind-NROEMPRESA">
+                                <option value="1">1 - LOJA 01 CENTRO</option>
+                                <option value="2">2 - LOJA 02 NORTE</option>
+                                <option value="3">3 - LOJA 03 SUL</option>
+                                <option value="4">4 - LOJA 04 LESTE</option>
+                                <option value="5">5 - LOJA 05 OESTE</option>
+                                <option value="6">6 - LOJA 06 PRAIA</option>
+                                <option value="7">7 - LOJA 07 SERRA</option>
+                                <option value="8">8 - LOJA 08 VALE</option>
+                                <option value="11">11 - LOJA 11 EXPRESS</option>
+                                <option value="12">12 - LOJA 12 BAIRRO</option>
+                                <option value="13">13 - LOJA 13 SHOPPING</option>
+                                <option value="14">14 - LOJA 14 PARQUE</option>
+                                <option value="15">15 - LOJA 15 AVENIDA</option>
+                                <option value="16">16 - CD 16 PRINCIPAL</option>
+                                <option value="17">17 - LOJA 17 HIGIENOPOLIS</option>
+                                <option value="18">18 - LOJA 18 PETROPOLIS</option>
+                                <option value="50">50 - CD 50 SECOS</option>
+                            </select>
+                        </div>
+                        <div class="varf7-item">
+                            <label>:NR1 <span class="var-badge">Fornecedor/Código</span></label>
+                            <input type="number" id="bind-NR1" placeholder="Ex: 5894 (Ambev) ou 0">
+                        </div>
+                        <div class="varf7-item">
+                            <label>:LS1 <span class="var-badge">Lista Seleção</span></label>
+                            <select id="bind-LS1">
+                                <option value="0 - TODOS">0 - TODOS</option>
+                                <option value="1 - WETER">1 - WETER</option>
+                                <option value="2 - SANDRO">2 - SANDRO</option>
+                                <option value="3 - NICOLAS">3 - NICOLAS</option>
+                                <option value="4 - SUPPLY">4 - SUPPLY</option>
+                            </select>
+                        </div>
+                        <div class="varf7-item">
+                            <label>:DT1 <span class="var-badge">Data Início</span></label>
+                            <input type="date" id="bind-DT1" value="2026-08-01">
+                        </div>
+                        <div class="varf7-item">
+                            <label>:DT2 <span class="var-badge">Data Fim</span></label>
+                            <input type="date" id="bind-DT2" value="2026-08-21">
+                        </div>
+                        <div class="varf7-item">
+                            <label>:LT1 <span class="var-badge">Lista Texto</span></label>
+                            <input type="text" id="bind-LT1" placeholder="Ex: BEBIDAS, MERCEARIA">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SQL Editor Box -->
+                <div class="editor-section">
+                    <div class="editor-toolbar">
+                        <div class="editor-title">
+                            <span class="editor-icon">📝</span>
+                            <span>Editor de Consulta Oracle Consinco</span>
+                        </div>
+                        <div class="editor-stats">
+                            <span id="editor-cursor-pos">Linha 1, Coluna 1</span>
+                            <span class="sep">•</span>
+                            <span id="editor-char-count">0 caracteres</span>
+                        </div>
+                    </div>
+
+                    <div class="editor-wrapper">
+                        <div class="line-numbers" id="line-numbers">1</div>
+                        <textarea id="sql-editor" spellcheck="false" placeholder="Digite sua consulta Oracle SQL aqui ou selecione um modelo ao lado...
+Exemplo:
+SELECT
+    A.SEQPRODUTO,
+    A.DESCCOMPLETA,
+    B.PRCBASE,
+    B.ESTQLOJA
+FROM MAP_PRODUTO A
+INNER JOIN MRL_PRODUTOEMPRESA B ON A.SEQPRODUTO = B.SEQPRODUTO
+WHERE B.NROEMPRESA = :NROEMPRESA
+  AND B.STATUSCOMPRA = 'A'"></textarea>
+                    </div>
+                </div>
+
+                <!-- Results & Data Grid Area -->
+                <div class="results-section">
+                    <div class="results-toolbar">
+                        <div class="results-tabs">
+                            <button class="res-tab active" data-res="res-grid">📊 Grade de Dados (<span id="res-count">0</span>)</button>
+                            <button class="res-tab" data-res="res-json">🔧 RAW / JSON</button>
+                            <button class="res-tab" data-res="res-logs">💬 Console & ORA</button>
+                        </div>
+                        <div class="results-actions">
+                            <div class="exec-time-pill" id="exec-time-pill" style="display:none;">
+                                ⏱️ <span id="exec-time-val">0</span> ms
+                            </div>
+                            <button id="btn-export-csv" class="btn-tool" title="Exportar resultado para CSV">📥 Exportar CSV</button>
+                            <button id="btn-copy-table" class="btn-tool" title="Copiar linhas para a área de transferência">📋 Copiar</button>
+                        </div>
+                    </div>
+
+                    <div class="results-body">
+                        <!-- Grid View -->
+                        <div id="res-grid" class="res-view active">
+                            <div class="table-container" id="grid-table-container">
+                                <div class="empty-grid-msg">
+                                    <div class="empty-icon">⚡</div>
+                                    <h3>Nenhuma consulta executada ainda</h3>
+                                    <p>Digite um comando SQL acima e clique em <strong>Executar (Ctrl+Enter)</strong> para visualizar o resultado em tempo real.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- JSON View -->
+                        <div id="res-json" class="res-view">
+                            <pre id="json-viewer">{}</pre>
+                        </div>
+
+                        <!-- Logs View -->
+                        <div id="res-logs" class="res-view">
+                            <div id="logs-container" class="logs-container">
+                                <div class="log-entry log-info">[INFO] Simulador inicializado e pronto para executar consultas.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+
+            <!-- Right Column: AI Mentor & Consinco Guardian -->
+            <aside class="sidebar-right">
+                <div class="sidebar-header">
+                    <div class="tab-pills">
+                        <button class="tab-pill active" data-tab="tab-mentor">🛡️ Guardião</button>
+                        <button class="tab-pill" data-tab="tab-explain">🎓 Mentor</button>
+                        <button class="tab-pill" data-tab="tab-missions">🏆 Missões</button>
+                    </div>
+                </div>
+
+                <!-- Tab 1: Guardião Consinco (Linter em Tempo Real) -->
+                <div id="tab-mentor" class="tab-content active">
+                    <div class="guardian-header">
+                        <h3>Guardião de Regras Consinco</h3>
+                        <p>Análise preventiva contra falhas no SGI e erros ORA-*</p>
+                    </div>
+                    <div id="linter-alerts" class="linter-alerts-list">
+                        <div class="alert-card alert-success">
+                            <div class="alert-icon">✓</div>
+                            <div class="alert-body">
+                                <strong>Tudo Certo!</strong>
+                                <p>Nenhuma infração de regras do Consinco detectada até o momento.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Mentor Didático (Explicação Passo a Passo) -->
+                <div id="tab-explain" class="tab-content">
+                    <div class="explain-container" id="explain-container">
+                        <div class="empty-state">
+                            <div class="empty-icon">🎓</div>
+                            <h4>Como Funciona o Mentor</h4>
+                            <p>Clique no botão <strong>"✨ Explicar Query"</strong> no topo para que o mentor decomponha seu SQL em português simples, explicando os JOINs, cálculos e regras de negócio!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Missões & Desafios Práticos -->
+                <div id="tab-missions" class="tab-content">
+                    <div class="missions-header">
+                        <h3>Trilha de Aprendizado Consinco</h3>
+                        <p>Pratique cenários reais do dia a dia do varejo</p>
+                    </div>
+                    <div class="missions-list" id="missions-list">
+                        <!-- Carregado via JS -->
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+    </div>
+
+    <!-- Modal de Detalhes da Tabela -->
+    <div id="table-modal" class="modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h3 id="modal-table-title">Estrutura da Tabela</h3>
+                <button id="modal-close" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-tabs">
+                    <button class="modal-tab active" data-mtab="mtab-cols">Colunas & Tipos</button>
+                    <button class="modal-tab" data-mtab="mtab-sample">Amostra de Dados (20 Linhas)</button>
+                </div>
+                <div id="mtab-cols" class="mtab-content active">
+                    <div class="table-container" id="modal-cols-table"></div>
+                </div>
+                <div id="mtab-sample" class="mtab-content">
+                    <div class="table-container" id="modal-sample-table"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-modal-insert-select" class="btn btn-primary">Inserir SELECT no Editor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts da Aplicação -->
+    <script src="js/editor.js"></script>
+    <script src="js/mentor.js"></script>
+    <script src="js/missions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
