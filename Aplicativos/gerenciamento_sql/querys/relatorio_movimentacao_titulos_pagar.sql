@@ -45,6 +45,10 @@ SELECT * FROM (
               OR INSTR(TRIM(:LS1), TRIM(FI_TITULO.CODESPECIE)) = 1
               OR TRIM(FI_TITULO.CODESPECIE) = TRIM(SUBSTR(TRIM(:LS1), 1, INSTR(TRIM(:LS1) || ' ', ' ') - 1))
           )
+          AND (
+              NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', 'NENHUM', '')
+              OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || UPPER(TRIM(FI_TITULO.CODESPECIE)) || ',') = 0
+          )
     )
     SELECT
         T.NROEMPRESA AS EMPRESA,

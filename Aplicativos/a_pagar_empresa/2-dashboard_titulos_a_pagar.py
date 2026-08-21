@@ -38,7 +38,7 @@ def load_and_clean_data(input_file):
         print("Erro ao ler o arquivo. Verifique se o formato está correto (separado por ponto-e-vírgula ou tabulado).")
         sys.exit(1)
 
-    # Filtrar apenas linhas com EMPRESA válida (números inteiros), ignorando quebras de linha em observações
+    # Filtrar apenas linhas com EMPRESA válida (números inteiros)
     if 'EMPRESA' in df.columns:
         df = df[df['EMPRESA'].astype(str).str.strip().str.isdigit()].copy()
         df['EMPRESA'] = df['EMPRESA'].astype(str).str.strip()
@@ -46,7 +46,7 @@ def load_and_clean_data(input_file):
         df['EMPRESA'] = '1'
 
     print(f"Total de registros válidos carregados: {len(df)}")
-    print("Limpeza e tratamento de dados (removendo lógica de projeção - apenas títulos lançados)...")
+    print("Tratamento de dados e desduplicação por título único...")
 
     # Limpar colunas numéricas
     val_cols = ['VALOR_OPERACAO', 'VALOR_NOMINAL_TITULO', 'VALOR_PAGO_TITULO', 'SALDO_DEVEDOR_TITULO']
@@ -55,14 +55,6 @@ def load_and_clean_data(input_file):
             df[col] = df[col].apply(parse_br_currency)
         else:
             df[col] = 0.0
-
-    # Definir coluna principal de valor
-    if 'VALOR_OPERACAO' in df.columns:
-        df['VALOR'] = df['VALOR_OPERACAO']
-    elif 'VALOR_PROJETADO' in df.columns:
-        df['VALOR'] = df['VALOR_PROJETADO'].apply(parse_br_currency)
-    else:
-        df['VALOR'] = 0.0
 
     # Tratar datas
     if 'DATA_VENCIMENTO' in df.columns:
@@ -87,21 +79,19 @@ def load_and_clean_data(input_file):
     else:
         df['FORNECEDOR'] = '-'
 
-    if 'DESCRICAO_OPERACAO' in df.columns:
-        df['DESCRICAO_OPERACAO'] = df['DESCRICAO_OPERACAO'].fillna('-').astype(str).str.strip()
-    else:
-        df['DESCRICAO_OPERACAO'] = '-'
-
     if 'SEQ_TITULO' not in df.columns:
         df['SEQ_TITULO'] = df.index
 
-    # Remover registros sem data válida
-    df = df.dropna(subset=['DATA_VENCIMENTO_DT']).copy()
-    df['DATA_FORMATADA'] = df['DATA_VENCIMENTO_DT'].dt.strftime('%d/%m/%Y')
-    df['DATA_ISO'] = df['DATA_VENCIMENTO_DT'].dt.strftime('%Y-%m-%d')
-    df = df.sort_values(['DATA_VENCIMENTO_DT', 'EMPRESA']).reset_index(drop=True)
+    # Desduplicar por título único para análise patrimonial sem repetição
+    df_dedup = df.drop_duplicates('SEQ_TITULO').copy()
 
-    return df
+    # Remover registros sem data válida
+    df_dedup = df_dedup.dropna(subset=['DATA_VENCIMENTO_DT']).copy()
+    df_dedup['DATA_FORMATADA'] = df_dedup['DATA_VENCIMENTO_DT'].dt.strftime('%d/%m/%Y')
+    df_dedup['DATA_ISO'] = df_dedup['DATA_VENCIMENTO_DT'].dt.strftime('%Y-%m-%d')
+    df_dedup = df_dedup.sort_values(['DATA_VENCIMENTO_DT', 'EMPRESA']).reset_index(drop=True)
+
+    return df_dedup
 
 def generate_html_dashboard(df, output_file):
     print("Preparando dados para o Dashboard Interativo...")
@@ -119,7 +109,7 @@ def generate_html_dashboard(df, output_file):
         opcoes_especie_html += f'<option value="{esp}">Espécie: {esp}</option>\n'
 
     # Exportar registros limpos em JSON
-    cols_json = ['EMPRESA', 'SEQ_TITULO', 'TITULO', 'ESPECIE', 'FORNECEDOR', 'DATA_FORMATADA', 'DATA_ISO', 'VALOR', 'VALOR_NOMINAL_TITULO', 'SALDO_DEVEDOR_TITULO', 'DESCRICAO_OPERACAO']
+    cols_json = ['EMPRESA', 'SEQ_TITULO', 'TITULO', 'ESPECIE', 'FORNECEDOR', 'DATA_FORMATADA', 'DATA_ISO', 'VALOR_NOMINAL_TITULO', 'VALOR_PAGO_TITULO', 'SALDO_DEVEDOR_TITULO']
     json_data = df[cols_json].to_json(orient='records', force_ascii=False)
 
     html_template = f"""<!DOCTYPE html>
@@ -138,6 +128,7 @@ def generate_html_dashboard(df, output_file):
             --bg-filter: #1c212c;
             --primary: #00f2fe;
             --secondary: #4facfe;
+            --success: #00e676;
             --accent: #ff9800;
             --text: #e0e0e0;
             --text-muted: #8c95a6;
@@ -166,7 +157,7 @@ def generate_html_dashboard(df, output_file):
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            background: linear-gradient(90deg, var(--primary), var(--success), var(--accent));
         }}
         .header h1 {{ margin: 0; color: white; letter-spacing: 1px; font-weight: 800; font-size: 32px; }}
         .header p {{ color: var(--text-muted); margin-top: 10px; font-size: 16px; font-weight: 400; }}
@@ -194,6 +185,8 @@ def generate_html_dashboard(df, output_file):
         .kpi-title {{ font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
         .kpi-value {{ font-size: 26px; font-weight: 800; color: white; margin: 0; }}
         .kpi-value.destaque {{ color: var(--primary); text-shadow: 0 0 15px rgba(0,242,254,0.3); }}
+        .kpi-value.pago {{ color: var(--success); text-shadow: 0 0 15px rgba(0,230,118,0.3); }}
+        .kpi-value.saldo {{ color: var(--accent); text-shadow: 0 0 15px rgba(255,152,0,0.3); }}
         
         /* Barra de Filtros */
         .filtros-container {{ 
@@ -265,17 +258,17 @@ def generate_html_dashboard(df, output_file):
         
         /* Tabela */
         .table-container {{ 
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            background: var(--bg-card); 
+            border: 1px solid var(--border); 
+            border-radius: 16px; 
+            padding: 25px; 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4); 
         }}
         .table-container h3 {{ color: var(--primary); margin: 0 0 20px 0; font-size: 18px; font-weight: 800; border-bottom: 1px solid var(--border); padding-bottom: 12px; }}
-        .table-responsive {{ overflow-x: auto; }}
+        .table-responsive {{ overflow-x: auto; max-height: 600px; }}
         table {{ width: 100%; border-collapse: collapse; margin-top: 5px; }}
         th, td {{ padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }}
-        th {{ background-color: #11141a; color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; position: sticky; top: 0; }}
+        th {{ background-color: #11141a; color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10; }}
         tr:hover {{ background-color: rgba(0, 242, 254, 0.05); }}
         .tr-total {{ background-color: #11141a !important; font-weight: 800; color: var(--primary); font-size: 14px; border-top: 2px solid var(--primary); }}
         .tr-total td {{ border-bottom: none; }}
@@ -288,23 +281,23 @@ def generate_html_dashboard(df, output_file):
         <p>Visão Analítica por Tipo de Título (Espécie), Empresa e Cronologia de Vencimentos</p>
     </div>
 
-    <!-- KPIs -->
+    <!-- KPIs Executivos Reestruturados -->
     <div class="kpi-container">
         <div class="kpi-card">
-            <div class="kpi-title">Total Valor Operações</div>
-            <div id="kpiValorOperacao" class="kpi-value destaque">R$ 0,00</div>
+            <div class="kpi-title">Valor Nominal Total</div>
+            <div id="kpiValorNominal" class="kpi-value destaque">R$ 0,00</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Total Já Pago</div>
+            <div id="kpiValorPago" class="kpi-value pago">R$ 0,00</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Total Saldo Devedor</div>
-            <div id="kpiSaldoDevedor" class="kpi-value">R$ 0,00</div>
+            <div id="kpiSaldoDevedor" class="kpi-value saldo">R$ 0,00</div>
         </div>
         <div class="kpi-card">
-            <div class="kpi-title">Valor Nominal Total</div>
-            <div id="kpiValorNominal" class="kpi-value">R$ 0,00</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-title">Qtd. Operações / Títulos Únicos</div>
-            <div id="kpiQtd" class="kpi-value">0 / 0</div>
+            <div class="kpi-title">Quantidade de Títulos Únicos</div>
+            <div id="kpiQtd" class="kpi-value">0</div>
         </div>
     </div>
 
@@ -330,7 +323,7 @@ def generate_html_dashboard(df, output_file):
     <!-- Gráfico -->
     <div class="chart-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-            <div id="chartHeaderTitle" style="font-weight: 800; font-size: 18px; color: white;">Evolução Diária de Vencimentos por Espécie</div>
+            <div id="chartHeaderTitle" style="font-weight: 800; font-size: 18px; color: white;">Evolução Diária de Vencimentos por Espécie (Valor Nominal)</div>
             <div id="chartLegendControls" style="display: flex; gap: 10px; align-items: center;">
                 <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">LEGENDA:</span>
                 <button class="btn-action" onclick="marcarTodos()">✅ Marcar Todos</button>
@@ -352,8 +345,8 @@ def generate_html_dashboard(df, output_file):
                         <th>Espécie</th>
                         <th>Título</th>
                         <th>Fornecedor</th>
-                        <th>Operação</th>
-                        <th style="text-align: right;">Valor Operação</th>
+                        <th style="text-align: right;">Valor Nominal</th>
+                        <th style="text-align: right;">Valor Pago</th>
                         <th style="text-align: right;">Saldo Devedor</th>
                     </tr>
                 </thead>
@@ -399,38 +392,32 @@ def generate_html_dashboard(df, output_file):
     }}
 
     function formatCurrency(val) {{
-        return "R$ " + val.toFixed(2).replace('.', ',').replace(/(\\d)(?=(\\d{{3}})+(?!\\d))/g, '$1.');
+        return "R$ " + Number(val || 0).toFixed(2).replace('.', ',').replace(/(\\d)(?=(\\d{{3}})+(?!\\d))/g, '$1.');
     }}
 
     function renderKPIs(data) {{
-        const totOp = data.reduce((sum, d) => sum + d.VALOR, 0);
-        
-        // Deduplicar por SEQ_TITULO para Saldo e Nominal
-        const vistos = new Set();
-        let totSaldo = 0;
         let totNominal = 0;
-        let qtdTitulos = 0;
+        let totPago = 0;
+        let totSaldo = 0;
+        let qtdTitulos = data.length;
 
         data.forEach(d => {{
-            if (!vistos.has(d.SEQ_TITULO)) {{
-                vistos.add(d.SEQ_TITULO);
-                totSaldo += (d.SALDO_DEVEDOR_TITULO || 0);
-                totNominal += (d.VALOR_NOMINAL_TITULO || 0);
-                qtdTitulos++;
-            }}
+            totNominal += (d.VALOR_NOMINAL_TITULO || 0);
+            totPago += (d.VALOR_PAGO_TITULO || 0);
+            totSaldo += (d.SALDO_DEVEDOR_TITULO || 0);
         }});
 
-        document.getElementById('kpiValorOperacao').innerText = formatCurrency(totOp);
-        document.getElementById('kpiSaldoDevedor').innerText = formatCurrency(totSaldo);
         document.getElementById('kpiValorNominal').innerText = formatCurrency(totNominal);
-        document.getElementById('kpiQtd').innerText = `${{data.length}} / ${{qtdTitulos}}`;
+        document.getElementById('kpiValorPago').innerText = formatCurrency(totPago);
+        document.getElementById('kpiSaldoDevedor').innerText = formatCurrency(totSaldo);
+        document.getElementById('kpiQtd').innerText = qtdTitulos.toLocaleString('pt-BR');
     }}
 
     function renderChart(data) {{
         const esp = document.getElementById('filtroEspecie').value;
         const titleEl = document.getElementById('chartHeaderTitle');
         if (titleEl) {{
-            titleEl.innerText = (esp === 'todos') ? 'Evolução Diária de Vencimentos por Espécie' : `Evolução Diária de Vencimentos - Espécie: ${{esp}}`;
+            titleEl.innerText = (esp === 'todos') ? 'Evolução Diária de Vencimentos por Espécie (Valor Nominal)' : `Evolução Diária de Vencimentos - Espécie: ${{esp}}`;
         }}
         const controlsEl = document.getElementById('chartLegendControls');
         if (controlsEl) {{
@@ -448,203 +435,147 @@ def generate_html_dashboard(df, output_file):
         }}
 
         const datasUnicas = [...new Set(data.map(d => d.DATA_ISO))].sort();
-        const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const dataFormattedMap = {{}};
+        data.forEach(d => {{ dataFormattedMap[d.DATA_ISO] = d.DATA_FORMATADA; }});
+        const xLabels = datasUnicas.map(iso => dataFormattedMap[iso]);
 
         const traces = [];
+        const visibleEspecies = [...new Set(data.map(d => d.ESPECIE))].sort();
 
-        if (esp === 'todos') {{
-            // Gráfico Empilhado por Espécie
-            const espsNoFiltro = [...new Set(data.map(d => d.ESPECIE))].sort();
-            
-            espsNoFiltro.forEach(e => {{
-                const xVals = [];
-                const yVals = [];
-                const customVals = [];
-                
-                datasUnicas.forEach(dt => {{
-                    const itens = data.filter(d => d.DATA_ISO === dt && d.ESPECIE === e);
-                    const soma = itens.reduce((s, d) => s + d.VALOR, 0);
-                    if (soma > 0) {{
-                        xVals.push(dt);
-                        yVals.push(soma);
-                        
-                        // Formatar data no tooltip
-                        const pts = dt.split('-');
-                        const dtObj = new Date(dt + 'T00:00:00');
-                        const strDt = `${{pts[2]}}/${{pts[1]}}/${{pts[0]}} (${{diasSemana[dtObj.getDay()]}})`;
-                        customVals.push(strDt);
-                    }}
-                }});
-
-                if (xVals.length > 0) {{
-                    traces.push({{
-                        x: xVals,
-                        y: yVals,
-                        name: e,
-                        type: 'bar',
-                        marker: {{ color: mapCores[e] || '#00f2fe' }},
-                        customdata: customVals,
-                        hovertemplate: "<b>Data:</b> %{{customdata}}<br><b>Espécie:</b> " + e + "<br><b>Valor:</b> R$ %{{y:,.2f}}<extra></extra>"
-                    }});
-                }}
-            }});
-        }} else {{
-            // Gráfico Simples para uma Espécie
-            const xVals = [];
-            const yVals = [];
-            const customVals = [];
-
-            datasUnicas.forEach(dt => {{
-                const itens = data.filter(d => d.DATA_ISO === dt);
-                const soma = itens.reduce((s, d) => s + d.VALOR, 0);
-                xVals.push(dt);
-                yVals.push(soma);
-
-                const pts = dt.split('-');
-                const dtObj = new Date(dt + 'T00:00:00');
-                const strDt = `${{pts[2]}}/${{pts[1]}}/${{pts[0]}} (${{diasSemana[dtObj.getDay()]}})`;
-                customVals.push(strDt);
+        visibleEspecies.forEach(espNome => {{
+            const yValues = datasUnicas.map(isoDate => {{
+                const items = data.filter(d => d.DATA_ISO === isoDate && d.ESPECIE === espNome);
+                return items.reduce((sum, d) => sum + (d.VALOR_NOMINAL_TITULO || 0), 0);
             }});
 
             traces.push({{
-                x: xVals,
-                y: yVals,
-                name: esp,
+                x: xLabels,
+                y: yValues,
+                name: espNome,
                 type: 'bar',
-                marker: {{ color: mapCores[esp] || '#00f2fe' }},
-                customdata: customVals,
-                hovertemplate: "<b>Data:</b> %{{customdata}}<br><b>Valor:</b> R$ %{{y:,.2f}}<extra></extra>"
+                marker: {{
+                    color: mapCores[espNome] || '#4facfe',
+                    line: {{ color: 'rgba(255,255,255,0.1)', width: 1 }}
+                }},
+                hovertemplate: `<b>${{espNome}}</b><br>Data: %{{x}}<br>Valor Nominal: R$ %{{y:,.2f}}<extra></extra>`
             }});
-        }}
+        }});
 
         const layout = {{
-            title: null,
             barmode: 'stack',
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
-            font: {{ family: 'Inter', size: 12, color: '#e0e0e0' }},
-            margin: {{ l: 50, r: 20, t: 15, b: 60 }},
+            font: {{ family: 'Inter', color: '#e0e0e0', size: 12 }},
+            margin: {{ l: 80, r: 30, t: 20, b: 80 }},
             xaxis: {{
-                title: 'Data de Vencimento',
-                tickformat: "%d/%m/%Y",
                 tickangle: -45,
-                showgrid: false,
-                zeroline: false
+                gridcolor: '#2a3142',
+                zerolinecolor: '#2a3142',
+                tickfont: {{ size: 11 }}
             }},
             yaxis: {{
-                title: 'Valor Operação (R$)',
-                showgrid: true,
                 gridcolor: '#2a3142',
-                zeroline: false
+                zerolinecolor: '#2a3142',
+                tickprefix: 'R$ ',
+                tickformat: ',.2f'
             }},
             legend: {{
                 orientation: 'h',
                 yanchor: 'bottom',
-                y: 1.02,
-                xanchor: 'right',
-                x: 1
+                y: -0.35,
+                xanchor: 'center',
+                x: 0.5,
+                font: {{ size: 11, color: '#e0e0e0' }}
             }}
         }};
 
-        Plotly.newPlot('plotlyChart', traces, layout, {{ responsive: true, displayModeBar: false }});
-        
-        const graphDiv = document.getElementById('plotlyChart');
-        if (graphDiv) {{
-            graphDiv.on('plotly_restyle', function() {{
-                setTimeout(() => syncWithLegend(), 30);
+        const config = {{ responsive: true, displayModeBar: false }};
+        Plotly.newPlot('plotlyChart', traces, layout, config).then(() => {{
+            const chartDiv = document.getElementById('plotlyChart');
+            // Sincronização em tempo real da legenda do gráfico com os KPIs e Tabela
+            chartDiv.on('plotly_restyle', () => {{
+                updateVisibleDataFromChart();
             }});
-            graphDiv.on('plotly_legendclick', function() {{
-                setTimeout(() => syncWithLegend(), 30);
-            }});
-            graphDiv.on('plotly_legenddoubleclick', function() {{
-                setTimeout(() => syncWithLegend(), 30);
-            }});
-        }}
+        }});
+    }}
+
+    function updateVisibleDataFromChart() {{
+        const chartDiv = document.getElementById('plotlyChart');
+        if (!chartDiv || !chartDiv.data) return;
+
+        // Identifica quais espécies estão ativas/visíveis no gráfico
+        const visibleEspecies = new Set();
+        chartDiv.data.forEach(trace => {{
+            if (trace.visible === true || trace.visible === undefined) {{
+                visibleEspecies.add(trace.name);
+            }}
+        }});
+
+        const baseFiltered = getFilteredData();
+        const activeData = baseFiltered.filter(d => visibleEspecies.has(d.ESPECIE));
+
+        // Atualiza os KPIs e a Tabela em tempo real com base no que está visível!
+        renderKPIs(activeData);
+        renderTable(activeData);
+    }}
+
+    function marcarTodos() {{
+        Plotly.restyle('plotlyChart', {{ visible: true }}).then(() => {{
+            updateVisibleDataFromChart();
+        }});
+    }}
+
+    function desmarcarTodos() {{
+        Plotly.restyle('plotlyChart', {{ visible: 'legendonly' }}).then(() => {{
+            updateVisibleDataFromChart();
+        }});
     }}
 
     function renderTable(data) {{
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
 
-        if (data.length === 0) {{
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 30px; color: #8c95a6;">Nenhum título encontrado com os filtros atuais.</td></tr>';
-            return;
-        }}
-
-        let html = '';
-        let totOp = 0;
+        let totNominal = 0;
+        let totPago = 0;
         let totSaldo = 0;
 
-        data.forEach(d => {{
-            totOp += d.VALOR;
+        // Limitar a exibição das primeiras 200 linhas para máxima performance fluida no navegador
+        const maxRows = 200;
+        const displayData = data.slice(0, maxRows);
+
+        displayData.forEach(d => {{
+            totNominal += (d.VALOR_NOMINAL_TITULO || 0);
+            totPago += (d.VALOR_PAGO_TITULO || 0);
             totSaldo += (d.SALDO_DEVEDOR_TITULO || 0);
 
-            html += `<tr>
-                <td><strong style="color:var(--primary);">${{d.EMPRESA}}</strong></td>
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>Loja ${{d.EMPRESA}}</b></td>
                 <td>${{d.DATA_FORMATADA}}</td>
-                <td><span class="tag-especie" style="border: 1px solid ${{mapCores[d.ESPECIE] || '#4facfe'}}; color: ${{mapCores[d.ESPECIE] || '#4facfe'}};">${{d.ESPECIE}}</span></td>
+                <td><span class="tag-especie">${{d.ESPECIE}}</span></td>
                 <td>${{d.TITULO}}</td>
                 <td>${{d.FORNECEDOR}}</td>
-                <td>${{d.DESCRICAO_OPERACAO}}</td>
-                <td style="text-align: right; font-weight: 600;">${{formatCurrency(d.VALOR)}}</td>
-                <td style="text-align: right; color: var(--secondary);">${{formatCurrency(d.SALDO_DEVEDOR_TITULO || 0)}}</td>
-            </tr>`;
+                <td style="text-align: right; font-weight: 600;">${{formatCurrency(d.VALOR_NOMINAL_TITULO)}}</td>
+                <td style="text-align: right; color: var(--success);">${{formatCurrency(d.VALOR_PAGO_TITULO)}}</td>
+                <td style="text-align: right; font-weight: bold; color: var(--accent);">${{formatCurrency(d.SALDO_DEVEDOR_TITULO)}}</td>
+            `;
+            tbody.appendChild(tr);
         }});
 
-        // Linha do Total
-        html += `<tr class="tr-total">
-            <td colspan="6" style="text-align: right;">TOTAL FILTRADO:</td>
-            <td style="text-align: right;">${{formatCurrency(totOp)}}</td>
-            <td style="text-align: right;">${{formatCurrency(totSaldo)}}</td>
-        </tr>`;
+        // Linha de Totalizador
+        const totalNominalGeral = data.reduce((sum, d) => sum + (d.VALOR_NOMINAL_TITULO || 0), 0);
+        const totalPagoGeral = data.reduce((sum, d) => sum + (d.VALOR_PAGO_TITULO || 0), 0);
+        const totalSaldoGeral = data.reduce((sum, d) => sum + (d.SALDO_DEVEDOR_TITULO || 0), 0);
 
-        tbody.innerHTML = html;
-        
-        const emp = document.getElementById('filtroEmpresa').value;
-        const esp = document.getElementById('filtroEspecie').value;
-        let titleText = `Detalhamento dos Títulos a Pagar (${{data.length}} operações)`;
-        if (esp !== 'todos') titleText += ` - Espécie: ${{esp}}`;
-        if (emp !== 'todas') titleText += ` - Empresa: ${{emp}}`;
-        document.getElementById('tableTitle').innerText = titleText;
-    }}
-
-    function syncWithLegend() {{
-        const graphDiv = document.getElementById('plotlyChart');
-        if (!graphDiv || !graphDiv.data) return;
-        
-        const espDropdown = document.getElementById('filtroEspecie').value;
-        if (espDropdown !== 'todos') return; // Se está filtrado por uma espécie específica no dropdown, mantém o filtro principal
-        
-        const visibleSpecies = new Set();
-        graphDiv.data.forEach(trace => {{
-            if (trace.visible !== 'legendonly' && trace.visible !== false) {{
-                visibleSpecies.add(trace.name);
-            }}
-        }});
-
-        const baseFiltered = getFilteredData();
-        const finalFiltered = baseFiltered.filter(d => visibleSpecies.has(d.ESPECIE));
-
-        renderKPIs(finalFiltered);
-        renderTable(finalFiltered);
-    }}
-
-    function desmarcarTodos() {{
-        const graphDiv = document.getElementById('plotlyChart');
-        if (!graphDiv || !graphDiv.data) return;
-        
-        const count = graphDiv.data.length;
-        Plotly.restyle('plotlyChart', {{ visible: Array(count).fill('legendonly') }});
-        setTimeout(() => syncWithLegend(), 30);
-    }}
-
-    function marcarTodos() {{
-        const graphDiv = document.getElementById('plotlyChart');
-        if (!graphDiv || !graphDiv.data) return;
-        
-        const count = graphDiv.data.length;
-        Plotly.restyle('plotlyChart', {{ visible: Array(count).fill(true) }});
-        setTimeout(() => syncWithLegend(), 30);
+        const trTotal = document.createElement('tr');
+        trTotal.className = 'tr-total';
+        trTotal.innerHTML = `
+            <td colspan="5">TOTAL GERAL (${{data.length.toLocaleString('pt-BR')}} Títulos)</td>
+            <td style="text-align: right;">${{formatCurrency(totalNominalGeral)}}</td>
+            <td style="text-align: right; color: var(--success);">${{formatCurrency(totalPagoGeral)}}</td>
+            <td style="text-align: right; color: var(--accent);">${{formatCurrency(totalSaldoGeral)}}</td>
+        `;
+        tbody.appendChild(trTotal);
     }}
 
     function renderAll() {{
@@ -654,13 +585,14 @@ def generate_html_dashboard(df, output_file):
         renderTable(filtered);
     }}
 
-    // Inicialização ao carregar
-    window.onload = function() {{
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {{
         renderAll();
-    }};
+    }});
     </script>
 </body>
-</html>"""
+</html>
+"""
 
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_template)
@@ -669,15 +601,14 @@ def generate_html_dashboard(df, output_file):
 def main():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     input_file = os.path.join(current_dir, 'a_pagar_empresa.txt')
-    output_file = os.path.join(current_dir, 'dashboard_titulos_a_pagar.html')
+    output_html = os.path.join(current_dir, 'dashboard_titulos_a_pagar.html')
 
     if not os.path.exists(input_file):
-        print(f"Erro: O arquivo '{input_file}' não foi encontrado na pasta {current_dir}.")
-        print("Execute primeiro o script 0-buscar_txt.py para trazer o arquivo da pasta import_querys.")
+        print(f"Erro: O arquivo '{input_file}' não foi encontrado.")
         sys.exit(1)
 
     df = load_and_clean_data(input_file)
-    generate_html_dashboard(df, output_file)
+    generate_html_dashboard(df, output_html)
 
 if __name__ == '__main__':
     main()

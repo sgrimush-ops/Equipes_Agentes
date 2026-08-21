@@ -45,7 +45,7 @@ def load_and_clean_data(input_file):
         df['EMPRESA'] = '1'
 
     print(f"Total de registros válidos carregados: {len(df)}")
-    print("Limpeza e tratamento de dados (removendo lógica de projeção - apenas títulos lançados)...")
+    print("Limpeza e tratamento de dados patrimoniais...")
 
     # Limpar colunas numéricas
     val_cols = ['VALOR_OPERACAO', 'VALOR_NOMINAL_TITULO', 'VALOR_PAGO_TITULO', 'SALDO_DEVEDOR_TITULO']
@@ -54,14 +54,6 @@ def load_and_clean_data(input_file):
             df[col] = df[col].apply(parse_br_currency)
         else:
             df[col] = 0.0
-
-    # Definir coluna principal de valor
-    if 'VALOR_OPERACAO' in df.columns:
-        df['VALOR'] = df['VALOR_OPERACAO']
-    elif 'VALOR_PROJETADO' in df.columns:
-        df['VALOR'] = df['VALOR_PROJETADO'].apply(parse_br_currency)
-    else:
-        df['VALOR'] = 0.0
 
     # Tratar datas
     if 'DATA_VENCIMENTO' in df.columns:
@@ -92,12 +84,19 @@ def main():
 
     df = load_and_clean_data(input_file)
 
-    print("Gerando Resumos por Tipo de Título (Espécie)...")
+    # Base desduplicada por SEQ_TITULO para garantir precisão contábil
+    if 'SEQ_TITULO' in df.columns:
+        df_dedup = df.drop_duplicates('SEQ_TITULO').copy()
+    else:
+        df_dedup = df.copy()
 
-    # 1. Visão por Data de Vencimento x Espécie (Tipo de Título)
+    print(f"Total de Títulos Únicos identificados: {len(df_dedup)}")
+    print("Gerando Resumos Executivos por Espécie...")
+
+    # 1. Visão por Data de Vencimento x Espécie (Baseada no Valor Nominal Real)
     pivot_especie_dia = pd.pivot_table(
-        df, 
-        values='VALOR', 
+        df_dedup, 
+        values='VALOR_NOMINAL_TITULO', 
         index='DATA_VENCIMENTO_DT', 
         columns='ESPECIE', 
         aggfunc='sum', 
@@ -106,48 +105,39 @@ def main():
         margins_name='Total Geral'
     ).reset_index()
     
-    # Formata a data de volta para string limpa
     pivot_especie_dia['DATA_VENCIMENTO'] = pivot_especie_dia['DATA_VENCIMENTO_DT'].apply(
         lambda x: x.strftime('%d/%m/%Y') if hasattr(x, 'strftime') else str(x)
     )
     cols1 = ['DATA_VENCIMENTO'] + [c for c in pivot_especie_dia.columns if c not in ['DATA_VENCIMENTO', 'DATA_VENCIMENTO_DT']]
     pivot_especie_dia = pivot_especie_dia[cols1]
 
-    # 2. Visão Consolidada por Espécie (Total Operações vs Nominal vs Saldo Devedor)
-    if 'SEQ_TITULO' in df.columns:
-        df_dedup = df.drop_duplicates('SEQ_TITULO')
-    else:
-        df_dedup = df
-
-    tot_op = df.groupby('ESPECIE')['VALOR_OPERACAO'].sum()
+    # 2. Visão Consolidada por Espécie (Nominal vs Já Pago vs Saldo Devedor)
     tot_nom = df_dedup.groupby('ESPECIE')['VALOR_NOMINAL_TITULO'].sum()
+    tot_pago = df_dedup.groupby('ESPECIE')['VALOR_PAGO_TITULO'].sum()
     tot_sald = df_dedup.groupby('ESPECIE')['SALDO_DEVEDOR_TITULO'].sum()
-    qtd_op = df.groupby('ESPECIE')['VALOR_OPERACAO'].count()
     qtd_tit = df_dedup.groupby('ESPECIE')['VALOR_NOMINAL_TITULO'].count()
 
     resumo_especie = pd.DataFrame({
-        'Qtd_Operacoes': qtd_op,
-        'Qtd_Titulos_Únicos': qtd_tit,
-        'Total_Valor_Operacao': tot_op,
-        'Total_Nominal_Titulos': tot_nom,
+        'Qtd_Titulos': qtd_tit,
+        'Valor_Nominal_Total': tot_nom,
+        'Total_Ja_Pago': tot_pago,
         'Total_Saldo_Devedor': tot_sald
     }).reset_index().fillna(0)
     
     # Adicionando linha de Total Geral
     total_row = pd.DataFrame({
         'ESPECIE': ['Total Geral'],
-        'Qtd_Operacoes': [resumo_especie['Qtd_Operacoes'].sum()],
-        'Qtd_Titulos_Únicos': [resumo_especie['Qtd_Titulos_Únicos'].sum()],
-        'Total_Valor_Operacao': [resumo_especie['Total_Valor_Operacao'].sum()],
-        'Total_Nominal_Titulos': [resumo_especie['Total_Nominal_Titulos'].sum()],
+        'Qtd_Titulos': [resumo_especie['Qtd_Titulos'].sum()],
+        'Valor_Nominal_Total': [resumo_especie['Valor_Nominal_Total'].sum()],
+        'Total_Ja_Pago': [resumo_especie['Total_Ja_Pago'].sum()],
         'Total_Saldo_Devedor': [resumo_especie['Total_Saldo_Devedor'].sum()]
     })
     resumo_especie = pd.concat([resumo_especie, total_row], ignore_index=True)
 
-    # 3. Visão por Empresa x Espécie
+    # 3. Visão por Empresa x Espécie (Valor Nominal)
     pivot_empresa_especie = pd.pivot_table(
-        df,
-        values='VALOR',
+        df_dedup,
+        values='VALOR_NOMINAL_TITULO',
         index='EMPRESA',
         columns='ESPECIE',
         aggfunc='sum',
@@ -160,7 +150,7 @@ def main():
     print(f"Salvando resultados em: {output_file}")
     try:
         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-            df.drop(columns=['DATA_VENCIMENTO_DT', 'VALOR'], errors='ignore').to_excel(writer, sheet_name='Base_Dados', index=False)
+            df_dedup.drop(columns=['DATA_VENCIMENTO_DT'], errors='ignore').to_excel(writer, sheet_name='Base_Titulos', index=False)
             pivot_especie_dia.to_excel(writer, sheet_name='Visao_Especie_Dia', index=False)
             resumo_especie.to_excel(writer, sheet_name='Visao_Especie_Totais', index=False)
             pivot_empresa_especie.to_excel(writer, sheet_name='Visao_Empresa_Especie', index=False)

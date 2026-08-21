@@ -59,6 +59,12 @@ Replicação otimizada e performática do monitor de tela **Movimentação e Qui
 - Valor padrão: 0 - TODOS
 - Instrução: selecione `0 - TODOS` para trazer todas as espécies (inclusive boletos de serviço, frete, aluguel, etc.), ou escolha uma espécie específica como `DUPP`.
 
+### LT1
+- Tipo: Lista de Texto (ou Texto)
+- Descrição: Expurgar Espécies de Documento
+- Valor padrão: `BONIAC`
+- Instrução: informe as espécies que **não** devem aparecer na consulta (ex: `BONIAC` ou múltiplos códigos separados por vírgula como `BONIAC,DESINT`). Para não expurgar nenhuma espécie, informe `0` ou deixe em branco.
+
 > [!CAUTION]
 > **ATENÇÃO AO CADASTRAR A VARIÁVEL LS1 NO CONSINCO:**
 > Não cole o código de filtro (`AND NVL(TRIM(:LS1)...`) dentro do cadastro da variável! O trecho `AND NVL...` já faz parte do arquivo principal da consulta. No campo **SQL da Lista** da variável `LS1`, cole **EXCLUSIVAMENTE** a query abaixo que busca as espécies na tabela `FI_ESPECIE`:
