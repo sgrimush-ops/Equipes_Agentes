@@ -347,6 +347,7 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         col_max_pe = _resolver_coluna_opcional(df, ['MAXIMO_PONTO_EXTRA'])
         col_disp = _resolver_coluna_opcional(df, ['QUANTIDADE_DISPONIVEL', 'ESTOQUE_ATUAL'])
         col_forma_abast = _resolver_coluna_opcional(df, ['FORMA_ABASTECIMENTO', 'FORMAABASTECIMENTO', 'FORMA_DE_ABASTECIMENTO', 'TIPO_ABASTECIMENTO'])
+        col_comprador = _resolver_coluna_opcional(df, ['COMPRADOR', 'APELIDO', 'APELIDO_COMPRADOR', 'NOME_COMPRADOR'])
     except KeyError as e:
         print(f"[AVISO] Falha ao resolver colunas para divergência de embalagem: {e}")
         return pd.DataFrame()
@@ -363,6 +364,7 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
     if col_max_pe: renames[col_max_pe] = 'MAXIMO_PONTO_EXTRA'
     if col_disp: renames[col_disp] = 'QUANTIDADE_DISPONIVEL'
     if col_forma_abast: renames[col_forma_abast] = 'FORMA_ABASTECIMENTO'
+    if col_comprador: renames[col_comprador] = 'COMPRADOR'
 
     work = df[list(renames.keys())].copy()
     work = work.rename(columns=renames)
@@ -382,8 +384,8 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
     work['MINIMO'] = _to_numeric(work['MINIMO']).fillna(0).astype(int)
     work['MAXIMO'] = _to_numeric(work['MAXIMO']).fillna(0).astype(int)
 
-    # Filtra apenas lojas válidas (exceto CD 15) e produtos válidos
-    work = work[(work['CODIGO_PRODUTO'] > 0) & (work['EMPRESA'] > 0) & (work['EMPRESA'] != 15)].copy()
+    # Filtra apenas lojas válidas (exceto CDs 15 e 16) e produtos válidos
+    work = work[(work['CODIGO_PRODUTO'] > 0) & (work['EMPRESA'] > 0) & (~work['EMPRESA'].isin([15, 16]))].copy()
 
     work['DIFERENCA_MIN_MAX'] = work['MAXIMO'] - work['MINIMO']
 
@@ -412,6 +414,7 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
     df_div = pd.DataFrame({
         'CODIGO_PRODUTO': resultado['CODIGO_PRODUTO'].astype(int),
         'DESCRICAO_PRODUTO': resultado['DESCRICAO_PRODUTO'],
+        'COMPRADOR': resultado['COMPRADOR'].apply(lambda c: str(c).strip().split()[0].upper() if pd.notna(c) and str(c).strip() and str(c).strip().upper() not in ['NAN', 'NONE'] else 'SEM GESTOR') if 'COMPRADOR' in resultado.columns else 'SEM GESTOR',
         'EMBL_TRANSFERENCIA': resultado['EMBL_TRANSFERENCIA'].astype(int),
         'EMPRESA': resultado['EMPRESA'].astype(int),
         'MINIMO': resultado['MINIMO'].astype(int),
@@ -420,9 +423,9 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         'VENDA_MEDIA': 0.0,
         'QUANTIDADE_ESTOQUE_MINIMO': resultado['MINIMO'].astype(int),
         'QUANTIDADE_ESTOQUE_MAXIMO': resultado['MAXIMO'].astype(int),
-        'MINIMO_PONTO_EXTRA': resultado['MINIMO_PONTO_EXTRA'].fillna(0).astype(int) if 'MINIMO_PONTO_EXTRA' in resultado.columns else 0,
-        'MAXIMO_PONTO_EXTRA': resultado['MAXIMO_PONTO_EXTRA'].fillna(0).astype(int) if 'MAXIMO_PONTO_EXTRA' in resultado.columns else 0,
-        'QUANTIDADE_DISPONIVEL': resultado['QUANTIDADE_DISPONIVEL'].fillna(0).astype(int) if 'QUANTIDADE_DISPONIVEL' in resultado.columns else 0,
+        'MINIMO_PONTO_EXTRA': _to_numeric(resultado['MINIMO_PONTO_EXTRA']).fillna(0).astype(int) if 'MINIMO_PONTO_EXTRA' in resultado.columns else 0,
+        'MAXIMO_PONTO_EXTRA': _to_numeric(resultado['MAXIMO_PONTO_EXTRA']).fillna(0).astype(int) if 'MAXIMO_PONTO_EXTRA' in resultado.columns else 0,
+        'QUANTIDADE_DISPONIVEL': _to_numeric(resultado['QUANTIDADE_DISPONIVEL']).fillna(0).astype(int) if 'QUANTIDADE_DISPONIVEL' in resultado.columns else 0,
         'REGRA_MINIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'REGRA_MAXIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'Status': resultado['Status'],
@@ -466,15 +469,23 @@ def processar_calculos():
     else:
         print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada. Todos os itens serão considerados ativos!")
 
-    # Remove CDs (empresa 15) do cálculo e exportação
+    # Remove CDs (empresas 15 e 16) do cálculo e exportação
     if 'CODIGO_EMPRESA' in df.columns:
         antes = len(df)
-        df = df[df['CODIGO_EMPRESA'] != 15].copy()
+        df = df[~df['CODIGO_EMPRESA'].isin([15, 16])].copy()
         depois = len(df)
-        print(f"Removidos {antes - depois} registros de CDs (empresa 15) do cálculo e exportação.")
+        print(f"Removidos {antes - depois} registros de CDs (empresas 15 e 16) do cálculo e exportação.")
     else:
         print("[AVISO] Coluna 'CODIGO_EMPRESA' não encontrada. Não foi possível remover CDs.")
     
+    # Saneamento da coluna COMPRADOR (extrai o primeiro nome / apelido)
+    if 'COMPRADOR' in df.columns:
+        df['COMPRADOR'] = df['COMPRADOR'].apply(
+            lambda c: str(c).strip().split()[0].upper() if pd.notna(c) and str(c).strip() and str(c).strip().upper() not in ['NAN', 'NONE'] else 'SEM GESTOR'
+        )
+    else:
+        df['COMPRADOR'] = 'SEM GESTOR'
+
     # Aplicando Regra Global nº 6 (Saneamento de Inteiros)
     print("Saneando extração de embalagens e ajustando preenchimentos...")
     df['EMBL_TRANSFERENCIA_NUM'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
@@ -518,12 +529,12 @@ def processar_calculos():
     df_original = df.copy()
 
     # Utilizar ponto extra (campanha) originado nativamente da extração do banco (query.parquet)
-    df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
-    df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MINIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO']).fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MAXIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO']).fillna(0).astype(int)
     
     if 'MINIMO_PONTO_EXTRA' in df.columns and 'MAXIMO_PONTO_EXTRA' in df.columns:
-        df['MINIMO_PONTO_EXTRA'] = pd.to_numeric(df['MINIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
-        df['MAXIMO_PONTO_EXTRA'] = pd.to_numeric(df['MAXIMO_PONTO_EXTRA'], errors='coerce').fillna(0).astype(int)
+        df['MINIMO_PONTO_EXTRA'] = _to_numeric(df['MINIMO_PONTO_EXTRA']).fillna(0).astype(int)
+        df['MAXIMO_PONTO_EXTRA'] = _to_numeric(df['MAXIMO_PONTO_EXTRA']).fillna(0).astype(int)
         
         linhas_com_ponto_extra = int(((df['MINIMO_PONTO_EXTRA'] > 0) | (df['MAXIMO_PONTO_EXTRA'] > 0)).sum())
         print(
@@ -537,7 +548,7 @@ def processar_calculos():
 
     col_disp = _resolver_coluna_opcional(df, ['QUANTIDADE_DISPONIVEL', 'ESTOQUE_ATUAL'])
     if col_disp:
-        df['QUANTIDADE_DISPONIVEL'] = pd.to_numeric(df[col_disp], errors='coerce').fillna(0).astype(int)
+        df['QUANTIDADE_DISPONIVEL'] = _to_numeric(df[col_disp]).fillna(0).astype(int)
     else:
         df['QUANTIDADE_DISPONIVEL'] = 0
 
@@ -600,10 +611,10 @@ def processar_calculos():
     
     # 3. Aplicar Filtro de Diferença Mínima (>= 5 unidades no mínimo)
     print("Filtrando alterações irrelevantes (< 5 unidades de diferença no mínimo)...")
-    df['MINIMO'] = pd.to_numeric(df['MINIMO'], errors='coerce').fillna(0).astype(int)
-    df['MAXIMO'] = pd.to_numeric(df['MAXIMO'], errors='coerce').fillna(0).astype(int)
-    df['QUANTIDADE_ESTOQUE_MINIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO'], errors='coerce').fillna(0).astype(int)
-    df['QUANTIDADE_ESTOQUE_MAXIMO'] = pd.to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO'], errors='coerce').fillna(0).astype(int)
+    df['MINIMO'] = _to_numeric(df['MINIMO']).fillna(0).astype(int)
+    df['MAXIMO'] = _to_numeric(df['MAXIMO']).fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MINIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO']).fillna(0).astype(int)
+    df['QUANTIDADE_ESTOQUE_MAXIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO']).fillna(0).astype(int)
 
     # Condição de exclusão da linha: diferença do mínimo menor que 5 unidades
     # Exceções (Conflitos resolvidos):
@@ -700,7 +711,7 @@ def processar_calculos():
 
     # Adiciona coluna 'Status' e prepara colunas para exportação
     colunas_finais = [
-        'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'EMBL_TRANSFERENCIA',
+        'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'COMPRADOR', 'EMBL_TRANSFERENCIA',
         'CODIGO_EMPRESA', 'QUANTIDADE_DISPONIVEL', 'MINIMO', 'MAXIMO',
         'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
         'MINIMO_PONTO_EXTRA', 'MAXIMO_PONTO_EXTRA',

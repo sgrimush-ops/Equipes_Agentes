@@ -72,6 +72,7 @@ def upload_parquet_to_sheet(sheet, spreadsheet_id, parquet_path, sheet_tab):
     except Exception as e:
         print(f"[ERRO] Falha durante a transmissão pro Sheets na aba {sheet_tab}: {e}")
         print(f"Nota: Certifique-se de que a aba '{sheet_tab}' existe na planilha e o Spreadsheet ID está correto.")
+        sys.exit(1)
 
 
 def sync_all_to_sheets() -> None:
@@ -112,8 +113,8 @@ def sync_all_to_sheets() -> None:
         servico_sheets = build('sheets', 'v4', credentials=creds)
         sheet = servico_sheets.spreadsheets()
     except Exception as e:
-        print(f"[ERRO] Não foi possível autenticar: {e}")
-        return
+        print(f"[ERRO] Não foi possível autenticar no Google Sheets: {e}")
+        sys.exit(1)
 
     # 4. Fazer upload dos dois arquivos nas abas respectivas
     upload_parquet_to_sheet(sheet, SPREADSHEET_ID, parquet_query, SHEET_TAB_QUERY)

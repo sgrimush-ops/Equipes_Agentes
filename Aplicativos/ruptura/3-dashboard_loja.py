@@ -74,8 +74,8 @@ def principal():
     print("Carregando dados...")
     df = pd.read_parquet(arquivo_entrada)
 
-    # Filtrar CD 15 do Ranking de Lojas
-    df = df[df['CODIGO_EMPRESA'] != 15].copy()
+    # Filtrar CDs (15 e 16) do Ranking de Lojas
+    df = df[~df['CODIGO_EMPRESA'].isin([15, 16])].copy()
 
     # Saneamento (Regra 65)
     cols_saneamento = ['QUANTIDADE_DISPONIVEL', 'EMBL_COMPRA', 'EMBL_TRANSFERENCIA', 

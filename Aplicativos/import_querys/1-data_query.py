@@ -63,8 +63,7 @@ try:
 except Exception as e:
     print(f"⚠️ Aviso: Não foi possível executar a preparação do supply: {e}")
 
-# limpar tela com cls e depois msg de finalizado
-os.system('cls')
+
 
 # Executar a sincronização com AppSheet
 print("\n[INFO] Iniciando sincronização com AppSheet...")

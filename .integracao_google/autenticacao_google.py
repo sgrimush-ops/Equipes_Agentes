@@ -37,10 +37,23 @@ def get_google_credentials() -> Credentials:
 
     # Se não existem credenciais (ou não são válidas), deixa o usuário fazer login.
     if not creds or not creds.valid:
+        precisa_novo_login = True
         if creds and creds.expired and creds.refresh_token:
             print("Atualizando token de acesso do Google...")
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+                precisa_novo_login = False
+            except Exception as e:
+                print(f"[AVISO] Falha ao renovar token antigo ({e}). Solicitando novo login no navegador...")
+                if token_path.exists():
+                    try:
+                        token_path.unlink()
+                    except Exception:
+                        pass
+                creds = None
+                precisa_novo_login = True
+
+        if precisa_novo_login:
             if not cred_path.exists():
                 raise FileNotFoundError(
                     f"O arquivo {cred_path.name} não foi encontrado na pasta do projeto. "

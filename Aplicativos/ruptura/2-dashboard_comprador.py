@@ -13,19 +13,21 @@ if __name__ == '__main__':
         pass
 
 base_dir = Path(__file__).parent
-# Caminho absoluto conforme ambiente local (Regra 26)
 arquivo_entrada = Path(r'C:\Users\usr\Downloads\Equipes_Agentes\Aplicativos\import_querys\query.parquet')
 
 def compute_metrics(df_subset, loja_nome):
-    """Computa as métricas de ruptura para um subconjunto de dados (Loja ou Geral)."""
+    """Computa as métricas de ruptura para um subconjunto de dados (Loja ou Geral) para CD 15, CD 16 e Lojas."""
     if df_subset.empty:
         return pd.DataFrame()
         
-    c_cd = (df_subset['CODIGO_EMPRESA'] == 15) & (df_subset['FORMA_ABASTECIMENTO'].isin(['M', 'C']))
-    c_loja = df_subset['CODIGO_EMPRESA'] != 15
+    c_cd15 = (df_subset['CODIGO_EMPRESA'] == 15) & (df_subset['FORMA_ABASTECIMENTO'].isin(['M', 'C']))
+    c_cd16 = (df_subset['CODIGO_EMPRESA'] == 16) & (df_subset['FORMA_ABASTECIMENTO'].isin(['M', 'C']))
+    c_loja = ~df_subset['CODIGO_EMPRESA'].isin([15, 16])
     c_rup_loja = df_subset['QUANTIDADE_DISPONIVEL'] <= 0
+    
     # Ruptura CD considera estoque 0 ou abaixo da embalagem de transferência apenas para formas M e C
-    c_rup_cd = (df_subset['QUANTIDADE_DISPONIVEL'] <= 0) | (df_subset['QUANTIDADE_DISPONIVEL'] < df_subset['EMBL_TRANSFERENCIA'])
+    c_rup_cd15 = c_cd15 & ((df_subset['QUANTIDADE_DISPONIVEL'] <= 0) | (df_subset['QUANTIDADE_DISPONIVEL'] < df_subset['EMBL_TRANSFERENCIA']))
+    c_rup_cd16 = c_cd16 & ((df_subset['QUANTIDADE_DISPONIVEL'] <= 0) | (df_subset['QUANTIDADE_DISPONIVEL'] < df_subset['EMBL_TRANSFERENCIA']))
     c_neg = df_subset['QUANTIDADE_DISPONIVEL'] < 0
     
     # Segmentação de Ruptura de Loja por Forma de Abastecimento
@@ -40,9 +42,13 @@ def compute_metrics(df_subset, loja_nome):
         c_pend_transf = pd.Series(False, index=df_subset.index)
 
     df_temp = pd.DataFrame({'COMPRADOR': df_subset['COMPRADOR']})
-    df_temp['Base_CD'] = df_subset['CODIGO_PRODUTO'].where(c_cd)
-    df_temp['Ruptura_CD'] = df_subset['CODIGO_PRODUTO'].where(c_cd & c_rup_cd)
-    df_temp['Rup_CD_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_cd & c_rup_cd & c_pend_forn)
+    df_temp['Base_CD15'] = df_subset['CODIGO_PRODUTO'].where(c_cd15)
+    df_temp['Ruptura_CD15'] = df_subset['CODIGO_PRODUTO'].where(c_rup_cd15)
+    df_temp['Rup_CD15_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_rup_cd15 & c_pend_forn)
+
+    df_temp['Base_CD16'] = df_subset['CODIGO_PRODUTO'].where(c_cd16)
+    df_temp['Ruptura_CD16'] = df_subset['CODIGO_PRODUTO'].where(c_rup_cd16)
+    df_temp['Rup_CD16_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_rup_cd16 & c_pend_forn)
     
     df_temp['Base_Loja'] = df_subset['CODIGO_PRODUTO'].where(c_loja)
     df_temp['Ruptura_Loja'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja)
@@ -50,21 +56,25 @@ def compute_metrics(df_subset, loja_nome):
     df_temp['Rup_Loja_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja_forn)
     df_temp['Rup_Loja_Crossdocking'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja_cross)
     
-    df_temp['Rup_Loja_Neg'] = df_subset['CODIGO_PRODUTO'].where(c_neg)
+    df_temp['Rup_Loja_Neg'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_neg)
     df_temp['Rup_Loja_Pend_Transf'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja & c_pend_transf)
     df_temp['Rup_Loja_Pend_Forn'] = df_subset['CODIGO_PRODUTO'].where(c_loja & c_rup_loja & c_pend_forn)
 
     resumo = df_temp.groupby('COMPRADOR').nunique().reset_index()
 
     # Total Geral do subset
-    total_cd = df_subset.loc[c_cd, 'CODIGO_PRODUTO'].nunique()
+    total_cd15 = df_subset.loc[c_cd15, 'CODIGO_PRODUTO'].nunique()
+    total_cd16 = df_subset.loc[c_cd16, 'CODIGO_PRODUTO'].nunique()
     total_loja = df_subset.loc[c_loja, 'CODIGO_PRODUTO'].nunique()
 
     total_dict = {
         'COMPRADOR': 'TOTAL GERAL',
-        'Base_CD': total_cd,
-        'Ruptura_CD': resumo['Ruptura_CD'].sum(), 
-        'Rup_CD_Pend_Forn': resumo['Rup_CD_Pend_Forn'].sum(),
+        'Base_CD15': total_cd15,
+        'Ruptura_CD15': resumo['Ruptura_CD15'].sum(), 
+        'Rup_CD15_Pend_Forn': resumo['Rup_CD15_Pend_Forn'].sum(),
+        'Base_CD16': total_cd16,
+        'Ruptura_CD16': resumo['Ruptura_CD16'].sum(), 
+        'Rup_CD16_Pend_Forn': resumo['Rup_CD16_Pend_Forn'].sum(),
         'Base_Loja': total_loja,
         'Ruptura_Loja': resumo['Ruptura_Loja'].sum(),
         'Rup_Loja_CD': resumo['Rup_Loja_CD'].sum(),
@@ -115,18 +125,24 @@ def principal():
     final_df = pd.concat(master_frames, ignore_index=True)
     
     # Cálculos Percentuais — linhas individuais (por comprador dentro de cada loja)
-    final_df['% Ruptura CD'] = (final_df['Ruptura_CD'] / final_df['Base_CD'].replace(0, np.nan) * 100).fillna(0)
-    final_df['% Rup. CD Pend. Forn'] = (final_df['Rup_CD_Pend_Forn'] / final_df['Base_CD'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Ruptura CD 15'] = (final_df['Ruptura_CD15'] / final_df['Base_CD15'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Rup. CD 15 Pend. Forn'] = (final_df['Rup_CD15_Pend_Forn'] / final_df['Base_CD15'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Ruptura CD 16'] = (final_df['Ruptura_CD16'] / final_df['Base_CD16'].replace(0, np.nan) * 100).fillna(0)
+    final_df['% Rup. CD 16 Pend. Forn'] = (final_df['Rup_CD16_Pend_Forn'] / final_df['Base_CD16'].replace(0, np.nan) * 100).fillna(0)
+    
     final_df['% Ruptura Loja'] = (final_df['Ruptura_Loja'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja (CD)'] = (final_df['Rup_Loja_CD'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Forn. Loja (L)'] = (final_df['Rup_Loja_Forn'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Crossdocking (I)'] = (final_df['Rup_Loja_Crossdocking'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja Neg.'] = (final_df['Rup_Loja_Neg'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     
-    # CD 15 (LOJA == '15') utiliza Base_CD como denominador para estoque negativo
+    # CDs individuais utilizam sua respectiva Base_CD como denominador para estoque negativo
     mask_cd15 = final_df['LOJA'] == '15'
     if mask_cd15.any():
-        final_df.loc[mask_cd15, '% Rup. Loja Neg.'] = (final_df.loc[mask_cd15, 'Rup_Loja_Neg'] / final_df.loc[mask_cd15, 'Base_CD'].replace(0, np.nan) * 100).fillna(0)
+        final_df.loc[mask_cd15, '% Rup. Loja Neg.'] = (final_df.loc[mask_cd15, 'Rup_Loja_Neg'] / final_df.loc[mask_cd15, 'Base_CD15'].replace(0, np.nan) * 100).fillna(0)
+    mask_cd16 = final_df['LOJA'] == '16'
+    if mask_cd16.any():
+        final_df.loc[mask_cd16, '% Rup. Loja Neg.'] = (final_df.loc[mask_cd16, 'Rup_Loja_Neg'] / final_df.loc[mask_cd16, 'Base_CD16'].replace(0, np.nan) * 100).fillna(0)
 
     final_df['% Rup. Loja Pend. Transf'] = (final_df['Rup_Loja_Pend_Transf'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
     final_df['% Rup. Loja Pend. Forn'] = (final_df['Rup_Loja_Pend_Forn'] / final_df['Base_Loja'].replace(0, np.nan) * 100).fillna(0)
@@ -152,11 +168,13 @@ def principal():
         soma_rup_loja_cd = final_df.loc[mask_comp_lojas, 'Rup_Loja_CD'].sum()
         soma_rup_loja_forn = final_df.loc[mask_comp_lojas, 'Rup_Loja_Forn'].sum()
         soma_rup_loja_cross = final_df.loc[mask_comp_lojas, 'Rup_Loja_Crossdocking'].sum()
-        soma_neg = final_df.loc[mask_comp_lojas & (final_df['LOJA'] != '15'), 'Rup_Loja_Neg'].sum()
+        soma_neg = final_df.loc[mask_comp_lojas & (~final_df['LOJA'].isin(['15', '16'])), 'Rup_Loja_Neg'].sum()
         soma_pend_transf = final_df.loc[mask_comp_lojas, 'Rup_Loja_Pend_Transf'].sum()
         soma_pend_forn = final_df.loc[mask_comp_lojas, 'Rup_Loja_Pend_Forn'].sum()
-        soma_pend_cd_forn = final_df.loc[mask_comp_lojas, 'Rup_CD_Pend_Forn'].sum()
-        soma_base_cd = final_df.loc[mask_comp_lojas, 'Base_CD'].sum()
+        soma_pend_cd15_forn = final_df.loc[mask_comp_lojas, 'Rup_CD15_Pend_Forn'].sum()
+        soma_pend_cd16_forn = final_df.loc[mask_comp_lojas, 'Rup_CD16_Pend_Forn'].sum()
+        soma_base_cd15 = final_df.loc[mask_comp_lojas, 'Base_CD15'].sum()
+        soma_base_cd16 = final_df.loc[mask_comp_lojas, 'Base_CD16'].sum()
 
         final_df.loc[mask_comp_todas, 'Base_Loja'] = soma_base_loja
         final_df.loc[mask_comp_todas, 'Ruptura_Loja'] = soma_rup_loja
@@ -166,7 +184,8 @@ def principal():
         final_df.loc[mask_comp_todas, 'Rup_Loja_Neg'] = soma_neg
         final_df.loc[mask_comp_todas, 'Rup_Loja_Pend_Transf'] = soma_pend_transf
         final_df.loc[mask_comp_todas, 'Rup_Loja_Pend_Forn'] = soma_pend_forn
-        final_df.loc[mask_comp_todas, 'Rup_CD_Pend_Forn'] = soma_pend_cd_forn
+        final_df.loc[mask_comp_todas, 'Rup_CD15_Pend_Forn'] = soma_pend_cd15_forn
+        final_df.loc[mask_comp_todas, 'Rup_CD16_Pend_Forn'] = soma_pend_cd16_forn
 
         if soma_base_loja > 0:
             final_df.loc[mask_comp_todas, '% Ruptura Loja'] = soma_rup_loja / soma_base_loja * 100
@@ -176,10 +195,12 @@ def principal():
             final_df.loc[mask_comp_todas, '% Rup. Loja Neg.'] = soma_neg / soma_base_loja * 100
             final_df.loc[mask_comp_todas, '% Rup. Loja Pend. Transf'] = soma_pend_transf / soma_base_loja * 100
             final_df.loc[mask_comp_todas, '% Rup. Loja Pend. Forn'] = soma_pend_forn / soma_base_loja * 100
-        if soma_base_cd > 0:
-            final_df.loc[mask_comp_todas, '% Rup. CD Pend. Forn'] = soma_pend_cd_forn / soma_base_cd * 100
+        if soma_base_cd15 > 0:
+            final_df.loc[mask_comp_todas, '% Rup. CD 15 Pend. Forn'] = soma_pend_cd15_forn / soma_base_cd15 * 100
+        if soma_base_cd16 > 0:
+            final_df.loc[mask_comp_todas, '% Rup. CD 16 Pend. Forn'] = soma_pend_cd16_forn / soma_base_cd16 * 100
 
-    # TOTAL GERAL na visão TODAS: soma ponderada de todos os compradores (já corrigidos)
+    # TOTAL GERAL na visão TODAS: soma ponderada de todos os compradores
     mask_total_todas = mask_todas & mask_total
     mask_comp_todas_nontotal = mask_todas & ~mask_total
     if mask_total_todas.any():
@@ -191,9 +212,14 @@ def principal():
         soma_neg = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Neg'].sum()
         soma_pend_transf = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Pend_Transf'].sum()
         soma_pend_forn = final_df.loc[mask_comp_todas_nontotal, 'Rup_Loja_Pend_Forn'].sum()
-        soma_base_cd = final_df.loc[mask_comp_todas_nontotal, 'Base_CD'].sum()
-        soma_rup_cd = final_df.loc[mask_comp_todas_nontotal, 'Ruptura_CD'].sum()
-        soma_pend_cd_forn = final_df.loc[mask_comp_todas_nontotal, 'Rup_CD_Pend_Forn'].sum()
+        
+        soma_base_cd15 = final_df.loc[mask_comp_todas_nontotal, 'Base_CD15'].sum()
+        soma_rup_cd15 = final_df.loc[mask_comp_todas_nontotal, 'Ruptura_CD15'].sum()
+        soma_pend_cd15_forn = final_df.loc[mask_comp_todas_nontotal, 'Rup_CD15_Pend_Forn'].sum()
+
+        soma_base_cd16 = final_df.loc[mask_comp_todas_nontotal, 'Base_CD16'].sum()
+        soma_rup_cd16 = final_df.loc[mask_comp_todas_nontotal, 'Ruptura_CD16'].sum()
+        soma_pend_cd16_forn = final_df.loc[mask_comp_todas_nontotal, 'Rup_CD16_Pend_Forn'].sum()
 
         final_df.loc[mask_total_todas, 'Base_Loja'] = soma_base
         final_df.loc[mask_total_todas, 'Ruptura_Loja'] = soma_rup
@@ -203,9 +229,14 @@ def principal():
         final_df.loc[mask_total_todas, 'Rup_Loja_Neg'] = soma_neg
         final_df.loc[mask_total_todas, 'Rup_Loja_Pend_Transf'] = soma_pend_transf
         final_df.loc[mask_total_todas, 'Rup_Loja_Pend_Forn'] = soma_pend_forn
-        final_df.loc[mask_total_todas, 'Base_CD'] = soma_base_cd
-        final_df.loc[mask_total_todas, 'Ruptura_CD'] = soma_rup_cd
-        final_df.loc[mask_total_todas, 'Rup_CD_Pend_Forn'] = soma_pend_cd_forn
+        
+        final_df.loc[mask_total_todas, 'Base_CD15'] = soma_base_cd15
+        final_df.loc[mask_total_todas, 'Ruptura_CD15'] = soma_rup_cd15
+        final_df.loc[mask_total_todas, 'Rup_CD15_Pend_Forn'] = soma_pend_cd15_forn
+
+        final_df.loc[mask_total_todas, 'Base_CD16'] = soma_base_cd16
+        final_df.loc[mask_total_todas, 'Ruptura_CD16'] = soma_rup_cd16
+        final_df.loc[mask_total_todas, 'Rup_CD16_Pend_Forn'] = soma_pend_cd16_forn
 
         if soma_base > 0:
             final_df.loc[mask_total_todas, '% Ruptura Loja'] = soma_rup / soma_base * 100
@@ -215,9 +246,14 @@ def principal():
             final_df.loc[mask_total_todas, '% Rup. Loja Neg.'] = soma_neg / soma_base * 100
             final_df.loc[mask_total_todas, '% Rup. Loja Pend. Transf'] = soma_pend_transf / soma_base * 100
             final_df.loc[mask_total_todas, '% Rup. Loja Pend. Forn'] = soma_pend_forn / soma_base * 100
-        if soma_base_cd > 0:
-            final_df.loc[mask_total_todas, '% Ruptura CD'] = soma_rup_cd / soma_base_cd * 100
-            final_df.loc[mask_total_todas, '% Rup. CD Pend. Forn'] = soma_pend_cd_forn / soma_base_cd * 100
+            
+        if soma_base_cd15 > 0:
+            final_df.loc[mask_total_todas, '% Ruptura CD 15'] = soma_rup_cd15 / soma_base_cd15 * 100
+            final_df.loc[mask_total_todas, '% Rup. CD 15 Pend. Forn'] = soma_pend_cd15_forn / soma_base_cd15 * 100
+            
+        if soma_base_cd16 > 0:
+            final_df.loc[mask_total_todas, '% Ruptura CD 16'] = soma_rup_cd16 / soma_base_cd16 * 100
+            final_df.loc[mask_total_todas, '% Rup. CD 16 Pend. Forn'] = soma_pend_cd16_forn / soma_base_cd16 * 100
 
     # Exportar para JSON (Estratégia No-Server < 10MB)
     dados_json = json.dumps(final_df.to_dict(orient='records'))
@@ -231,16 +267,22 @@ def principal():
         
     options_lojas = '<option value="TODAS">TODAS AS LOJAS</option>'
     for l in lojas:
-        options_lojas += f'<option value="{l}">Loja {l}</option>'
+        if l == 15:
+            options_lojas += f'<option value="{l}">Loja 15 (CD 15)</option>'
+        elif l == 16:
+            options_lojas += f'<option value="{l}">Loja 16 (CD 16)</option>'
+        else:
+            options_lojas += f'<option value="{l}">Loja {l}</option>'
 
-    # Gerar Snapshot Histórico (Funcionalidade integrada da versão remota)
+    # Gerar Snapshot Histórico
     print("Gerando snapshot histórico...")
     df_resumo_global = df.groupby('COMPRADOR').agg(
-        MIX_CD15=('CODIGO_PRODUTO', lambda x: x[(df.loc[x.index, 'CODIGO_EMPRESA'] == 15) & (df.loc[x.index, 'FORMA_ABASTECIMENTO'].isin(['M', 'C']))].nunique())
+        MIX_CD15=('CODIGO_PRODUTO', lambda x: x[(df.loc[x.index, 'CODIGO_EMPRESA'] == 15) & (df.loc[x.index, 'FORMA_ABASTECIMENTO'].isin(['M', 'C']))].nunique()),
+        MIX_CD16=('CODIGO_PRODUTO', lambda x: x[(df.loc[x.index, 'CODIGO_EMPRESA'] == 16) & (df.loc[x.index, 'FORMA_ABASTECIMENTO'].isin(['M', 'C']))].nunique())
     ).reset_index()
     df_resumo_global['TIPO'] = 'COMPRADOR'
     df_resumo_global = df_resumo_global.rename(columns={'COMPRADOR': 'IDENTIFICADOR'})
-    df_resumo_global = df_resumo_global[['TIPO', 'IDENTIFICADOR', 'MIX_CD15']]
+    df_resumo_global = df_resumo_global[['TIPO', 'IDENTIFICADOR', 'MIX_CD15', 'MIX_CD16']]
     
     dir_historico = base_dir / "historico_ruptura"
     dir_historico.mkdir(exist_ok=True)
@@ -269,13 +311,15 @@ def principal():
             .table th:first-child { z-index: 3; }
             select.form-select { border-radius: 8px; border: 2px solid #dee2e6; }
             .badge { font-size: 0.85rem; padding: 0.5em 0.8em; }
+            .th-cd15 { background-color: #ffebee !important; color: #b71c1c !important; }
+            .th-cd16 { background-color: #fbe9e7 !important; color: #bf360c !important; }
         </style>
     </head>
     <body>
         <div class="container-fluid">
             <div class="header-info row align-items-center">
                 <div class="col-md-4">
-                    <h2>📊 Painel de Ruptura</h2>
+                    <h2>📊 Painel de Ruptura Multi-CD</h2>
                     <p class="mb-0">Atualizado em: [DATA_HOJE]</p>
                 </div>
                 <div class="col-md-4">
@@ -293,7 +337,7 @@ def principal():
             </div>
 
             <div class="card">
-                <div id="chart-container" style="width: 100%; height: 520px;"></div>
+                <div id="chart-container" style="width: 100%; height: 530px;"></div>
             </div>
             
             <div class="card table-container">
@@ -301,11 +345,18 @@ def principal():
                     <thead>
                         <tr>
                             <th>COMPRADOR</th>
-                            <th>Base CD (M/C)</th>
-                            <th>Ruptura CD</th>
-                            <th>% Ruptura CD</th>
-                            <th>Rup. CD Pend. Forn</th>
-                            <th>% Rup. CD Pend. Forn</th>
+                            <th class="th-cd15">Base CD 15</th>
+                            <th class="th-cd15">Rup. CD 15</th>
+                            <th class="th-cd15">% Rup. CD 15</th>
+                            <th class="th-cd15">Pend. Forn CD 15</th>
+                            <th class="th-cd15">% Pend. CD 15</th>
+                            
+                            <th class="th-cd16">Base CD 16</th>
+                            <th class="th-cd16">Rup. CD 16</th>
+                            <th class="th-cd16">% Rup. CD 16</th>
+                            <th class="th-cd16">Pend. Forn CD 16</th>
+                            <th class="th-cd16">% Pend. CD 16</th>
+
                             <th>Base Loja</th>
                             <th>Ruptura Loja</th>
                             <th>% Ruptura Loja</th>
@@ -330,24 +381,24 @@ def principal():
 
             <div class="card mt-2">
                 <div class="card-body">
-                    <h5 class="card-title">📖 Entenda as Métricas de Ruptura e Abastecimento</h5>
+                    <h5 class="card-title">📖 Entenda as Métricas de Ruptura e Abastecimento Multi-CD</h5>
                     <div class="row mt-3">
                         <div class="col-md-6" style="font-size: 0.95rem;">
                             <ul class="list-unstyled">
-                                <li class="mb-2"><strong>Base CD (M/C):</strong> Mix de produtos únicos cadastrados no CD (Empresa 15) com abastecimento Centralizado/Matriz (M) ou Central para Loja (C). Tipos "I" (Crossdocking) e "L" (Direto Loja) são excluídos do CD por não formarem estoque de armazenagem.</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #FF0000;">Ruptura CD</span> <strong>(%)</strong>: Produtos da Base CD zerados ou com saldo inferior a 1 Embalagem de Transferência.</li>
-                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FF7F50;">Rup. CD Pend. Forn</span> <strong>(%)</strong>: Produtos da Base CD em ruptura com Pedido de Fornecedor ativo.</li>
-                                <li class="mb-2"><strong>Base Loja:</strong> Total de produtos únicos que deveriam estar ativos nas filiais (computa todos os tipos: M, C, L, I).</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #FFA500; color: white;">Ruptura Loja (Total)</span> <strong>(%)</strong>: Produtos da Base Loja com estoque zerado na gôndola/filial.</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #E65100; color: white;">Rup. Loja (CD - M/C)</span> <strong>(%)</strong>: Ruptura em filial de itens cujo fluxo de abastecimento é via CD.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #FF0000; color: white;">Ruptura CD 15</span> <strong>(%)</strong>: Produtos do CD 15 (M/C) zerados ou abaixo da embalagem de transferência.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FF7F50;">Rup. CD 15 Pend. Forn</span> <strong>(%)</strong>: Ruptura CD 15 com pedido de compra pendente.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #C62828; color: white;">Ruptura CD 16</span> <strong>(%)</strong>: Produtos do CD 16 (M/C) zerados ou abaixo da embalagem de transferência.</li>
+                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FF8A65;">Rup. CD 16 Pend. Forn</span> <strong>(%)</strong>: Ruptura CD 16 com pedido de compra pendente.</li>
+                                <li class="mb-2"><strong>Base Loja:</strong> Total de produtos ativos nas filiais (fluxos M, C, L, I).</li>
                             </ul>
                         </div>
                         <div class="col-md-6" style="font-size: 0.95rem;">
                             <ul class="list-unstyled">
-                                <li class="mb-2"><span class="badge" style="background-color: #0288D1; color: white;">Rup. Forn. -> Loja (L)</span> <strong>(%)</strong>: Ruptura de produtos comprados para entrega direta da indústria/fornecedor na loja.</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #8E24AA; color: white;">Rup. Crossdocking (I)</span> <strong>(%)</strong>: Ruptura de produtos com fluxo Crossdocking (tipo I).</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #FFA500; color: white;">Ruptura Loja (Total)</span> <strong>(%)</strong>: Produtos zerados nas lojas.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #E65100; color: white;">Rup. Loja (CD - M/C)</span> <strong>(%)</strong>: Ruptura em filial de itens cujo fluxo de abastecimento é via CD.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #0288D1; color: white;">Rup. Forn. -> Loja (L)</span> <strong>(%)</strong>: Ruptura de entrega direta da indústria na loja.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #8E24AA; color: white;">Rup. Crossdocking (I)</span> <strong>(%)</strong>: Ruptura Crossdocking.</li>
                                 <li class="mb-2"><span class="badge" style="background-color: #800080;">Estoque Neg. Loja</span> <strong>(%)</strong>: Produtos com saldo sistêmico negativo (< 0).</li>
-                                <li class="mb-2"><span class="badge text-dark" style="background-color: #FFFF00;">Rup. Loja Pend. Transf / Forn</span> <strong>(%)</strong>: Produtos da loja zerados com Pedido de Transferência ou de Compra.</li>
                             </ul>
                         </div>
                     </div>
@@ -376,7 +427,7 @@ def principal():
             }
 
             renderTable(dadosTabela);
-            renderChart(dadosGrafico, (comprador === "TODOS" ? "Visão Total" : comprador) + " | Loja " + (loja === "TODAS" ? "Geral" : loja));
+            renderChart(dadosGrafico, (comprador === "TODOS" ? "Visão Total" : comprador) + " | " + (loja === "TODAS" ? "Rede Geral" : (loja === "15" ? "CD 15" : (loja === "16" ? "CD 16" : "Loja " + loja))));
         }
 
         function getPctRupturaLoja(row) {
@@ -400,7 +451,7 @@ def principal():
             let rows = data.filter(d => d.COMPRADOR !== "TOTAL GERAL");
             let totalRow = data.find(d => d.COMPRADOR === "TOTAL GERAL");
 
-            rows.sort((a, b) => b['% Ruptura CD'] - a['% Ruptura CD']);
+            rows.sort((a, b) => ((b['% Ruptura CD 15'] || 0) + (b['% Ruptura CD 16'] || 0)) - ((a['% Ruptura CD 15'] || 0) + (a['% Ruptura CD 16'] || 0)));
 
             if (totalRow) rows.push(totalRow);
 
@@ -412,11 +463,19 @@ def principal():
                 
                 html += `<tr style="${fw}">
                     <td style="text-align: left; padding-left: 15px; ${isTotal ? 'background-color:#f1f3f5;' : ''}">${row.COMPRADOR}</td>
-                    <td>${fmt(row.Base_CD)}</td>
-                    <td>${fmt(row.Ruptura_CD)}</td>
-                    <td style="color:#FF0000;font-weight:bold;">${fmt(row['% Ruptura CD'], true)}</td>
-                    <td>${fmt(row.Rup_CD_Pend_Forn)}</td>
-                    <td style="color:#FF7F50;font-weight:bold;">${fmt(row['% Rup. CD Pend. Forn'], true)}</td>
+                    
+                    <td>${fmt(row.Base_CD15)}</td>
+                    <td>${fmt(row.Ruptura_CD15)}</td>
+                    <td style="color:#FF0000;font-weight:bold;">${fmt(row['% Ruptura CD 15'], true)}</td>
+                    <td>${fmt(row.Rup_CD15_Pend_Forn)}</td>
+                    <td style="color:#FF7F50;font-weight:bold;">${fmt(row['% Rup. CD 15 Pend. Forn'], true)}</td>
+
+                    <td>${fmt(row.Base_CD16)}</td>
+                    <td>${fmt(row.Ruptura_CD16)}</td>
+                    <td style="color:#C62828;font-weight:bold;">${fmt(row['% Ruptura CD 16'], true)}</td>
+                    <td>${fmt(row.Rup_CD16_Pend_Forn)}</td>
+                    <td style="color:#FF8A65;font-weight:bold;">${fmt(row['% Rup. CD 16 Pend. Forn'], true)}</td>
+
                     <td>${fmt(row.Base_Loja)}</td>
                     <td>${fmt(row.Ruptura_Loja)}</td>
                     <td style="color:#FFA500;font-weight:bold;">${fmt(pctRupturaLoja, true)}</td>
@@ -438,28 +497,31 @@ def principal():
         }
 
         function renderChart(data, tituloExtensao) {
-            let ts = (arr, c) => arr.map(d => fmt(d[c]));
-            let tsp = (arr, c) => arr.map(d => Math.round(d[c] * 10) / 10 + '%');
+            let tsp = (arr, c) => arr.map(d => Math.round((d[c] || 0) * 10) / 10 + '%');
 
             let plotData = [
-                {name: 'Ruptura CD (M/C)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura CD']), marker: {color: '#FF0000'}, type: 'bar', text: tsp(data,'% Ruptura CD'), textposition: 'auto', offsetgroup: '1', yaxis: 'y'},
-                {name: 'Rup. CD Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. CD Pend. Forn']), marker: {color: '#FF7F50'}, type: 'bar', text: tsp(data,'% Rup. CD Pend. Forn'), textposition: 'auto', offsetgroup: '2', yaxis: 'y'},
-                {name: 'Ruptura Loja Total', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '3', yaxis: 'y'},
-                {name: 'Rup. Loja - CD (M/C)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja (CD)']), marker: {color: '#E65100'}, type: 'bar', text: tsp(data,'% Rup. Loja (CD)'), textposition: 'auto', offsetgroup: '4', yaxis: 'y'},
-                {name: 'Rup. Fornecedor -> Loja (L)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Forn. Loja (L)']), marker: {color: '#0288D1'}, type: 'bar', text: tsp(data,'% Rup. Forn. Loja (L)'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
-                {name: 'Rup. Crossdocking (I)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Crossdocking (I)']), marker: {color: '#8E24AA'}, type: 'bar', text: tsp(data,'% Rup. Crossdocking (I)'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
-                {name: 'Estoque Neg. Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'},
-                {name: 'Rup. Loja Pend. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Transf']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Transf'), textposition: 'auto', offsetgroup: '8', yaxis: 'y'},
-                {name: 'Rup. Loja Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Forn']), marker: {color: '#FFD700'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Forn'), textposition: 'auto', offsetgroup: '9', yaxis: 'y'}
+                {name: 'Ruptura CD 15 (M/C)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura CD 15']), marker: {color: '#FF0000'}, type: 'bar', text: tsp(data,'% Ruptura CD 15'), textposition: 'auto', offsetgroup: '1', yaxis: 'y'},
+                {name: 'Rup. CD 15 Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. CD 15 Pend. Forn']), marker: {color: '#FF7F50'}, type: 'bar', text: tsp(data,'% Rup. CD 15 Pend. Forn'), textposition: 'auto', offsetgroup: '2', yaxis: 'y'},
+                
+                {name: 'Ruptura CD 16 (M/C)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura CD 16']), marker: {color: '#C62828'}, type: 'bar', text: tsp(data,'% Ruptura CD 16'), textposition: 'auto', offsetgroup: '3', yaxis: 'y'},
+                {name: 'Rup. CD 16 Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. CD 16 Pend. Forn']), marker: {color: '#FF8A65'}, type: 'bar', text: tsp(data,'% Rup. CD 16 Pend. Forn'), textposition: 'auto', offsetgroup: '4', yaxis: 'y'},
+                
+                {name: 'Ruptura Loja Total', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Ruptura Loja']), marker: {color: '#FFA500'}, type: 'bar', text: tsp(data,'% Ruptura Loja'), textposition: 'auto', offsetgroup: '5', yaxis: 'y'},
+                {name: 'Rup. Loja - CD (M/C)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja (CD)']), marker: {color: '#E65100'}, type: 'bar', text: tsp(data,'% Rup. Loja (CD)'), textposition: 'auto', offsetgroup: '6', yaxis: 'y'},
+                {name: 'Rup. Fornecedor -> Loja (L)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Forn. Loja (L)']), marker: {color: '#0288D1'}, type: 'bar', text: tsp(data,'% Rup. Forn. Loja (L)'), textposition: 'auto', offsetgroup: '7', yaxis: 'y'},
+                {name: 'Rup. Crossdocking (I)', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Crossdocking (I)']), marker: {color: '#8E24AA'}, type: 'bar', text: tsp(data,'% Rup. Crossdocking (I)'), textposition: 'auto', offsetgroup: '8', yaxis: 'y'},
+                {name: 'Estoque Neg. Loja', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Neg.']), marker: {color: '#800080'}, type: 'bar', text: tsp(data,'% Rup. Loja Neg.'), textposition: 'auto', offsetgroup: '9', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Transf', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Transf']), marker: {color: '#FFFF00'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Transf'), textposition: 'auto', offsetgroup: '10', yaxis: 'y'},
+                {name: 'Rup. Loja Pend. Forn', x: data.map(d=>d.COMPRADOR), y: data.map(d=>d['% Rup. Loja Pend. Forn']), marker: {color: '#FFD700'}, type: 'bar', text: tsp(data,'% Rup. Loja Pend. Forn'), textposition: 'auto', offsetgroup: '11', yaxis: 'y'}
             ];
 
             let layout = {
-                title: "Ruptura por Comprador - " + tituloExtensao,
+                title: "Ruptura Multi-CD e Lojas por Comprador - " + tituloExtensao,
                 barmode: 'group',
                 xaxis: {title: "Comprador"},
                 legend: {title: {text: "Métricas"}},
                 template: "plotly_white",
-                height: 520,
+                height: 530,
                 margin: {l: 20, r: 20, t: 50, b: 20},
                 yaxis: {title: "Percentual (%)", side: 'left'}
             };
@@ -487,5 +549,3 @@ def principal():
 
 if __name__ == '__main__':
     principal()
-
-

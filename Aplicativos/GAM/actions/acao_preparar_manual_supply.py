@@ -136,13 +136,19 @@ class AcaoPrepararSuplay(BaseAction):
 
         if stop_event and stop_event.is_set(): return
 
-        # 3. Verificar o estoque disponivel na loja 15
+        # 3. Verificar o estoque disponivel na loja 15 (CD 15) e loja 16 (CD 16)
         loja15 = df[df[col_empresa] == 15]
+        loja16 = df[df[col_empresa] == 16]
         
         estoque_loja15 = {}
         for _, row in loja15.iterrows():
             est = row[col_disp]
             estoque_loja15[row[col_produto]] = est if est > 0 else 0
+
+        estoque_loja16 = {}
+        for _, row in loja16.iterrows():
+            est = row[col_disp]
+            estoque_loja16[row[col_produto]] = est if est > 0 else 0
 
         def verificar_loja15(row):
             pedir_atual = row['Pedir']
@@ -152,7 +158,13 @@ class AcaoPrepararSuplay(BaseAction):
                 return 0
                 
             est_15 = estoque_loja15.get(produto, 0)
+            est_16 = estoque_loja16.get(produto, 0)
             
+            # Se o produto possui estoque no CD 16, deve ser ignorado para pedidos do CD 15
+            if est_16 > 0:
+                return 0
+            
+            # Só pode pedir se houver estoque disponível no CD 15
             if est_15 > 0:
                 return max(pedir_atual, 1)
             else:
@@ -175,7 +187,8 @@ class AcaoPrepararSuplay(BaseAction):
         
         df = df.drop(columns=['disp_calc'])
         
-        df_resultado = df[(df['Pedir'] > 0) & (df[col_empresa] != 15)].copy()
+        # Destino apenas para lojas físicas (exclui CD 15 e CD 16)
+        df_resultado = df[(df['Pedir'] > 0) & (~df[col_empresa].isin([15, 16]))].copy()
         df_resultado[col_empresa] = df_resultado[col_empresa].apply(lambda x: str(int(float(x))).zfill(3))
         
         # Renomeia para compatibilidade com o robô de digitação (OrderProcessorSupply)
