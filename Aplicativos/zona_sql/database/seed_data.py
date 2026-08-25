@@ -138,12 +138,106 @@ def build_database():
         PRIMARY KEY (SEQFAMILIA, QTDEMBALAGEM)
     );
 
-    -- Cadastro de Produtos
+    -- Cadastro de Produtos (Esquema Completo Oficial Totvs Consinco - 97 Colunas)
     CREATE TABLE MAP_PRODUTO (
         SEQPRODUTO INTEGER PRIMARY KEY,
+        SEQFAMILIA INTEGER,
+        COMPLEMENTO TEXT,
         DESCCOMPLETA TEXT NOT NULL,
         DESCREDUZIDA TEXT,
-        SEQFAMILIA INTEGER,
+        REFFABRICANTE TEXT,
+        ESPECIFICDETALHADA TEXT,
+        DESCCOMPOSICAO TEXT,
+        PZOVALIDADEDIA INTEGER,
+        INDPROCFABRICACAO TEXT,
+        QTDFABRICADALOTE REAL,
+        SEQPRODUTOBASE INTEGER,
+        PERCACRESPRECO REAL,
+        INDPRECOZEROBALANCA TEXT,
+        FATORCONVERSAO REAL,
+        SEQPRODUTOINSUMO INTEGER,
+        DTAHORINCLUSAO TEXT,
+        USUARIOINCLUSAO TEXT,
+        DTAHORALTERACAO TEXT,
+        USUARIOALTERACAO TEXT,
+        INDREPLICACAO TEXT,
+        INDGEROUREPLICACAO TEXT,
+        PZOVALIDADEMES INTEGER,
+        NROREGMINSAUDE TEXT,
+        CODPRODFISCAL TEXT,
+        DESCGENERICA TEXT,
+        PROPQTDPRODUTOBASE REAL,
+        NRODIASADVERRECBTO INTEGER,
+        PERCALTPRECRELAC REAL,
+        NROITEMFIXO INTEGER,
+        GERALIVROCPROD TEXT,
+        INDUSANFDESPESA TEXT,
+        SEQBULARIO INTEGER,
+        SEQPRODUTOTMP INTEGER,
+        INDEMITECODPRODFISCALNFE TEXT,
+        PERCDIASADVERRECBTO REAL,
+        CODIGOANP TEXT,
+        CODIGOIF TEXT,
+        INDINTEGRAECOMMERCE TEXT,
+        QTDLIMITEPROMOCECOMMERCE REAL,
+        YOUTUBECODEECOMMERCE TEXT,
+        DATAHORINTEGRACAOECOMMERCE TEXT,
+        INDRES3166 TEXT,
+        DTAHORALTERACARGAPDV TEXT,
+        IMPDATAVALIDADEBALANC TEXT,
+        IMPDATAEMBBALANC TEXT,
+        SEQINFNUTRICPROD INTEGER,
+        INDREPLICAINFOFORNEC TEXT,
+        TITULOECOMMERCE TEXT,
+        DESCECOMMERCE TEXT,
+        PALAVRACHAVEECOMMERCE TEXT,
+        URLECOMMERCE TEXT,
+        PERCGASNATURAL REAL,
+        INDPARTCOTATAC TEXT,
+        PERCACRESCCUSTORELAC REAL,
+        PERCACRESCCUSTORELACVIG REAL,
+        INDEMITEETQHORT TEXT,
+        QTDMULTIPLOVDAECOMMERCE REAL,
+        INDCONTROLATEMPERATURA TEXT,
+        PERSIMILIARECOMMERCE REAL,
+        DATAHORINTEGRACAOECOMMERCEESTQ TEXT,
+        PZOVALIDLOTE INTEGER,
+        SEQPRODRELACLOTE INTEGER,
+        ALIQADJUD REAL,
+        INDCALCFLEXPOSITIVO TEXT,
+        SEQPRODUTOSECUNDARIO INTEGER,
+        CENTROCUSTOPROD TEXT,
+        SEQPRODUTOBASEANTIGO INTEGER,
+        INDCALCCOMISINDICEMGM TEXT,
+        SEQPRODUTOEMBALAGEM INTEGER,
+        CODIMAGEM TEXT,
+        INDACTFAIXATOLERANCIACARGAREC TEXT,
+        INDCADASTROATIVO TEXT DEFAULT 'S',
+        PZOVALIDADENATIMORTO INTEGER,
+        PROPQTDPERDAAUTO REAL,
+        DESCRICAOANP TEXT,
+        PZOVALIDADEDIASAIDA INTEGER,
+        INDGERARESSARCICMSSTPRODINSUMO TEXT,
+        PERCGASNATURALNACIONAL REAL,
+        PERCGASNATURALIMPORTADO REAL,
+        VLRPARTIDAGLP REAL,
+        NRODIASVALPRODRESFRIADO INTEGER,
+        NRODIASVALPRODABERTO INTEGER,
+        TEMPIDEALMIN REAL,
+        TEMPIDEALMAX REAL,
+        DESCENCARTE TEXT,
+        NOMEPRODUTOECOMM TEXT,
+        MOTIVOISENCAOMINSAUDE TEXT,
+        OBSENCARTE TEXT,
+        INDESCRITURAPRODUTOBASE TEXT,
+        SEQPRODUTOIMPORTACAOERP INTEGER,
+        URLECOMMALTERNATIVA TEXT,
+        INDPRODTRIBUTMONOICMS TEXT,
+        PERCALIQADREM REAL,
+        PERCINDMISTBIODIESEL REAL,
+        NRODIASADVERMAXRECBTO INTEGER,
+        NROBASEEXPORTACAOERP INTEGER,
+        -- Colunas padrão de conveniência
         NCM TEXT DEFAULT '19059090',
         PESOLIQ REAL DEFAULT 0.5,
         PESOBRUTO REAL DEFAULT 0.52,
@@ -592,8 +686,10 @@ def build_database():
 
         # Produto
         dta_cad = (hoje - timedelta(days=random.randint(60, 800))).strftime('%Y-%m-%d')
-        cursor.execute("INSERT INTO MAP_PRODUTO VALUES (?,?,?,?,?,?,?,?,?)",
-                       (seqprod, desc, desc[:20], seq_familia, '19059090', 0.5, 0.52, dta_cad, 'A'))
+        cursor.execute("""
+            INSERT INTO MAP_PRODUTO (SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, NCM, PESOLIQ, PESOBRUTO, DTACADASTRO, STATUS, INDCADASTROATIVO)
+            VALUES (?, ?, ?, ?, '19059090', 0.5, 0.52, ?, 'A', 'S')
+        """, (seqprod, desc, desc[:20], seq_familia, dta_cad))
         
         # Códigos EAN / DUN
         ean = f"789{seqprod:09d}"
@@ -684,75 +780,117 @@ def build_database():
             cursor.execute("INSERT INTO MBI_TABCDISTRIB VALUES (?,?,?,?,?,?,?,?)",
                            (1001, seqprod, nroemp, qtd_abc, vlr_abc, lucro_abc, cto_abc, lucro_abc))
 
-    # 8. Inserção de Pontos Extras / Pontas de Gôndola / Ilhas
-    pontos_extras = [
-        (201, '0201 - PONTA DE GONDOLA ENTRADA PRINCIPAL', 'A'),
-        (202, '0202 - PONTA DE GONDOLA CORREDOR CENTRAL', 'A'),
-        (203, '0203 - PONTA GONDOLA BEBIDAS E CERVEJAS', 'A'),
-        (204, '0204 - ILHA REFRIGERADOS E LATICINIOS', 'A'),
-        (205, '0205 - CHECKOUT 01 DOCES E SNACKS', 'A'),
-        (206, '0206 - PONTA DE GONDOLA MERCEARIA SALGADA', 'A'),
-        (207, '0207 - ILHA CENTRAL HIGIENE E LIMPEZA', 'A')
-    ]
-    cursor.executemany("INSERT INTO MRL_PONTOEXTRA VALUES (?,?,?)", pontos_extras)
+    # 7.5. Carga de Produtos Reais da Tabela MAP_PRODUTO (map_produto.txt)
+    map_txt_path = os.path.abspath(os.path.join(base_dir, '..', '..', 'import_querys', 'map_produto.txt'))
+    if os.path.exists(map_txt_path):
+        with open(map_txt_path, 'r', encoding='latin1') as f:
+            lines = [l.strip() for l in f if l.strip()]
+        if lines:
+            headers = [h.strip().upper() for h in lines[0].split(';')]
+            for line in lines[1:]:
+                parts = line.split(';')
+                if len(parts) < len(headers):
+                    parts.extend([''] * (len(headers) - len(parts)))
+                row = dict(zip(headers, parts))
+                
+                seqp = int(row.get('SEQPRODUTO') or 0)
+                if seqp <= 0:
+                    continue
+                    
+                cols = []
+                vals = []
+                for k, v in row.items():
+                    cols.append(k)
+                    if k in ('SEQPRODUTO', 'SEQFAMILIA', 'PZOVALIDADEDIA', 'PZOVALIDADEMES', 'NROITEMFIXO', 'SEQBULARIO', 'SEQPRODUTOTMP', 'PZOVALIDLOTE', 'SEQPRODRELACLOTE', 'SEQPRODUTOSECUNDARIO', 'SEQPRODUTOBASEANTIGO', 'SEQPRODUTOEMBALAGEM', 'PZOVALIDADENATIMORTO', 'PZOVALIDADEDIASAIDA', 'NRODIASVALPRODRESFRIADO', 'NRODIASVALPRODABERTO', 'SEQPRODUTOIMPORTACAOERP', 'NRODIASADVERMAXRECBTO', 'NROBASEEXPORTACAOERP'):
+                        try:
+                            vals.append(int(float(v.replace(',', '.'))) if v else None)
+                        except:
+                            vals.append(None)
+                    elif k in ('QTDFABRICADALOTE', 'PERCACRESPRECO', 'FATORCONVERSAO', 'PROPQTDPRODUTOBASE', 'PERCALTPRECRELAC', 'PERCDIASADVERRECBTO', 'QTDLIMITEPROMOCECOMMERCE', 'PERCGASNATURAL', 'PERCACRESCCUSTORELAC', 'PERCACRESCCUSTORELACVIG', 'QTDMULTIPLOVDAECOMMERCE', 'PERSIMILIARECOMMERCE', 'ALIQADJUD', 'PROPQTDPERDAAUTO', 'PERCGASNATURALNACIONAL', 'PERCGASNATURALIMPORTADO', 'VLRPARTIDAGLP', 'TEMPIDEALMIN', 'TEMPIDEALMAX', 'PERCALIQADREM', 'PERCINDMISTBIODIESEL'):
+                        try:
+                            vals.append(float(v.replace(',', '.')) if v else None)
+                        except:
+                            vals.append(None)
+                    else:
+                        vals.append(v if v != '' else None)
 
-    # Produtos nos Pontos Extras
-    ponto_produtos = [
-        (203, 10, 'A'),   # Corona no Ponto 203 (Ponta Bebidas)
-        (203, 3880, 'A'), # Heineken no Ponto 203
-        (203, 3881, 'A'), # Spaten no Ponto 203
-        (203, 4012, 'A'), # Coca-Cola no Ponto 203
-        (201, 3880, 'A'), # Heineken na Entrada
-        (201, 4012, 'A'), # Coca-Cola na Entrada
-        (204, 6210, 'A'), # Leite Piracanjuba na Ilha de Laticinios
-        (204, 6250, 'A'), # Mussarela na Ilha de Laticinios
-        (205, 5102, 'A'), # Nestlé Classic no Checkout
-        (205, 5105, 'A'), # Lacta no Checkout
-        (205, 5201, 'A'), # Oreo no Checkout
-        (206, 5405, 'A'), # Massa Adria na Ponta Mercearia
-        (206, 5310, 'A'), # Arroz Tio Joao na Ponta Mercearia
-        (207, 7100, 'A'), # Omo na Ilha de Limpeza
-        (207, 7110, 'A')  # Comfort na Ilha de Limpeza
-    ]
-    cursor.executemany("INSERT INTO MRL_PONTOEXTRAPRODUTO VALUES (?,?,?)", ponto_produtos)
+                cols.extend(['STATUS'])
+                vals.extend(['A'])
 
-    # Configuração de Vigência, Estoque Mínimo e Máximo por Loja
-    # 1. Caso específico do usuário para teste exato do Monitor SQL:
-    # SEQPONTOEXTRA=203, SEQPRODUTO=10, NROEMPRESA=12, ESTQMINIMO=500, ESTQMAXIMO=600, VIGENCIA 2026-08-05 a 2026-12-01, SEQVIGENCIA=428
-    ponto_empresa_rows = [
-        (203, 10, 12, 428, 500.0, 600.0, '2026-08-05', '2026-12-01', 0.0, 'A')
-    ]
+                placeholders = ','.join(['?'] * len(cols))
+                col_names = ','.join(cols)
+                update_clause = ', '.join([f"{c}=excluded.{c}" for c in cols if c != 'SEQPRODUTO'])
 
-    # Preencher para as demais lojas e produtos
-    lojas_pontas = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18]
-    seq_vig_counter = 500
+                cursor.execute(f"""
+                    INSERT INTO MAP_PRODUTO ({col_names})
+                    VALUES ({placeholders})
+                    ON CONFLICT(SEQPRODUTO) DO UPDATE SET {update_clause}
+                """, vals)
 
-    for seq_ponto, seq_prod, status_p in ponto_produtos:
-        for loja in lojas_pontas:
-            # Pular se já inserido o caso do usuário
-            if seq_ponto == 203 and seq_prod == 10 and loja == 12:
-                continue
-            
-            seq_vig_counter += 1
-            estq_min = float(random.choice([20, 30, 40, 50, 60, 80, 100, 150, 200]))
-            estq_max = estq_min + float(random.choice([30, 50, 80, 100, 150, 250]))
-            dta_ini = '2026-08-01'
-            dta_fim = '2026-12-31'
-            dias_sug = float(random.choice([0, 3, 5, 7]))
-            status_pe = 'A' if random.random() > 0.05 else 'I'
+    # 8. Inserção de Pontos Extras / Pontas de Gôndola / Ilhas (Base Real do Consinco)
+    json_real_path = os.path.join(base_dir, 'real_seed_data.json')
+    if os.path.exists(json_real_path):
+        import json
+        with open(json_real_path, 'r', encoding='utf-8') as f:
+            real_data = json.load(f)
 
-            ponto_empresa_rows.append((
-                seq_ponto, seq_prod, loja, seq_vig_counter,
-                estq_min, estq_max, dta_ini, dta_fim, dias_sug, status_pe
-            ))
+        # Inserir Pontos Extras Reais
+        for p_id, p_desc in real_data.get('pontos', []):
+            cursor.execute("INSERT OR REPLACE INTO MRL_PONTOEXTRA (SEQPONTOEXTRA, DESCRICAO, STATUS) VALUES (?, ?, 'A')",
+                           (int(p_id), p_desc))
 
-    cursor.executemany("""
-    INSERT INTO MRL_PONTOEXTRAPRODUTOEMPRESA (
-        SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
-        ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
-        QTDDIASSUGESTAO, STATUS
-    ) VALUES (?,?,?,?,?,?,?,?,?,?)
-    """, ponto_empresa_rows)
+        # Inserir Produtos Reais Faltantes
+        for pr_id, pr_desc in real_data.get('produtos', []):
+            cursor.execute("""
+                INSERT INTO MAP_PRODUTO (SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, STATUS)
+                VALUES (?, ?, ?, 100, 'A')
+                ON CONFLICT(SEQPRODUTO) DO UPDATE SET DESCCOMPLETA=excluded.DESCCOMPLETA
+            """, (int(pr_id), pr_desc, pr_desc[:20]))
+
+        # Inserir Lojas Reais Faltantes
+        for l_id, l_nome in real_data.get('lojas', []):
+            cursor.execute("""
+                INSERT INTO MAX_EMPRESA (NROEMPRESA, NOMERAZAO, FANTASIA, RAZAOSOCIAL)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(NROEMPRESA) DO UPDATE SET FANTASIA=excluded.FANTASIA, RAZAOSOCIAL=excluded.RAZAOSOCIAL
+            """, (int(l_id), l_nome, l_nome, l_nome))
+
+        # Inserir Vínculos Ponto x Produto
+        for seq_ponto, seq_prod, status_p in real_data.get('ponto_prod', []):
+            cursor.execute("""
+                INSERT OR REPLACE INTO MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS)
+                VALUES (?, ?, ?)
+            """, (int(seq_ponto), int(seq_prod), status_p))
+
+        # Inserir Regras de Estoque Mín/Máx por Loja (302 Registros Reais)
+        cursor.executemany("""
+            INSERT OR REPLACE INTO MRL_PONTOEXTRAPRODUTOEMPRESA (
+                SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
+                ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
+                QTDDIASSUGESTAO, STATUS
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)
+        """, real_data.get('ponto_empresa_rows', []))
+
+        # Atualizar estoque real da loja
+        for seq_prod, nro_emp, estq_val in real_data.get('estq_loja_map', []):
+            if estq_val > 0:
+                cursor.execute("""
+                    INSERT INTO MRL_PRODUTOEMPRESA (SEQPRODUTO, NROEMPRESA, ESTQLOJA, STATUSCOMPRA)
+                    VALUES (?, ?, ?, 'A')
+                    ON CONFLICT(SEQPRODUTO, NROEMPRESA) DO UPDATE SET ESTQLOJA=excluded.ESTQLOJA
+                """, (int(seq_prod), int(nro_emp), float(estq_val)))
+    else:
+        pontos_extras = [
+            (101, '101 - LOJA 8 APYCE', 'A'),
+            (121, '121 - PONTAS FIXAS', 'A'),
+            (143, '143 - PONTA DE BISCOITOS ISABELA L03', 'A'),
+            (182, '182 - PONTAS LOJA 01', 'A'),
+            (203, '203 - COCA (REFRIG COCA COLA PET 2L)', 'A'),
+            (222, '222 - FAROFA YOKI', 'A'),
+            (223, '223 - PONTA LOJA 2 AMOR CARIOCA', 'A'),
+            (241, '241 - CESTA BASICA', 'A')
+        ]
+        cursor.executemany("INSERT OR REPLACE INTO MRL_PONTOEXTRA VALUES (?,?,?)", pontos_extras)
 
     # 9. Inserção de Títulos Financeiros e Operações
     seq_tit = 50000

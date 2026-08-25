@@ -130,8 +130,8 @@ def import_real_txt(file_path):
 
         # Inserir/Atualizar PRODUTO
         cursor.execute("""
-            INSERT INTO MAP_PRODUTO (SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, PESAVEL)
-            VALUES (?, ?, ?, 100, 'N')
+            INSERT INTO MAP_PRODUTO (SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, STATUS)
+            VALUES (?, ?, ?, 100, 'A')
             ON CONFLICT(SEQPRODUTO) DO UPDATE SET DESCCOMPLETA=excluded.DESCCOMPLETA
         """, (seqprod, desc_prod, desc_prod[:20]))
 

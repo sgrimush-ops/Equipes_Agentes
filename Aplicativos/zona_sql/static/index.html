@@ -424,30 +424,34 @@ WHERE A.SEQPONTOEXTRA = 203
                                         <label>Ponto Extra:</label>
                                         <select id="extract-ponto-select">
                                             <option value="0">0 - TODOS OS PONTOS</option>
-                                            <option value="201">201 - PONTA ENTRADA PRINCIPAL</option>
-                                            <option value="202">202 - PONTA CORREDOR CENTRAL</option>
-                                            <option value="203" selected>203 - PONTA BEBIDAS E CERVEJAS</option>
-                                            <option value="204">204 - ILHA REFRIGERADOS E LATICINIOS</option>
-                                            <option value="205">205 - CHECKOUT 01 DOCES E SNACKS</option>
-                                            <option value="206">206 - PONTA MERCEARIA SALGADA</option>
-                                            <option value="207">207 - ILHA CENTRAL LIMPEZA</option>
+                                            <option value="101">101 - LOJA 8 APYCE</option>
+                                            <option value="121">121 - PONTAS FIXAS</option>
+                                            <option value="143">143 - PONTA DE BISCOITOS ISABELA L03</option>
+                                            <option value="182">182 - PONTAS LOJA 01</option>
+                                            <option value="203" selected>203 - COCA (REFRIG COCA COLA PET 2L)</option>
+                                            <option value="222">222 - FAROFA YOKI</option>
+                                            <option value="223">223 - PONTA LOJA 2 AMOR CARIOCA</option>
+                                            <option value="241">241 - CESTA BASICA</option>
                                         </select>
                                     </div>
                                     <div class="form-group-mini">
                                         <label>Loja (NroEmpresa):</label>
                                         <select id="extract-emp-select">
                                             <option value="0" selected>0 - TODAS AS LOJAS (REDE)</option>
-                                            <option value="1">1 - MATRIZ CENTRO</option>
-                                            <option value="2">2 - NORTE</option>
-                                            <option value="3">3 - SUL</option>
-                                            <option value="4">4 - LESTE</option>
-                                            <option value="5">5 - OESTE</option>
-                                            <option value="6">6 - PRAIA</option>
-                                            <option value="7">7 - SERRA</option>
-                                            <option value="8">8 - VALE</option>
-                                            <option value="11">11 - EXPRESS</option>
-                                            <option value="12">12 - BAKLIZI BAIRRO</option>
-                                            <option value="18">18 - PETROPOLIS</option>
+                                            <option value="1">1 - DUQUE DE CAXIAS (CENTRO)</option>
+                                            <option value="2">2 - FRANCISCO ETCHEPARE</option>
+                                            <option value="3">3 - GENERAL CANABARRO</option>
+                                            <option value="4">4 - BENTO MARTINS</option>
+                                            <option value="5">5 - PINHEIRO MACHADO</option>
+                                            <option value="6">6 - SETEMBRINO DE CARVALHO</option>
+                                            <option value="7">7 - PINHEIRO MACHADO (FILIAL)</option>
+                                            <option value="8">8 - FLORES DA CUNHA</option>
+                                            <option value="11">11 - DOMINGOS MARTINS</option>
+                                            <option value="12">12 - GENERAL MARQUES</option>
+                                            <option value="13">13 - GENERAL CANABARRO (FILIAL)</option>
+                                            <option value="14">14 - SETE DE SETEMBRO</option>
+                                            <option value="17">17 - JOAO BATISTA LUZARDO</option>
+                                            <option value="18">18 - BENTO MANOEL</option>
                                         </select>
                                     </div>
                                     <div class="form-group-mini">
@@ -514,13 +518,14 @@ WHERE A.SEQPONTOEXTRA = 203
                                     <div class="form-group-mini">
                                         <label>Ponto Padrão:</label>
                                         <select id="carga-default-ponto">
-                                            <option value="201">201 - PONTA ENTRADA</option>
-                                            <option value="202">202 - PONTA CORREDOR CENTRAL</option>
-                                            <option value="203" selected>203 - PONTA BEBIDAS E CERVEJAS</option>
-                                            <option value="204">204 - ILHA REFRIGERADOS</option>
-                                            <option value="205">205 - CHECKOUT DOCES</option>
-                                            <option value="206">206 - PONTA MERCEARIA</option>
-                                            <option value="207">207 - ILHA LIMPEZA</option>
+                                            <option value="101">101 - LOJA 8 APYCE</option>
+                                            <option value="121">121 - PONTAS FIXAS</option>
+                                            <option value="143">143 - PONTA DE BISCOITOS ISABELA L03</option>
+                                            <option value="182">182 - PONTAS LOJA 01</option>
+                                            <option value="203" selected>203 - COCA (REFRIG COCA COLA PET 2L)</option>
+                                            <option value="222">222 - FAROFA YOKI</option>
+                                            <option value="223">223 - PONTA LOJA 2 AMOR CARIOCA</option>
+                                            <option value="241">241 - CESTA BASICA</option>
                                         </select>
                                     </div>
                                     <div class="form-group-mini">
@@ -536,10 +541,11 @@ WHERE A.SEQPONTOEXTRA = 203
                                 <textarea id="carga-raw-input" class="carga-textarea" placeholder="Cole aqui as linhas do Excel (Ctrl+V) com colunas:
 SEQPRODUTO | NROEMPRESA | SEQPONTOEXTRA | ESTQMINIMO | ESTQMAXIMO | DTAVIGENCIAINICIO | DTAVIGENCIAFIM
 
-Exemplo:
+Exemplo Real:
 10	12	203	500	600	2026-08-05	2026-12-01
-10	1	203	120	250	2026-08-01	2026-12-31
-3880	12	203	200	450	2026-08-01	2026-12-31"></textarea>
+10	1	203	200	300	2026-08-05	2026-12-01
+36	3	121	1008	1308	2026-06-10	2026-12-31
+39233	2	121	4032	5232	2026-08-25	2026-12-30"></textarea>
 
                                 <div class="carga-action-bar">
                                     <button id="btn-process-carga" class="btn btn-primary btn-glow" style="width: 100%;">
@@ -605,13 +611,14 @@ Exemplo:
                         <div class="form-group-mini">
                             <label>Ponto Extra:</label>
                             <select id="monitor-ponto-select">
-                                <option value="201">201 - PONTA DE GONDOLA ENTRADA PRINCIPAL</option>
-                                <option value="202">202 - PONTA DE GONDOLA CORREDOR CENTRAL</option>
-                                <option value="203" selected>203 - PONTA GONDOLA BEBIDAS E CERVEJAS</option>
-                                <option value="204">204 - ILHA REFRIGERADOS E LATICINIOS</option>
-                                <option value="205">205 - CHECKOUT 01 DOCES E SNACKS</option>
-                                <option value="206">206 - PONTA DE GONDOLA MERCEARIA SALGADA</option>
-                                <option value="207">207 - ILHA CENTRAL HIGIENE E LIMPEZA</option>
+                                <option value="101">101 - LOJA 8 APYCE</option>
+                                <option value="121">121 - PONTAS FIXAS</option>
+                                <option value="143">143 - PONTA DE BISCOITOS ISABELA L03</option>
+                                <option value="182">182 - PONTAS LOJA 01</option>
+                                <option value="203" selected>203 - COCA (REFRIG COCA COLA PET 2L)</option>
+                                <option value="222">222 - FAROFA YOKI</option>
+                                <option value="223">223 - PONTA LOJA 2 AMOR CARIOCA</option>
+                                <option value="241">241 - CESTA BASICA</option>
                             </select>
                         </div>
                         <div class="form-group-mini">
@@ -621,12 +628,20 @@ Exemplo:
                         <div class="form-group-mini">
                             <label>Loja (NroEmpresa):</label>
                             <select id="monitor-emp-select">
-                                <option value="1">1 - MATRIZ CENTRO</option>
-                                <option value="2">2 - NORTE</option>
-                                <option value="3">3 - SUL</option>
-                                <option value="11">11 - EXPRESS</option>
-                                <option value="12" selected>12 - BAKLIZI BAIRRO</option>
-                                <option value="18">18 - PETROPOLIS</option>
+                                <option value="1">1 - DUQUE DE CAXIAS (CENTRO)</option>
+                                <option value="2">2 - FRANCISCO ETCHEPARE</option>
+                                <option value="3">3 - GENERAL CANABARRO</option>
+                                <option value="4">4 - BENTO MARTINS</option>
+                                <option value="5">5 - PINHEIRO MACHADO</option>
+                                <option value="6">6 - SETEMBRINO DE CARVALHO</option>
+                                <option value="7">7 - PINHEIRO MACHADO (FILIAL)</option>
+                                <option value="8">8 - FLORES DA CUNHA</option>
+                                <option value="11">11 - DOMINGOS MARTINS</option>
+                                <option value="12" selected>12 - GENERAL MARQUES</option>
+                                <option value="13">13 - GENERAL CANABARRO (FILIAL)</option>
+                                <option value="14">14 - SETE DE SETEMBRO</option>
+                                <option value="17">17 - JOAO BATISTA LUZARDO</option>
+                                <option value="18">18 - BENTO MANOEL</option>
                             </select>
                         </div>
                         <button id="btn-refresh-monitor-trace" class="btn btn-primary">🔄 Atualizar Rastreamento</button>
