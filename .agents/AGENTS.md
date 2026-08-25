@@ -39,6 +39,9 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 8. **Compatibilidade Estrita com as Variáveis da Tela (`Var - F7`):**
    O SQL não deve depender de macros `#LTx` que não estejam cadastradas no formulário da tela atual. Se as macros de loja ou status não existirem no `Var - F7`, use os valores fixos no código (`IN (1,2...18,50,900)` e `NOT IN (2)`) para evitar que a substituição vazia resulte em `IN ()` e `ORA-00936`.
 
+9. **Limite Rígido de 145 Caracteres para SQL da Lista (`Var - F7` / `LSx`):**
+   O campo de cadastro da instrução SQL da lista de seleção (`LS1`, `LS2`, etc.) na tela `Var - F7` do Consinco possui limite físico restrito. O script da lista **nunca pode ultrapassar 145 caracteres (incluindo espaços e quebras)**. Construa queries de listas extremamente enxutas e em uma única linha.
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

@@ -15,13 +15,26 @@ if __name__ == '__main__':
 base_dir = Path(__file__).parent
 arquivo_entrada = Path(r'C:\Users\usr\Downloads\Equipes_Agentes\Aplicativos\import_querys\query.parquet')
 
+# Compradores autorizados para abastecimento/compra no CD 16
+COMPRADORES_CD16 = ['SANDRO', 'LAURINDO']
+
+def is_comprador_cd16(nome):
+    if not nome or not isinstance(nome, str):
+        return False
+    nome_up = nome.upper()
+    return any(c in nome_up for c in COMPRADORES_CD16)
+
 def compute_metrics(df_subset, loja_nome):
     """Computa as métricas de ruptura para um subconjunto de dados (Loja ou Geral) para CD 15, CD 16 e Lojas."""
     if df_subset.empty:
         return pd.DataFrame()
         
     c_cd15 = (df_subset['CODIGO_EMPRESA'] == 15) & (df_subset['FORMA_ABASTECIMENTO'].isin(['M', 'C']))
-    c_cd16 = (df_subset['CODIGO_EMPRESA'] == 16) & (df_subset['FORMA_ABASTECIMENTO'].isin(['M', 'C']))
+    
+    # Apenas SANDRO e LAURINDO compram para o CD 16; para outros compradores o cadastro é virtual
+    c_comp_cd16 = df_subset['COMPRADOR'].astype(str).str.upper().apply(lambda x: any(c in x for c in COMPRADORES_CD16))
+    c_cd16 = (df_subset['CODIGO_EMPRESA'] == 16) & (df_subset['FORMA_ABASTECIMENTO'].isin(['M', 'C'])) & c_comp_cd16
+    
     c_loja = ~df_subset['CODIGO_EMPRESA'].isin([15, 16])
     c_rup_loja = df_subset['QUANTIDADE_DISPONIVEL'] <= 0
     
@@ -278,7 +291,7 @@ def principal():
     print("Gerando snapshot histórico...")
     df_resumo_global = df.groupby('COMPRADOR').agg(
         MIX_CD15=('CODIGO_PRODUTO', lambda x: x[(df.loc[x.index, 'CODIGO_EMPRESA'] == 15) & (df.loc[x.index, 'FORMA_ABASTECIMENTO'].isin(['M', 'C']))].nunique()),
-        MIX_CD16=('CODIGO_PRODUTO', lambda x: x[(df.loc[x.index, 'CODIGO_EMPRESA'] == 16) & (df.loc[x.index, 'FORMA_ABASTECIMENTO'].isin(['M', 'C']))].nunique())
+        MIX_CD16=('CODIGO_PRODUTO', lambda x: x[(df.loc[x.index, 'CODIGO_EMPRESA'] == 16) & (df.loc[x.index, 'FORMA_ABASTECIMENTO'].isin(['M', 'C'])) & (df.loc[x.index, 'COMPRADOR'].astype(str).str.upper().apply(lambda c: any(k in c for k in COMPRADORES_CD16)))].nunique())
     ).reset_index()
     df_resumo_global['TIPO'] = 'COMPRADOR'
     df_resumo_global = df_resumo_global.rename(columns={'COMPRADOR': 'IDENTIFICADOR'})
@@ -387,7 +400,7 @@ def principal():
                             <ul class="list-unstyled">
                                 <li class="mb-2"><span class="badge" style="background-color: #FF0000; color: white;">Ruptura CD 15</span> <strong>(%)</strong>: Produtos do CD 15 (M/C) zerados ou abaixo da embalagem de transferência.</li>
                                 <li class="mb-2"><span class="badge text-dark" style="background-color: #FF7F50;">Rup. CD 15 Pend. Forn</span> <strong>(%)</strong>: Ruptura CD 15 com pedido de compra pendente.</li>
-                                <li class="mb-2"><span class="badge" style="background-color: #C62828; color: white;">Ruptura CD 16</span> <strong>(%)</strong>: Produtos do CD 16 (M/C) zerados ou abaixo da embalagem de transferência.</li>
+                                <li class="mb-2"><span class="badge" style="background-color: #C62828; color: white;">Ruptura CD 16</span> <strong>(%)</strong>: Produtos do CD 16 (M/C) zerados ou abaixo da embalagem de transferência (calculado exclusivamente para SANDRO e LAURINDO).</li>
                                 <li class="mb-2"><span class="badge text-dark" style="background-color: #FF8A65;">Rup. CD 16 Pend. Forn</span> <strong>(%)</strong>: Ruptura CD 16 com pedido de compra pendente.</li>
                                 <li class="mb-2"><strong>Base Loja:</strong> Total de produtos ativos nas filiais (fluxos M, C, L, I).</li>
                             </ul>
@@ -461,6 +474,13 @@ def principal():
                 let fw = isTotal ? "font-weight: bold; background-color: #f1f3f5 !important;" : "";
                 let pctRupturaLoja = getPctRupturaLoja(row);
                 
+                let isCompCD16 = isTotal || (row.COMPRADOR && (row.COMPRADOR.includes('SANDRO') || row.COMPRADOR.includes('LAURINDO')));
+                let baseCd16Cell = isCompCD16 ? fmt(row.Base_CD16) : '<span class="text-muted" title="Comprador não compra para CD 16 (Itens na filial 16 são virtuais)">-</span>';
+                let rupCd16Cell = isCompCD16 ? fmt(row.Ruptura_CD16) : '<span class="text-muted">-</span>';
+                let pctCd16Cell = isCompCD16 ? fmt(row['% Ruptura CD 16'], true) : '<span class="text-muted">-</span>';
+                let pendCd16Cell = isCompCD16 ? fmt(row.Rup_CD16_Pend_Forn) : '<span class="text-muted">-</span>';
+                let pctPendCd16Cell = isCompCD16 ? fmt(row['% Rup. CD 16 Pend. Forn'], true) : '<span class="text-muted">-</span>';
+
                 html += `<tr style="${fw}">
                     <td style="text-align: left; padding-left: 15px; ${isTotal ? 'background-color:#f1f3f5;' : ''}">${row.COMPRADOR}</td>
                     
@@ -470,11 +490,11 @@ def principal():
                     <td>${fmt(row.Rup_CD15_Pend_Forn)}</td>
                     <td style="color:#FF7F50;font-weight:bold;">${fmt(row['% Rup. CD 15 Pend. Forn'], true)}</td>
 
-                    <td>${fmt(row.Base_CD16)}</td>
-                    <td>${fmt(row.Ruptura_CD16)}</td>
-                    <td style="color:#C62828;font-weight:bold;">${fmt(row['% Ruptura CD 16'], true)}</td>
-                    <td>${fmt(row.Rup_CD16_Pend_Forn)}</td>
-                    <td style="color:#FF8A65;font-weight:bold;">${fmt(row['% Rup. CD 16 Pend. Forn'], true)}</td>
+                    <td>${baseCd16Cell}</td>
+                    <td>${rupCd16Cell}</td>
+                    <td style="${isCompCD16 ? 'color:#C62828;font-weight:bold;' : ''}">${pctCd16Cell}</td>
+                    <td>${pendCd16Cell}</td>
+                    <td style="${isCompCD16 ? 'color:#FF8A65;font-weight:bold;' : ''}">${pctPendCd16Cell}</td>
 
                     <td>${fmt(row.Base_Loja)}</td>
                     <td>${fmt(row.Ruptura_Loja)}</td>
