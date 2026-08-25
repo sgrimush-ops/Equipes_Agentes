@@ -6,7 +6,7 @@ import re
 import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from datetime import datetime
+from datetime import datetime, timedelta
 
 PORT = 8550
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +47,7 @@ def oracle_to_date(val, fmt=None):
     if not val:
         return None
     val_str = str(val).strip()
-    for f in ('%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S'):
+    for f in ('%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%d-%m-%Y'):
         try:
             dt = datetime.strptime(val_str[:19], f)
             return dt.strftime('%Y-%m-%d')
@@ -113,6 +113,26 @@ def oracle_regexp_like(source, pattern):
     except:
         return 0
 
+def oracle_lpad(val, length, pad=' '):
+    if val is None:
+        return ''
+    s = str(val)
+    pad_str = str(pad)[:1] if pad else ' '
+    l = int(length)
+    if len(s) >= l:
+        return s[:l]
+    return (pad_str * (l - len(s))) + s
+
+def oracle_rpad(val, length, pad=' '):
+    if val is None:
+        return ''
+    s = str(val)
+    pad_str = str(pad)[:1] if pad else ' '
+    l = int(length)
+    if len(s) >= l:
+        return s[:l]
+    return s + (pad_str * (l - len(s)))
+
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -132,6 +152,10 @@ def get_db_connection():
     conn.create_function("SUBSTR", 3, oracle_substr)
     conn.create_function("DECODE", -1, oracle_decode)
     conn.create_function("REGEXP_LIKE", 2, oracle_regexp_like)
+    conn.create_function("LPAD", 2, lambda v, l: oracle_lpad(v, l, ' '))
+    conn.create_function("LPAD", 3, oracle_lpad)
+    conn.create_function("RPAD", 2, lambda v, l: oracle_rpad(v, l, ' '))
+    conn.create_function("RPAD", 3, oracle_rpad)
     return conn
 
 # -------------------------------------------------------------
@@ -159,22 +183,22 @@ def preprocess_oracle_sql(sql, binds=None):
     clean_sql = re.sub(r'/\*\+\s*MATERIALIZE\s*\*/', '', clean_sql, flags=re.IGNORECASE)
     clean_sql = re.sub(r'/\*\+.*?\*/', '', clean_sql, flags=re.DOTALL)
 
-    # 3. Remover chamadas de tabela DUAL
+    # 3. Normalizar TO_DATE('YYYY-MM-DD', '...')
+    clean_sql = re.sub(r"TO_DATE\s*\(\s*'([^']+)'\s*,\s*'[^']+'\s*\)", r"'\1'", clean_sql, flags=re.IGNORECASE)
+
+    # 4. Remover chamadas de tabela DUAL
     clean_sql = re.sub(r'\s+FROM\s+DUAL\b', '', clean_sql, flags=re.IGNORECASE)
 
-    # 4. Normalizar SYSDATE sem parênteses para SYSDATE()
+    # 5. Normalizar SYSDATE sem parênteses para SYSDATE()
     clean_sql = re.sub(r'\bSYSDATE\b(?!\s*\()', 'SYSDATE()', clean_sql, flags=re.IGNORECASE)
 
-    # 5. Normalizar operador de concatenação Oracle '||' (SQLite suporta '||' nativo!)
-
     # 6. Injetar Binds (:NROEMPRESA, :NR1, :LS1, :LT1, :DT1)
-    # Procurar por :variavel no SQL
     param_matches = re.findall(r':([A-Za-z0-9_]+)', clean_sql)
     for p in param_matches:
         val = binds.get(p, binds.get(p.upper(), None))
         if val is None:
             # Fallback inteligente para bind não preenchido
-            if p.upper().startswith('NR') or 'EMPRESA' in p.upper() or 'COD' in p.upper():
+            if p.upper().startswith('NR') or 'EMPRESA' in p.upper() or 'COD' in p.upper() or 'PONTO' in p.upper():
                 val = 0
             elif p.upper().startswith('DT'):
                 val = '2026-08-21'
@@ -199,6 +223,7 @@ def preprocess_oracle_sql(sql, binds=None):
 # -------------------------------------------------------------
 def analyze_consinco_rules(raw_sql):
     alerts = []
+    sql_upper = raw_sql.upper()
     
     # Regra 1: Comentários no código SQL
     has_line_comment = bool(re.search(r'--[^\r\n]*', raw_sql))
@@ -222,7 +247,7 @@ def analyze_consinco_rules(raw_sql):
         })
 
     # Regra 3: CTE sem /*+ MATERIALIZE */
-    if 'WITH' in raw_sql.upper():
+    if 'WITH' in sql_upper:
         ctes = re.findall(r'WITH\s+([A-Za-z0-9_]+)\s+AS\s*\(\s*SELECT', raw_sql, flags=re.IGNORECASE)
         for cte_name in ctes:
             pattern = rf'WITH\s+{cte_name}\s+AS\s*\(\s*SELECT\s+/\*\+\s*MATERIALIZE\s*\*/'
@@ -233,6 +258,24 @@ def analyze_consinco_rules(raw_sql):
                     'message': f'A CTE "{cte_name}" não contém o hint /*+ MATERIALIZE */.',
                     'suggestion': f'Insira /*+ MATERIALIZE */ logo após o SELECT da CTE: WITH {cte_name} AS (SELECT /*+ MATERIALIZE */ ...)'
                 })
+
+    # Regra DML: UPDATE sem WHERE
+    if re.search(r'^\s*UPDATE\b', stripped, flags=re.IGNORECASE) and not re.search(r'\bWHERE\b', stripped, flags=re.IGNORECASE):
+        alerts.append({
+            'type': 'danger',
+            'rule': 'ALERTA CRÍTICO: UPDATE sem Cláusula WHERE!',
+            'message': 'Comando UPDATE sem WHERE afetará TODOS os registros da tabela no banco de dados da rede inteira!',
+            'suggestion': 'Especifique as chaves primárias no WHERE (ex: WHERE SEQPONTOEXTRA = :SEQPONTOEXTRA AND SEQPRODUTO = :SEQPRODUTO AND NROEMPRESA = :NROEMPRESA).'
+        })
+
+    # Regra DML: DELETE sem WHERE
+    if re.search(r'^\s*DELETE\b', stripped, flags=re.IGNORECASE) and not re.search(r'\bWHERE\b', stripped, flags=re.IGNORECASE):
+        alerts.append({
+            'type': 'danger',
+            'rule': 'ALERTA CRÍTICO: DELETE sem Cláusula WHERE!',
+            'message': 'Comando DELETE sem WHERE apagará todas as linhas da tabela permanentemente!',
+            'suggestion': 'Adicione cláusula WHERE com os filtros ou chaves primárias.'
+        })
 
     # Regra 4: Aliases com aspas duplas ou caracteres especiais (ORA-00923)
     quote_aliases = re.findall(r'AS\s+"([^"]+)"', raw_sql, flags=re.IGNORECASE)
@@ -263,7 +306,7 @@ def analyze_consinco_rules(raw_sql):
         })
 
     # Regra 7: Join em MAP_FAMEMBALAGEM sem QTDEMBALAGEM = 1
-    if 'MAP_FAMEMBALAGEM' in raw_sql.upper():
+    if 'MAP_FAMEMBALAGEM' in sql_upper:
         if not re.search(r'QTDEMBALAGEM\s*=\s*1', raw_sql, flags=re.IGNORECASE):
             alerts.append({
                 'type': 'warning',
@@ -273,8 +316,8 @@ def analyze_consinco_rules(raw_sql):
             })
 
     # Regra 8: Lista Branca de Lojas da Rede
-    if 'MRL_PRODUTOEMPRESA' in raw_sql.upper() or 'MAX_EMPRESA' in raw_sql.upper():
-        if not re.search(r'NROEMPRESA\s+IN\s*\(', raw_sql, flags=re.IGNORECASE) and not re.search(r':NROEMPRESA', raw_sql, flags=re.IGNORECASE) and not re.search(r'#C_NROEMPRESA#', raw_sql, flags=re.IGNORECASE):
+    if ('MRL_PRODUTOEMPRESA' in sql_upper or 'MAX_EMPRESA' in sql_upper or 'MRL_PONTOEXTRAPRODUTOEMPRESA' in sql_upper) and 'UPDATE' not in sql_upper:
+        if not re.search(r'NROEMPRESA\s+IN\s*\(', raw_sql, flags=re.IGNORECASE) and not re.search(r':NROEMPRESA', raw_sql, flags=re.IGNORECASE) and not re.search(r'#C_NROEMPRESA#', raw_sql, flags=re.IGNORECASE) and not re.search(r'NROEMPRESA\s*=', raw_sql, flags=re.IGNORECASE):
             alerts.append({
                 'type': 'info',
                 'rule': 'Lista Branca de Lojas da Rede (Boas Práticas)',
@@ -283,7 +326,7 @@ def analyze_consinco_rules(raw_sql):
             })
 
     # Regra 9: Agregação de MRL_CUSTODIA antes do Join
-    if 'MRL_CUSTODIA' in raw_sql.upper() and 'MRL_PRODUTOEMPRESA' in raw_sql.upper():
+    if 'MRL_CUSTODIA' in sql_upper and 'MRL_PRODUTOEMPRESA' in sql_upper:
         if not re.search(r'\(.*SELECT.*FROM\s+MRL_CUSTODIA.*GROUP\s+BY.*\)', raw_sql, flags=re.IGNORECASE | re.DOTALL):
             alerts.append({
                 'type': 'warning',
@@ -312,7 +355,11 @@ def explain_query_pedagogical(sql):
         'MAP_FAMEMBALAGEM': 'Embalagens e unidades de medida (Unitária vs Caixa)',
         'MAP_PRODCODIGO': 'Códigos de barras comerciais (EAN unitário e DUN caixa)',
         'MAX_COMPRADOR': 'Compradores responsáveis pelas categorias',
+        'MAX_EMPRESA': 'Cadastro das Lojas, Filiais e Centros de Distribuição (CDs)',
         'GE_PESSOA': 'Fornecedores e clientes cadastrados',
+        'MRL_PONTOEXTRA': 'Capa de Pontos Extras / Pontas de Gôndola / Ilhas de Loja',
+        'MRL_PONTOEXTRAPRODUTO': 'Vínculo do Produto ao Ponto Extra (SEQPONTOEXTRA + SEQPRODUTO)',
+        'MRL_PONTOEXTRAPRODUTOEMPRESA': 'Regras de Estoque Mínimo/Máximo, Vigência e Sugestão por Loja',
         'MRL_PRODUTOEMPRESA': 'Estoque operacional da loja, custos e parâmetros',
         'MRL_PRODEMPSEG': 'Preços de venda normais e promocionais por segmento',
         'MRL_PRODVENDADIA': 'Histórico diário de quantidades vendidas',
@@ -326,8 +373,14 @@ def explain_query_pedagogical(sql):
         if re.search(rf'\b{t}\b', sql_upper):
             tables_found.append({'tabela': t, 'funcao': desc})
 
-    # 2. Detecção de Agregações
+    # 2. Detecção de Agregações e Ações
     aggs = []
+    if 'UPDATE ' in sql_upper:
+        aggs.append('Instrução DML UPDATE: altera registros existentes no banco.')
+    if 'INSERT INTO' in sql_upper:
+        aggs.append('Instrução DML INSERT: insere novos registros na tabela.')
+    if 'MERGE INTO' in sql_upper:
+        aggs.append('Instrução MERGE INTO: sincronização inteligente (atualiza se existir, insere se não existir).')
     if 'SUM(' in sql_upper:
         aggs.append('Soma (SUM) de valores ou quantidades totais.')
     if 'AVG(' in sql_upper:
@@ -339,14 +392,18 @@ def explain_query_pedagogical(sql):
 
     # 3. Análise de Filtros
     filters = []
-    if 'STATUSCOMPRA' in sql_upper:
-        filters.append('Filtro de status de compra do item na filial.')
+    if 'SEQPONTOEXTRA' in sql_upper:
+        filters.append('Filtro por Identificador do Ponto Extra (ex: 203 Ponta de Gôndola).')
+    if 'SEQPRODUTO' in sql_upper:
+        filters.append('Chave primária do produto (SEQPRODUTO) utilizada para amarração exata.')
+    if 'STATUSCOMPRA' in sql_upper or 'STATUS' in sql_upper:
+        filters.append('Filtro de status de ativação (A = Ativo / I = Inativo).')
     if 'FINALIDADEFAMILIA' in sql_upper:
         filters.append('Filtro de finalidade para garantir itens de Revenda comercial.')
     if 'NROEMPRESA' in sql_upper:
         filters.append('Escopo delimitado por filiais/lojas da rede.')
-    if 'BETWEEN' in sql_upper or 'DTA' in sql_upper:
-        filters.append('Filtro temporal por período de datas.')
+    if 'BETWEEN' in sql_upper or 'DTA' in sql_upper or 'VIGENCIA' in sql_upper:
+        filters.append('Filtro temporal por período de datas ou vigência da promoção/ponta.')
 
     return {
         'tabelas': tables_found,
@@ -357,7 +414,108 @@ def explain_query_pedagogical(sql):
     }
 
 # -------------------------------------------------------------
-# 5. Handlers HTTP do Servidor
+# 5. Gerador de Scripts Oracle de Carga / MERGE / UPDATE
+# -------------------------------------------------------------
+def generate_oracle_update_scripts(valid_rows):
+    if not valid_rows:
+        return {'merge_sql': '', 'batch_dml_sql': '', 'select_check_sql': ''}
+
+    # 1. Script MERGE INTO (Padrão Oficial Oracle)
+    select_unions = []
+    seqponto_set = set()
+    seqprod_set = set()
+
+    for r in valid_rows:
+        seqponto_set.add(str(r['seqpontoextra']))
+        seqprod_set.add(str(r['seqproduto']))
+        select_unions.append(
+            f"    SELECT {r['seqpontoextra']} AS SEQPONTOEXTRA, {r['seqproduto']} AS SEQPRODUTO, {r['nroempresa']} AS NROEMPRESA, {r['seqvigencia']} AS SEQVIGENCIA, {r['estqminimo']:.1f} AS ESTQMINIMO, {r['estqmaximo']:.1f} AS ESTQMAXIMO, TO_DATE('{r['dtavigenciainicio']}', 'YYYY-MM-DD') AS DTAVIGENCIAINICIO, TO_DATE('{r['dtavigenciafim']}', 'YYYY-MM-DD') AS DTAVIGENCIAFIM, {r['qtddiassugestao']:.1f} AS QTDDIASSUGESTAO, '{r['status']}' AS STATUS FROM DUAL"
+        )
+
+    union_block = "\n    UNION ALL\n".join(select_unions)
+
+    merge_sql = f"""MERGE INTO MRL_PONTOEXTRAPRODUTOEMPRESA DEST
+USING (
+{union_block}
+) ORIG
+ON (
+    DEST.SEQPONTOEXTRA = ORIG.SEQPONTOEXTRA
+    AND DEST.SEQPRODUTO = ORIG.SEQPRODUTO
+    AND DEST.NROEMPRESA = ORIG.NROEMPRESA
+)
+WHEN MATCHED THEN
+    UPDATE SET
+        DEST.ESTQMINIMO         = ORIG.ESTQMINIMO,
+        DEST.ESTQMAXIMO         = ORIG.ESTQMAXIMO,
+        DEST.DTAVIGENCIAINICIO  = ORIG.DTAVIGENCIAINICIO,
+        DEST.DTAVIGENCIAFIM     = ORIG.DTAVIGENCIAFIM,
+        DEST.QTDDIASSUGESTAO    = ORIG.QTDDIASSUGESTAO,
+        DEST.STATUS             = ORIG.STATUS
+WHEN NOT MATCHED THEN
+    INSERT (
+        SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
+        ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
+        QTDDIASSUGESTAO, STATUS
+    ) VALUES (
+        ORIG.SEQPONTOEXTRA, ORIG.SEQPRODUTO, ORIG.NROEMPRESA, ORIG.SEQVIGENCIA,
+        ORIG.ESTQMINIMO, ORIG.ESTQMAXIMO, ORIG.DTAVIGENCIAINICIO, ORIG.DTAVIGENCIAFIM,
+        ORIG.QTDDIASSUGESTAO, ORIG.STATUS
+    );
+COMMIT;"""
+
+    # 2. Script Blocos DML Transacionais (UPDATE / INSERT)
+    dml_lines = []
+    # Garantir capa na MRL_PONTOEXTRAPRODUTO
+    pairs_done = set()
+    for r in valid_rows:
+        pair = (r['seqpontoextra'], r['seqproduto'])
+        if pair not in pairs_done:
+            pairs_done.add(pair)
+            dml_lines.append(f"-- 1. Garante vinculo do produto {r['seqproduto']} no Ponto {r['seqpontoextra']}")
+            dml_lines.append(f"INSERT INTO MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS) SELECT {r['seqpontoextra']}, {r['seqproduto']}, 'A' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM MRL_PONTOEXTRAPRODUTO WHERE SEQPONTOEXTRA = {r['seqpontoextra']} AND SEQPRODUTO = {r['seqproduto']});")
+
+    dml_lines.append("\n-- 2. Atualiza ou insere regras de estoque min/max por Loja")
+    for r in valid_rows:
+        if r['action'] == 'UPDATE':
+            dml_lines.append(f"UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA SET ESTQMINIMO = {r['estqminimo']:.1f}, ESTQMAXIMO = {r['estqmaximo']:.1f}, DTAVIGENCIAINICIO = TO_DATE('{r['dtavigenciainicio']}', 'YYYY-MM-DD'), DTAVIGENCIAFIM = TO_DATE('{r['dtavigenciafim']}', 'YYYY-MM-DD'), STATUS = '{r['status']}' WHERE SEQPONTOEXTRA = {r['seqpontoextra']} AND SEQPRODUTO = {r['seqproduto']} AND NROEMPRESA = {r['nroempresa']};")
+        else:
+            dml_lines.append(f"INSERT INTO MRL_PONTOEXTRAPRODUTOEMPRESA (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS) VALUES ({r['seqpontoextra']}, {r['seqproduto']}, {r['nroempresa']}, {r['seqvigencia']}, {r['estqminimo']:.1f}, {r['estqmaximo']:.1f}, TO_DATE('{r['dtavigenciainicio']}', 'YYYY-MM-DD'), TO_DATE('{r['dtavigenciafim']}', 'YYYY-MM-DD'), {r['qtddiassugestao']:.1f}, '{r['status']}');")
+
+    dml_lines.append("\nCOMMIT;")
+    batch_dml_sql = "\n".join(dml_lines)
+
+    # 3. Consulta de Auditoria e Conferência
+    pontos_str = ",".join(list(seqponto_set)[:10]) or "203"
+    prods_str = ",".join(list(seqprod_set)[:20]) or "10"
+
+    select_check_sql = f"""SELECT
+    A.SEQPONTOEXTRA,
+    PE.DESCRICAO AS DESCRICAO_PONTO,
+    A.SEQPRODUTO,
+    P.DESCCOMPLETA AS PRODUTO,
+    A.NROEMPRESA,
+    LPAD(E.NROEMPRESA, 6, '0') || ' - ' || E.NOMERAZAO AS LOJA,
+    A.ESTQMINIMO,
+    A.ESTQMAXIMO,
+    A.DTAVIGENCIAINICIO,
+    A.DTAVIGENCIAFIM,
+    A.STATUS
+FROM MRL_PONTOEXTRAPRODUTOEMPRESA A
+INNER JOIN MRL_PONTOEXTRA PE ON A.SEQPONTOEXTRA = PE.SEQPONTOEXTRA
+INNER JOIN MAP_PRODUTO P ON A.SEQPRODUTO = P.SEQPRODUTO
+INNER JOIN MAX_EMPRESA E ON A.NROEMPRESA = E.NROEMPRESA
+WHERE A.SEQPONTOEXTRA IN ({pontos_str})
+  AND A.SEQPRODUTO IN ({prods_str})
+ORDER BY A.SEQPONTOEXTRA, A.SEQPRODUTO, A.NROEMPRESA"""
+
+    return {
+        'merge_sql': merge_sql,
+        'batch_dml_sql': batch_dml_sql,
+        'select_check_sql': select_check_sql
+    }
+
+# -------------------------------------------------------------
+# 6. Handlers HTTP do Servidor
 # -------------------------------------------------------------
 class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -379,6 +537,12 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             self.handle_clean_sql(data)
         elif parsed.path == '/api/mission/verify':
             self.handle_mission_verify(data)
+        elif parsed.path == '/api/carga/preview':
+            self.handle_carga_preview(data)
+        elif parsed.path == '/api/carga/apply':
+            self.handle_carga_apply(data)
+        elif parsed.path == '/api/carga/reset':
+            self.handle_carga_reset()
         else:
             self.send_error(404, "Endpoint nao encontrado")
 
@@ -396,6 +560,11 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             self.handle_search_dictionary(query)
         elif parsed.path == '/api/missions':
             self.handle_get_missions()
+        elif parsed.path == '/api/carga/monitor_trace':
+            ponto = int(params.get('ponto', [203])[0])
+            produto = int(params.get('produto', [10])[0])
+            empresa = int(params.get('empresa', [12])[0])
+            self.handle_carga_monitor_trace(ponto, produto, empresa)
         else:
             super().do_GET()
 
@@ -432,7 +601,37 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
+
+            # Detectar se é instrução DML (UPDATE, INSERT, DELETE)
+            is_dml = bool(re.match(r'^\s*(UPDATE|INSERT|DELETE)\b', processed_sql, flags=re.IGNORECASE))
             
+            # Se for script múltiplo com ponto e vírgula
+            statements = [s.strip() for s in processed_sql.split(';') if s.strip() and s.strip().upper() != 'COMMIT']
+
+            if is_dml or len(statements) > 1:
+                total_affected = 0
+                for stmt in statements:
+                    cursor.execute(stmt)
+                    if cursor.rowcount > 0:
+                        total_affected += cursor.rowcount
+                conn.commit()
+                exec_time_ms = round((time.time() - start_time) * 1000, 2)
+                conn.close()
+
+                self.send_json({
+                    'success': True,
+                    'is_dml': True,
+                    'rows_affected': total_affected,
+                    'message': f'{total_affected} registro(s) afetado(s) com sucesso na base de dados.',
+                    'columns': ['STATUS_EXECUCAO', 'REGISTROS_AFETADOS', 'MENSAGEM'],
+                    'rows': [['SUCESSO', total_affected, 'Instrução DML aplicada e comitada com sucesso']],
+                    'row_count': 1,
+                    'execution_time_ms': exec_time_ms,
+                    'processed_sql': processed_sql,
+                    'alerts': alerts
+                })
+                return
+
             cursor.execute(processed_sql)
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
             rows = cursor.fetchmany(limit)
@@ -446,6 +645,7 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
 
             self.send_json({
                 'success': True,
+                'is_dml': False,
                 'columns': columns,
                 'rows': result_rows,
                 'row_count': len(result_rows),
@@ -519,7 +719,6 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Estrutura de colunas
         cursor.execute(f"PRAGMA table_info({tbl_name})")
         cols = []
         for c in cursor.fetchall():
@@ -531,7 +730,6 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
                 'pk': bool(c[5])
             })
             
-        # Amostra de dados (20 linhas)
         try:
             cursor.execute(f"SELECT * FROM {tbl_name} LIMIT 20")
             sample_columns = [desc[0] for desc in cursor.description]
@@ -569,6 +767,426 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             })
         conn.close()
         self.send_json({'results': results})
+
+    # --- Módulo Carga & Atualização de Tabelas ---
+    def handle_carga_preview(self, data):
+        raw_data = data.get('raw_data', '').strip()
+        ponto_default = int(data.get('default_ponto', 203))
+        vigencia_ini_default = data.get('default_vigencia_ini', '2026-08-01')
+        vigencia_fim_default = data.get('default_vigencia_fim', '2026-12-31')
+
+        if not raw_data:
+            self.send_json({'success': False, 'error': 'Nenhum dado informado para pré-visualização.'})
+            return
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        lines = [l.strip() for l in raw_data.splitlines() if l.strip()]
+        if not lines:
+            self.send_json({'success': False, 'error': 'Dados vazios.'})
+            conn.close()
+            return
+
+        first_line = lines[0]
+        if '\t' in first_line:
+            sep = '\t'
+        elif ';' in first_line:
+            sep = ';'
+        elif ',' in first_line:
+            sep = ','
+        else:
+            sep = r'\s+'
+
+        header_candidate = [c.strip().upper() for c in (re.split(sep, first_line) if sep != r'\s+' else first_line.split())]
+        has_header = any(k in header_candidate for k in ['SEQPRODUTO', 'PRODUTO', 'CODIGO', 'NROEMPRESA', 'LOJA', 'ESTQMINIMO', 'MINIMO', 'ESTQMAXIMO', 'MAXIMO'])
+        
+        data_lines = lines[1:] if has_header else lines
+
+        col_idx_map = {}
+        if has_header:
+            for idx, col in enumerate(header_candidate):
+                if any(x in col for x in ['SEQPROD', 'CODPROD', 'PRODUTO', 'CODIGO']):
+                    col_idx_map['seqproduto'] = idx
+                elif any(x in col for x in ['NROEMP', 'EMPRESA', 'LOJA', 'FILIAL']):
+                    col_idx_map['nroempresa'] = idx
+                elif any(x in col for x in ['SEQPONTO', 'PONTOEXTRA', 'PONTO']):
+                    col_idx_map['seqpontoextra'] = idx
+                elif any(x in col for x in ['ESTQMIN', 'MINIMO', 'MIN']):
+                    col_idx_map['estqminimo'] = idx
+                elif any(x in col for x in ['ESTQMAX', 'MAXIMO', 'MAX']):
+                    col_idx_map['estqmaximo'] = idx
+                elif any(x in col for x in ['DTAVIGENCIAINI', 'DTAINI', 'INICIO', 'VIGENCIA_INI']):
+                    col_idx_map['dtavigenciainicio'] = idx
+                elif any(x in col for x in ['DTAVIGENCIAFIM', 'DTAFIM', 'FIM', 'VIGENCIA_FIM']):
+                    col_idx_map['dtavigenciafim'] = idx
+                elif any(x in col for x in ['QTDDIAS', 'SUGESTAO', 'DIAS']):
+                    col_idx_map['qtddiassugestao'] = idx
+                elif col == 'STATUS' or col == 'SIT':
+                    col_idx_map['status'] = idx
+
+        parsed_rows = []
+        total_valid = 0
+        total_updates = 0
+        total_inserts = 0
+        total_errors = 0
+
+        for line_idx, line in enumerate(data_lines):
+            parts = [p.strip() for p in (re.split(sep, line) if sep != r'\s+' else line.split())]
+            if not parts or not any(parts):
+                continue
+
+            def get_val(key, default_idx, fallback=''):
+                if has_header and key in col_idx_map:
+                    idx = col_idx_map[key]
+                    return parts[idx] if idx < len(parts) else fallback
+                return parts[default_idx] if default_idx < len(parts) else fallback
+
+            seqprod_str = get_val('seqproduto', 0, '')
+            nroemp_str = get_val('nroempresa', 1, '1')
+            seqponto_str = get_val('seqpontoextra', 2, str(ponto_default))
+            estqmin_str = get_val('estqminimo', 3 if len(parts) > 3 else 2, '50')
+            estqmax_str = get_val('estqmaximo', 4 if len(parts) > 4 else 3, '100')
+            dtaini_str = get_val('dtavigenciainicio', 5 if len(parts) > 5 else 4, vigencia_ini_default)
+            dtafim_str = get_val('dtavigenciafim', 6 if len(parts) > 6 else 5, vigencia_fim_default)
+            qtddias_str = get_val('qtddiassugestao', 7, '0')
+            status_str = get_val('status', 8, 'A').upper() or 'A'
+
+            try:
+                seqproduto = int(re.sub(r'\D', '', seqprod_str))
+            except:
+                seqproduto = 0
+
+            try:
+                nroempresa = int(re.sub(r'\D', '', nroemp_str))
+            except:
+                nroempresa = 1
+
+            try:
+                seqpontoextra = int(re.sub(r'\D', '', seqponto_str)) if seqponto_str else ponto_default
+            except:
+                seqpontoextra = ponto_default
+
+            try:
+                estqminimo = float(estqmin_str.replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.'))
+            except:
+                estqminimo = 0.0
+
+            try:
+                estqmaximo = float(estqmax_str.replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.'))
+            except:
+                estqmaximo = estqminimo * 2
+
+            dta_ini = oracle_to_date(dtaini_str) or vigencia_ini_default
+            dta_fim = oracle_to_date(dtafim_str) or vigencia_fim_default
+            qtddias = float(qtddias_str) if qtddias_str else 0.0
+
+            # Validações
+            cursor.execute("SELECT DESCCOMPLETA FROM MAP_PRODUTO WHERE SEQPRODUTO = ?", (seqproduto,))
+            prod_row = cursor.fetchone()
+            desc_produto = prod_row['DESCCOMPLETA'] if prod_row else None
+
+            cursor.execute("SELECT NOMERAZAO FROM MAX_EMPRESA WHERE NROEMPRESA = ?", (nroempresa,))
+            emp_row = cursor.fetchone()
+            nome_empresa = emp_row['NOMERAZAO'] if emp_row else None
+
+            cursor.execute("SELECT DESCRICAO FROM MRL_PONTOEXTRA WHERE SEQPONTOEXTRA = ?", (seqpontoextra,))
+            ponto_row = cursor.fetchone()
+            desc_ponto = ponto_row['DESCRICAO'] if ponto_row else f"PONTO {seqpontoextra}"
+
+            errors = []
+            if not seqproduto:
+                errors.append("Código SEQPRODUTO ausente ou inválido.")
+            elif not desc_produto:
+                errors.append(f"SEQPRODUTO {seqproduto} não cadastrado na MAP_PRODUTO.")
+
+            if not nome_empresa:
+                errors.append(f"NROEMPRESA {nroempresa} não cadastrada na MAX_EMPRESA.")
+
+            is_valid = len(errors) == 0
+
+            old_record = None
+            action = "INSERT"
+            seqvigencia = 1
+
+            if is_valid:
+                cursor.execute("""
+                    SELECT SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
+                           ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
+                           QTDDIASSUGESTAO, STATUS
+                    FROM MRL_PONTOEXTRAPRODUTOEMPRESA
+                    WHERE SEQPONTOEXTRA = ? AND SEQPRODUTO = ? AND NROEMPRESA = ?
+                    ORDER BY SEQVIGENCIA DESC LIMIT 1
+                """, (seqpontoextra, seqproduto, nroempresa))
+                curr = cursor.fetchone()
+                if curr:
+                    action = "UPDATE"
+                    seqvigencia = curr['SEQVIGENCIA']
+                    old_record = {
+                        'estqminimo': curr['ESTQMINIMO'],
+                        'estqmaximo': curr['ESTQMAXIMO'],
+                        'dtavigenciainicio': curr['DTAVIGENCIAINICIO'],
+                        'dtavigenciafim': curr['DTAVIGENCIAFIM'],
+                        'qtddiassugestao': curr['QTDDIASSUGESTAO'],
+                        'status': curr['STATUS'],
+                        'seqvigencia': curr['SEQVIGENCIA']
+                    }
+                    total_updates += 1
+                else:
+                    action = "INSERT"
+                    total_inserts += 1
+                total_valid += 1
+            else:
+                total_errors += 1
+                action = "ERROR"
+
+            parsed_rows.append({
+                'line_number': line_idx + (2 if has_header else 1),
+                'seqproduto': seqproduto,
+                'desc_produto': desc_produto or 'PRODUTO NÃO ENCONTRADO',
+                'nroempresa': nroempresa,
+                'nome_empresa': nome_empresa or 'LOJA NÃO ENCONTRADA',
+                'seqpontoextra': seqpontoextra,
+                'desc_ponto': desc_ponto,
+                'seqvigencia': seqvigencia,
+                'estqminimo': estqminimo,
+                'estqmaximo': estqmaximo,
+                'dtavigenciainicio': dta_ini,
+                'dtavigenciafim': dta_fim,
+                'qtddiassugestao': qtddias,
+                'status': status_str,
+                'action': action,
+                'is_valid': is_valid,
+                'errors': errors,
+                'old_record': old_record
+            })
+
+        conn.close()
+
+        valid_rows = [r for r in parsed_rows if r['is_valid']]
+        generated_scripts = generate_oracle_update_scripts(valid_rows)
+
+        self.send_json({
+            'success': True,
+            'parsed_rows': parsed_rows,
+            'summary': {
+                'total_rows': len(parsed_rows),
+                'total_valid': total_valid,
+                'total_updates': total_updates,
+                'total_inserts': total_inserts,
+                'total_errors': total_errors
+            },
+            'generated_scripts': generated_scripts
+        })
+
+    def handle_carga_apply(self, data):
+        rows = data.get('rows', [])
+        if not rows:
+            self.send_json({'success': False, 'error': 'Nenhuma linha válida para aplicar.'})
+            return
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        updated_count = 0
+        inserted_count = 0
+        diff_log = []
+
+        try:
+            for r in rows:
+                if not r.get('is_valid', True):
+                    continue
+
+                seqp = int(r['seqproduto'])
+                nroemp = int(r['nroempresa'])
+                seqponto = int(r['seqpontoextra'])
+                estqmin = float(r['estqminimo'])
+                estqmax = float(r['estqmaximo'])
+                dtaini = str(r['dtavigenciainicio'])
+                dtafim = str(r['dtavigenciafim'])
+                qtddias = float(r.get('qtddiassugestao', 0.0))
+                status = str(r.get('status', 'A'))
+                seqvig = int(r.get('seqvigencia', 1))
+
+                # Garantir capa em MRL_PONTOEXTRAPRODUTO
+                cursor.execute("""
+                    INSERT OR IGNORE INTO MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS)
+                    VALUES (?, ?, ?)
+                """, (seqponto, seqp, 'A'))
+
+                # Checar se existe
+                cursor.execute("""
+                    SELECT ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, STATUS
+                    FROM MRL_PONTOEXTRAPRODUTOEMPRESA
+                    WHERE SEQPONTOEXTRA = ? AND SEQPRODUTO = ? AND NROEMPRESA = ?
+                """, (seqponto, seqp, nroemp))
+                current = cursor.fetchone()
+
+                if current:
+                    old_min = current['ESTQMINIMO']
+                    old_max = current['ESTQMAXIMO']
+                    old_ini = current['DTAVIGENCIAINICIO']
+                    old_fim = current['DTAVIGENCIAFIM']
+                    old_st = current['STATUS']
+
+                    cursor.execute("""
+                        UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA
+                        SET ESTQMINIMO = ?, ESTQMAXIMO = ?, DTAVIGENCIAINICIO = ?, DTAVIGENCIAFIM = ?,
+                            QTDDIASSUGESTAO = ?, STATUS = ?
+                        WHERE SEQPONTOEXTRA = ? AND SEQPRODUTO = ? AND NROEMPRESA = ?
+                    """, (estqmin, estqmax, dtaini, dtafim, qtddias, status, seqponto, seqp, nroemp))
+                    updated_count += 1
+                    diff_log.append({
+                        'action': 'UPDATE',
+                        'seqpontoextra': seqponto,
+                        'seqproduto': seqp,
+                        'desc_produto': r.get('desc_produto', ''),
+                        'nroempresa': nroemp,
+                        'nome_empresa': r.get('nome_empresa', ''),
+                        'old_min': old_min,
+                        'new_min': estqmin,
+                        'old_max': old_max,
+                        'new_max': estqmax,
+                        'old_ini': old_ini,
+                        'new_ini': dtaini,
+                        'old_fim': old_fim,
+                        'new_fim': dtafim,
+                        'status': status
+                    })
+                else:
+                    cursor.execute("""
+                        INSERT INTO MRL_PONTOEXTRAPRODUTOEMPRESA (
+                            SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
+                            ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
+                            QTDDIASSUGESTAO, STATUS
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (seqponto, seqp, nroemp, seqvig, estqmin, estqmax, dtaini, dtafim, qtddias, status))
+                    inserted_count += 1
+                    diff_log.append({
+                        'action': 'INSERT',
+                        'seqpontoextra': seqponto,
+                        'seqproduto': seqp,
+                        'desc_produto': r.get('desc_produto', ''),
+                        'nroempresa': nroemp,
+                        'nome_empresa': r.get('nome_empresa', ''),
+                        'old_min': None,
+                        'new_min': estqmin,
+                        'old_max': None,
+                        'new_max': estqmax,
+                        'old_ini': None,
+                        'new_ini': dtaini,
+                        'old_fim': None,
+                        'new_fim': dtafim,
+                        'status': status
+                    })
+
+            conn.commit()
+            conn.close()
+
+            self.send_json({
+                'success': True,
+                'message': f'Carga aplicada com sucesso! {updated_count} registro(s) atualizados, {inserted_count} novos inseridos.',
+                'updated_count': updated_count,
+                'inserted_count': inserted_count,
+                'total_affected': updated_count + inserted_count,
+                'diff_log': diff_log
+            })
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            self.send_json({'success': False, 'error': f'Erro ao aplicar carga: {str(e)}'})
+
+    def handle_carga_reset(self):
+        try:
+            # Re-executar o script de seed
+            seed_script = os.path.join(BASE_DIR, 'database', 'seed_data.py')
+            os.system(f'python "{seed_script}"')
+            self.send_json({'success': True, 'message': 'Banco de dados do simulador restaurado para o estado inicial padrão!'})
+        except Exception as e:
+            self.send_json({'success': False, 'error': str(e)})
+
+    def handle_carga_monitor_trace(self, ponto=203, produto=10, empresa=12):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. Capa MRL_PONTOEXTRA
+        cursor.execute("SELECT SEQPONTOEXTRA, DESCRICAO, STATUS FROM MRL_PONTOEXTRA WHERE SEQPONTOEXTRA = ?", (ponto,))
+        pe = cursor.fetchone()
+        pe_desc = pe['DESCRICAO'] if pe else ''
+        pe_st = pe['STATUS'] if pe else 'A'
+
+        # 2. Produto MRL_PONTOEXTRAPRODUTO
+        cursor.execute("""
+            SELECT MRL_PONTOEXTRAPRODUTO.SEQPONTOEXTRA, MRL_PONTOEXTRAPRODUTO.SEQPRODUTO, PROD.DESCCOMPLETA, MRL_PONTOEXTRAPRODUTO.STATUS
+            FROM MRL_PONTOEXTRAPRODUTO
+            INNER JOIN MAP_PRODUTO PROD ON PROD.SEQPRODUTO = MRL_PONTOEXTRAPRODUTO.SEQPRODUTO
+            WHERE MRL_PONTOEXTRAPRODUTO.SEQPONTOEXTRA = ? AND MRL_PONTOEXTRAPRODUTO.SEQPRODUTO = ?
+        """, (ponto, produto))
+        pep = cursor.fetchone()
+
+        # 3. Loja MRL_PONTOEXTRAPRODUTOEMPRESA
+        cursor.execute("""
+            SELECT MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA,
+                   LPAD(EMP.NROEMPRESA, 6, '0') || ' - ' || EMP.RAZAOSOCIAL AS EMPRESA_LABEL,
+                   MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMINIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMAXIMO,
+                   MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAINICIO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAFIM,
+                   MRL_PONTOEXTRAPRODUTOEMPRESA.QTDDIASSUGESTAO, MRL_PONTOEXTRAPRODUTOEMPRESA.STATUS,
+                   MRL_PONTOEXTRAPRODUTOEMPRESA.SEQVIGENCIA
+            FROM MRL_PONTOEXTRAPRODUTOEMPRESA
+            INNER JOIN MAX_EMPRESA EMP ON MRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA = EMP.NROEMPRESA
+            WHERE MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA = ?
+              AND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO = ?
+              AND MRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA = ?
+        """, (ponto, produto, empresa))
+        pepe = cursor.fetchone()
+
+        now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        trace_blocks = [
+            {
+                'id': '<ID-00001>',
+                'timestamp': now_str,
+                'title': '1. Busca da Capa do Ponto Extra (MRL_PONTOEXTRA)',
+                'sql': f"SELECT\n\tMRL_PONTOEXTRA.SEQPONTOEXTRA, MRL_PONTOEXTRA.DESCRICAO, MRL_PONTOEXTRA.STATUS\nINTO\n\t{ponto}, '{pe_desc}', '{pe_st}'\nFROM MRL_PONTOEXTRA\nWHERE\n\tMRL_PONTOEXTRA.SEQPONTOEXTRA = {ponto}",
+                'explanation': 'O ERP valida se a ponta de gôndola/ilha está cadastrada e ativa no sistema comercial.'
+            },
+            {
+                'id': '<ID-00004>',
+                'timestamp': now_str,
+                'title': '2. Verificação de Vínculo Produto x Ponto Extra (MRL_PONTOEXTRAPRODUTO)',
+                'sql': f"SELECT\n\tMRL_PONTOEXTRAPRODUTO.SEQPONTOEXTRA, MRL_PONTOEXTRAPRODUTO.SEQPRODUTO, PROD.DESCCOMPLETA, MRL_PONTOEXTRAPRODUTO.STATUS\nINTO\n\t{ponto}, {produto}, '{pep['DESCCOMPLETA'] if pep else ''}', '{pep['STATUS'] if pep else ''}'\nFROM MRL_PONTOEXTRAPRODUTO, MAP_PRODUTO PROD\nWHERE\n\tPROD.SEQPRODUTO = MRL_PONTOEXTRAPRODUTO.SEQPRODUTO\n\tAND MRL_PONTOEXTRAPRODUTO.SEQPONTOEXTRA = {ponto}",
+                'explanation': 'Localiza todos os produtos amarrados a este Ponto Extra trazendo a descrição do cadastro geral MAP_PRODUTO.'
+            },
+            {
+                'id': '<ID-00007>',
+                'timestamp': now_str,
+                'title': '3. Leitura Inicial de Parâmetros por Empresa (Check de Template)',
+                'sql': f"SELECT\n\tMRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA, LPAD(EMP.NROEMPRESA, 6, '0') || ' - ' || EMP.RAZAOSOCIAL, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMINIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMAXIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAINICIO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAFIM, MRL_PONTOEXTRAPRODUTOEMPRESA.QTDDIASSUGESTAO, MRL_PONTOEXTRAPRODUTOEMPRESA.STATUS, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQVIGENCIA\nINTO\n\t0, 0, 0, '', 0, 0, , , 0, '', 0\nFROM MRL_PONTOEXTRAPRODUTOEMPRESA, MAX_EMPRESA EMP\nWHERE\n\tMRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA = EMP.NROEMPRESA\n\tAND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA = {ponto}\n\tAND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO = 0",
+                'explanation': 'O grid do Delphi carrega uma linha padrão (SEQPRODUTO = 0) para inicializar as colunas da grade de filiais.'
+            },
+            {
+                'id': '<ID-00010>',
+                'timestamp': now_str,
+                'title': f'4. Consulta dos Registros da Grade para SEQPRODUTO = {produto}',
+                'sql': f"SELECT\n\tMRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA, LPAD(EMP.NROEMPRESA, 6, '0') || ' - ' || EMP.RAZAOSOCIAL, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMINIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMAXIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAINICIO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAFIM, MRL_PONTOEXTRAPRODUTOEMPRESA.QTDDIASSUGESTAO, MRL_PONTOEXTRAPRODUTOEMPRESA.STATUS, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQVIGENCIA\nINTO\n\t0, 0, 0, '', 0, 0, , , 0, '', 0\nFROM MRL_PONTOEXTRAPRODUTOEMPRESA, MAX_EMPRESA EMP\nWHERE\n\tMRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA = EMP.NROEMPRESA\n\tAND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA = {ponto}\n\tAND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO = {produto}",
+                'explanation': 'Dispara a busca das filiais vinculadas a este produto específico.'
+            },
+            {
+                'id': '<ID-00013>',
+                'timestamp': now_str,
+                'title': f'5. Retorno dos Dados Preenchidos da Loja {empresa}',
+                'sql': f"SELECT\n\tMRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA, LPAD(EMP.NROEMPRESA, 6, '0') || ' - ' || EMP.RAZAOSOCIAL, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMINIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.ESTQMAXIMO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAINICIO, MRL_PONTOEXTRAPRODUTOEMPRESA.DTAVIGENCIAFIM, MRL_PONTOEXTRAPRODUTOEMPRESA.QTDDIASSUGESTAO, MRL_PONTOEXTRAPRODUTOEMPRESA.STATUS, MRL_PONTOEXTRAPRODUTOEMPRESA.SEQVIGENCIA\nINTO\n\t{pepe['SEQPONTOEXTRA'] if pepe else ponto}, {pepe['SEQPRODUTO'] if pepe else produto}, {pepe['NROEMPRESA'] if pepe else empresa}, '{pepe['EMPRESA_LABEL'] if pepe else ''}', {pepe['ESTQMINIMO'] if pepe else 0}, {pepe['ESTQMAXIMO'] if pepe else 0}, {pepe['DTAVIGENCIAINICIO'] if pepe else ''}, {pepe['DTAVIGENCIAFIM'] if pepe else ''}, {pepe['QTDDIASSUGESTAO'] if pepe else 0}, '{pepe['STATUS'] if pepe else 'A'}', {pepe['SEQVIGENCIA'] if pepe else 1}\nFROM MRL_PONTOEXTRAPRODUTOEMPRESA, MAX_EMPRESA EMP\nWHERE\n\tMRL_PONTOEXTRAPRODUTOEMPRESA.NROEMPRESA = EMP.NROEMPRESA\n\tAND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPONTOEXTRA = {ponto}\n\tAND MRL_PONTOEXTRAPRODUTOEMPRESA.SEQPRODUTO = {produto}",
+                'explanation': 'Os dados reais são injetados nas variáveis internas do formulário Delphi/Consinco para exibição na tela.'
+            }
+        ]
+
+        conn.close()
+        self.send_json({
+            'success': True,
+            'ponto': ponto,
+            'produto': produto,
+            'empresa': empresa,
+            'trace_blocks': trace_blocks
+        })
 
     def handle_get_missions(self):
         missions = [
@@ -625,6 +1243,42 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
                 'description': 'Crie uma consulta parametrizada com variável bind de Loja (:NROEMPRESA) e Fornecedor (:NR1) com fallback usando NVL e TO_NUMBER.',
                 'starter_sql': "SELECT\n    A.SEQPRODUTO,\n    A.DESCCOMPLETA,\n    F.NOMERAZAO AS FORNECEDOR,\n    B.PRCBASE,\n    B.ESTQLOJA\nFROM MAP_PRODUTO A\nINNER JOIN MRL_PRODUTOEMPRESA B ON A.SEQPRODUTO = B.SEQPRODUTO\nINNER JOIN MAP_FAMFORNEC FF ON A.SEQFAMILIA = FF.SEQFAMILIA AND FF.PRINCIPAL = 'S'\nINNER JOIN GE_PESSOA F ON FF.SEQPESSOA = F.SEQPESSOA\nWHERE B.NROEMPRESA = :NROEMPRESA\n  AND (TO_NUMBER(NVL(:NR1, 0)) = 0 OR F.SEQPESSOA = TO_NUMBER(:NR1))",
                 'hint': 'Altere o valor de :NROEMPRESA e :NR1 na gaveta Var-F7 para testar a filtragem dinâmica!'
+            },
+            {
+                'id': 7,
+                'title': 'Missão 7: Atualizar Estoque Mínimo e Máximo de Ponta de Gôndola',
+                'difficulty': 'Intermediário',
+                'category': 'Atualização de Tabela',
+                'description': 'Execute um comando UPDATE na tabela MRL_PONTOEXTRAPRODUTOEMPRESA para definir ESTQMINIMO = 500 e ESTQMAXIMO = 600 para a Loja 12 no Ponto 203 do Produto 10.',
+                'starter_sql': "UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA\nSET ESTQMINIMO = 500,\n    ESTQMAXIMO = 600\nWHERE SEQPONTOEXTRA = 203\n  AND SEQPRODUTO = 10\n  AND NROEMPRESA = 12",
+                'hint': 'Lembre-se de sempre especificar o WHERE com SEQPONTOEXTRA, SEQPRODUTO e NROEMPRESA para não alterar outras lojas!'
+            },
+            {
+                'id': 8,
+                'title': 'Missão 8: Consulta de Auditoria de Pontas Extras vs Estoque Real',
+                'difficulty': 'Intermediário',
+                'category': 'Consultas de Pontas',
+                'description': 'Cruze as configurações de Pontas de Gôndola (MRL_PONTOEXTRAPRODUTOEMPRESA) com o Estoque Operacional da Loja (MRL_PRODUTOEMPRESA) para comparar ESTQMINIMO da ponta com ESTQLOJA.',
+                'starter_sql': "SELECT\n    PE.SEQPONTOEXTRA,\n    P.SEQPRODUTO,\n    P.DESCCOMPLETA,\n    PE.NROEMPRESA,\n    PE.ESTQMINIMO AS MINIMO_PONTA,\n    PE.ESTQMAXIMO AS MAXIMO_PONTA,\n    E.ESTQLOJA AS ESTOQUE_ATUAL_LOJA,\n    PE.STATUS AS STATUS_PONTA\nFROM MRL_PONTOEXTRAPRODUTOEMPRESA PE\nINNER JOIN MAP_PRODUTO P ON PE.SEQPRODUTO = P.SEQPRODUTO\nINNER JOIN MRL_PRODUTOEMPRESA E ON PE.SEQPRODUTO = E.SEQPRODUTO AND PE.NROEMPRESA = E.NROEMPRESA\nWHERE PE.SEQPONTOEXTRA = 203\nORDER BY PE.NROEMPRESA",
+                'hint': 'Faça JOIN de MRL_PONTOEXTRAPRODUTOEMPRESA com MAP_PRODUTO e MRL_PRODUTOEMPRESA pela chave composta (SEQPRODUTO e NROEMPRESA).'
+            },
+            {
+                'id': 9,
+                'title': 'Missão 9: Atualização de Vigência Promocional de Pontas de Gôndola',
+                'difficulty': 'Avançado',
+                'category': 'Atualização de Tabela',
+                'description': 'Atualize a data de fim de vigência (DTAVIGENCIAFIM) para \'2026-12-31\' de todos os produtos do Ponto Extra 203 mantendo STATUS = \'A\'.',
+                'starter_sql': "UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA\nSET DTAVIGENCIAFIM = '2026-12-31',\n    STATUS = 'A'\nWHERE SEQPONTOEXTRA = 203",
+                'hint': 'O filtro por SEQPONTOEXTRA = 203 atualiza a vigência de todas as lojas e produtos alocados nessa ponta de gôndola.'
+            },
+            {
+                'id': 10,
+                'title': 'Missão 10: Extração Oficial de Pontas para Planilha de Manutenção',
+                'difficulty': 'Avançado',
+                'category': 'Extração & Carga',
+                'description': 'Construa a consulta de extração completa das pontas de gôndola (MRL_PONTOEXTRA, MRL_PONTOEXTRAPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA, MAP_PRODUTO, MAX_EMPRESA) formatando as colunas exatas para download em TXT/Excel.',
+                'starter_sql': "SELECT * FROM (\n    WITH PONTAS_DETALHE AS (\n        SELECT /*+ MATERIALIZE */\n            PEPE.SEQPONTOEXTRA,\n            PE.DESCRICAO AS NOME_PONTO_EXTRA,\n            PEPE.SEQPRODUTO,\n            PROD.DESCCOMPLETA AS DESCRICAO_PRODUTO,\n            PEPE.NROEMPRESA,\n            LPAD(EMP.NROEMPRESA, 6, '0') || ' - ' || EMP.RAZAOSOCIAL AS LOJA,\n            PEPE.ESTQMINIMO,\n            PEPE.ESTQMAXIMO,\n            NVL(ESTQ.ESTQLOJA, 0) AS ESTOQUE_ATUAL_LOJA,\n            TO_CHAR(PEPE.DTAVIGENCIAINICIO, 'YYYY-MM-DD') AS DTAVIGENCIAINICIO,\n            TO_CHAR(PEPE.DTAVIGENCIAFIM, 'YYYY-MM-DD') AS DTAVIGENCIAFIM,\n            PEPE.STATUS\n        FROM MRL_PONTOEXTRA PE\n        INNER JOIN MRL_PONTOEXTRAPRODUTO PEP ON PEP.SEQPONTOEXTRA = PE.SEQPONTOEXTRA\n        INNER JOIN MRL_PONTOEXTRAPRODUTOEMPRESA PEPE ON PEPE.SEQPONTOEXTRA = PEP.SEQPONTOEXTRA AND PEPE.SEQPRODUTO = PEP.SEQPRODUTO\n        INNER JOIN MAP_PRODUTO PROD ON PROD.SEQPRODUTO = PEPE.SEQPRODUTO\n        INNER JOIN MAX_EMPRESA EMP ON EMP.NROEMPRESA = PEPE.NROEMPRESA\n        LEFT JOIN MRL_PRODUTOEMPRESA ESTQ ON ESTQ.SEQPRODUTO = PEPE.SEQPRODUTO AND ESTQ.NROEMPRESA = PEPE.NROEMPRESA\n        WHERE PEPE.SEQPONTOEXTRA = 203\n    )\n    SELECT * FROM PONTAS_DETALHE\n    ORDER BY NROEMPRESA, SEQPRODUTO\n)",
+                'hint': 'Esta é a query oficial que gera o arquivo TXT/Excel para você editar os mínimos e máximos e depois colar no módulo de Carga!'
             }
         ]
         self.send_json({'missions': missions})
@@ -634,13 +1288,37 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
         user_sql = data.get('sql', '').strip()
         
         if not user_sql:
-            self.send_json({'success': False, 'message': 'Digite uma query antes de verificar.'})
+            self.send_json({'success': False, 'message': 'Digite uma instrução SQL antes de verificar.'})
             return
 
         processed = preprocess_oracle_sql(user_sql, {'NROEMPRESA': 1, 'NR1': 0})
+        is_dml = bool(re.match(r'^\s*(UPDATE|INSERT|DELETE)\b', processed, flags=re.IGNORECASE))
+
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
+            
+            if is_dml:
+                cursor.execute(processed)
+                affected = cursor.rowcount
+                conn.commit()
+                conn.close()
+                if affected > 0:
+                    self.send_json({
+                        'success': True,
+                        'passed': True,
+                        'message': f'Parabéns! O comando DML executou com sucesso e afetou {affected} linha(s)!',
+                        'row_count': affected
+                    })
+                else:
+                    self.send_json({
+                        'success': True,
+                        'passed': False,
+                        'message': 'O comando executou, mas 0 linhas foram afetadas. Revise a condição WHERE.',
+                        'row_count': 0
+                    })
+                return
+
             cursor.execute(processed)
             rows = cursor.fetchall()
             row_cnt = len(rows)
@@ -664,7 +1342,7 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             self.send_json({
                 'success': False,
                 'passed': False,
-                'message': f'Erro na execução da consulta: {str(e)}'
+                'message': f'Erro na execução: {str(e)}'
             })
 
 def run_server():

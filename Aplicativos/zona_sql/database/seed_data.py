@@ -41,12 +41,43 @@ def build_database():
     CREATE TABLE MAX_EMPRESA (
         NROEMPRESA INTEGER PRIMARY KEY,
         NOMERAZAO TEXT NOT NULL,
+        RAZAOSOCIAL TEXT,
         FANTASIA TEXT NOT NULL,
         NROSEGMENTOPRINC INTEGER DEFAULT 1,
         CIDADE TEXT,
         UF TEXT DEFAULT 'RS',
         STATUS TEXT DEFAULT 'A',
         TIPOEMPRESA TEXT DEFAULT 'L' -- L = Loja, C = Centro de Distribuicao
+    );
+
+    -- Capa dos Pontos Extras / Pontas de Gondola / Ilhas
+    CREATE TABLE MRL_PONTOEXTRA (
+        SEQPONTOEXTRA INTEGER PRIMARY KEY,
+        DESCRICAO TEXT NOT NULL,
+        STATUS TEXT DEFAULT 'A'
+    );
+
+    -- Produtos Vinculados ao Ponto Extra
+    CREATE TABLE MRL_PONTOEXTRAPRODUTO (
+        SEQPONTOEXTRA INTEGER NOT NULL,
+        SEQPRODUTO INTEGER NOT NULL,
+        STATUS TEXT DEFAULT 'A',
+        PRIMARY KEY (SEQPONTOEXTRA, SEQPRODUTO)
+    );
+
+    -- Parametros de Estoque Min/Max e Vigencia do Ponto Extra por Loja
+    CREATE TABLE MRL_PONTOEXTRAPRODUTOEMPRESA (
+        SEQPONTOEXTRA INTEGER NOT NULL,
+        SEQPRODUTO INTEGER NOT NULL,
+        NROEMPRESA INTEGER NOT NULL,
+        SEQVIGENCIA INTEGER DEFAULT 1,
+        ESTQMINIMO REAL DEFAULT 0.0,
+        ESTQMAXIMO REAL DEFAULT 0.0,
+        DTAVIGENCIAINICIO TEXT,
+        DTAVIGENCIAFIM TEXT,
+        QTDDIASSUGESTAO REAL DEFAULT 0.0,
+        STATUS TEXT DEFAULT 'A',
+        PRIMARY KEY (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA)
     );
 
     -- Famílias de Produtos (Hierarquia Tributária e Comercial)
@@ -343,26 +374,26 @@ def build_database():
 
     # 2. Inserção de Empresas Reais da Rede
     empresas = [
-        (1, 'MATRIZ / LOJA 01 - CENTRO', 'LJ 01 CENTRO', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
-        (2, 'SUPERMERCADO LOJA 02 - NORTE', 'LJ 02 NORTE', 1, 'CANOAS', 'RS', 'A', 'L'),
-        (3, 'SUPERMERCADO LOJA 03 - SUL', 'LJ 03 SUL', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
-        (4, 'SUPERMERCADO LOJA 04 - LESTE', 'LJ 04 LESTE', 1, 'GRAVATAI', 'RS', 'A', 'L'),
-        (5, 'SUPERMERCADO LOJA 05 - OESTE', 'LJ 05 OESTE', 1, 'NOVO HAMBURGO', 'RS', 'A', 'L'),
-        (6, 'SUPERMERCADO LOJA 06 - PRAIA', 'LJ 06 PRAIA', 1, 'CAPAO DA CANOA', 'RS', 'A', 'L'),
-        (7, 'SUPERMERCADO LOJA 07 - SERRA', 'LJ 07 SERRA', 1, 'CAXIAS DO SUL', 'RS', 'A', 'L'),
-        (8, 'SUPERMERCADO LOJA 08 - VALE', 'LJ 08 VALE', 1, 'SAO LEOPOLDO', 'RS', 'A', 'L'),
-        (11, 'SUPERMERCADO LOJA 11 - EXPRESS', 'LJ 11 EXPRESS', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
-        (12, 'SUPERMERCADO LOJA 12 - BAIRRO', 'LJ 12 BAIRRO', 1, 'VIAMAO', 'RS', 'A', 'L'),
-        (13, 'SUPERMERCADO LOJA 13 - SHOPPING', 'LJ 13 SHOPPING', 1, 'CANOAS', 'RS', 'A', 'L'),
-        (14, 'SUPERMERCADO LOJA 14 - PARQUE', 'LJ 14 PARQUE', 1, 'ALVORADA', 'RS', 'A', 'L'),
-        (15, 'SUPERMERCADO LOJA 15 - AVENIDA', 'LJ 15 AVENIDA', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
-        (16, 'CENTRO DE DISTRIBUICAO MATRIZ CD 16', 'CD 16 PRINCIPAL', 1, 'ESTEIO', 'RS', 'A', 'C'),
-        (17, 'SUPERMERCADO LOJA 17 - HIGIENOPOLIS', 'LJ 17 HIGIENOPOLIS', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
-        (18, 'SUPERMERCADO LOJA 18 - PETROPOLIS', 'LJ 18 PETROPOLIS', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
-        (50, 'CD SECOS E LOGISTICA 50', 'CD 50 SECOS', 1, 'SAPUCAIA DO SUL', 'RS', 'A', 'C'),
-        (900, 'ADMINISTRATIVO CENTRAL', 'ADM CENTRAL', 1, 'PORTO ALEGRE', 'RS', 'A', 'L')
+        (1, 'MATRIZ / LOJA 01 - CENTRO', '000001 - SUPERMERCADO MATRIZ LTDA', 'LJ 01 CENTRO', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
+        (2, 'SUPERMERCADO LOJA 02 - NORTE', '000002 - SUPERMERCADO NORTE LTDA', 'LJ 02 NORTE', 1, 'CANOAS', 'RS', 'A', 'L'),
+        (3, 'SUPERMERCADO LOJA 03 - SUL', '000003 - SUPERMERCADO SUL LTDA', 'LJ 03 SUL', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
+        (4, 'SUPERMERCADO LOJA 04 - LESTE', '000004 - SUPERMERCADO LESTE LTDA', 'LJ 04 LESTE', 1, 'GRAVATAI', 'RS', 'A', 'L'),
+        (5, 'SUPERMERCADO LOJA 05 - OESTE', '000005 - SUPERMERCADO OESTE LTDA', 'LJ 05 OESTE', 1, 'NOVO HAMBURGO', 'RS', 'A', 'L'),
+        (6, 'SUPERMERCADO LOJA 06 - PRAIA', '000006 - SUPERMERCADO PRAIA LTDA', 'LJ 06 PRAIA', 1, 'CAPAO DA CANOA', 'RS', 'A', 'L'),
+        (7, 'SUPERMERCADO LOJA 07 - SERRA', '000007 - SUPERMERCADO SERRA LTDA', 'LJ 07 SERRA', 1, 'CAXIAS DO SUL', 'RS', 'A', 'L'),
+        (8, 'SUPERMERCADO LOJA 08 - VALE', '000008 - SUPERMERCADO VALE LTDA', 'LJ 08 VALE', 1, 'SAO LEOPOLDO', 'RS', 'A', 'L'),
+        (11, 'SUPERMERCADO LOJA 11 - EXPRESS', '000011 - SUPERMERCADO EXPRESS LTDA', 'LJ 11 EXPRESS', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
+        (12, 'SUPERMERCADO LOJA 12 - BAIRRO', '000012 - SUPERMERCADO BAKLIZI LTDA', 'LJ 12 BAIRRO', 1, 'VIAMAO', 'RS', 'A', 'L'),
+        (13, 'SUPERMERCADO LOJA 13 - SHOPPING', '000013 - SUPERMERCADO SHOPPING LTDA', 'LJ 13 SHOPPING', 1, 'CANOAS', 'RS', 'A', 'L'),
+        (14, 'SUPERMERCADO LOJA 14 - PARQUE', '000014 - SUPERMERCADO PARQUE LTDA', 'LJ 14 PARQUE', 1, 'ALVORADA', 'RS', 'A', 'L'),
+        (15, 'SUPERMERCADO LOJA 15 - AVENIDA', '000015 - SUPERMERCADO AVENIDA LTDA', 'LJ 15 AVENIDA', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
+        (16, 'CENTRO DE DISTRIBUICAO MATRIZ CD 16', '000016 - CD LOGISTICA MATRIZ LTDA', 'CD 16 PRINCIPAL', 1, 'ESTEIO', 'RS', 'A', 'C'),
+        (17, 'SUPERMERCADO LOJA 17 - HIGIENOPOLIS', '000017 - SUPERMERCADO HIGIENOPOLIS LTDA', 'LJ 17 HIGIENOPOLIS', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
+        (18, 'SUPERMERCADO LOJA 18 - PETROPOLIS', '000018 - SUPERMERCADO PETROPOLIS LTDA', 'LJ 18 PETROPOLIS', 1, 'PORTO ALEGRE', 'RS', 'A', 'L'),
+        (50, 'CD SECOS E LOGISTICA 50', '000050 - CD LOGISTICA SECOS LTDA', 'CD 50 SECOS', 1, 'SAPUCAIA DO SUL', 'RS', 'A', 'C'),
+        (900, 'ADMINISTRATIVO CENTRAL', '000900 - ADMINISTRATIVO CENTRAL LTDA', 'ADM CENTRAL', 1, 'PORTO ALEGRE', 'RS', 'A', 'L')
     ]
-    cursor.executemany("INSERT INTO MAX_EMPRESA VALUES (?,?,?,?,?,?,?,?)", empresas)
+    cursor.executemany("INSERT INTO MAX_EMPRESA VALUES (?,?,?,?,?,?,?,?,?)", empresas)
 
     # 3. Inserção de Compradores Reais do Projeto
     compradores = [
@@ -445,8 +476,8 @@ def build_database():
     cursor.executemany("INSERT INTO MAP_CATEGORIA VALUES (?,?,?,?,?)", categorias)
 
     # 6. Carregar Produtos Reais dos Arquivos do Workspace se existirem
-    workspace_dir = os.path.dirname(os.path.dirname(base_dir))
-    sem_venda_file = os.path.join(workspace_dir, 'Aplicativos', 'sem_venda', 'sem_venda.xlsx')
+    aplicativos_dir = os.path.dirname(os.path.dirname(base_dir))
+    sem_venda_file = os.path.join(aplicativos_dir, 'sem_venda', 'sem_venda.xlsx')
     
     produtos_base = []
     if os.path.exists(sem_venda_file):
@@ -465,6 +496,7 @@ def build_database():
 
     # Lista fallback de produtos realistas de varejo caso poucos sejam carregados
     fallback_produtos = [
+        (10, 'CERVEJA CORONA EXTRA LONG NECK 330ML', 'BEBIDAS', 'WETER'),
         (3880, 'CERVEJA HEINEKEN LAGER LATA 350ML', 'BEBIDAS', 'WETER'),
         (3881, 'CERVEJA SPATEN PURO MALTE LN 355ML', 'BEBIDAS', 'WETER'),
         (3883, 'CERVEJA BRAHMA DUPLO MALTE LATA 350ML', 'BEBIDAS', 'WETER'),
@@ -652,7 +684,77 @@ def build_database():
             cursor.execute("INSERT INTO MBI_TABCDISTRIB VALUES (?,?,?,?,?,?,?,?)",
                            (1001, seqprod, nroemp, qtd_abc, vlr_abc, lucro_abc, cto_abc, lucro_abc))
 
-    # 8. Inserção de Títulos Financeiros e Operações
+    # 8. Inserção de Pontos Extras / Pontas de Gôndola / Ilhas
+    pontos_extras = [
+        (201, '0201 - PONTA DE GONDOLA ENTRADA PRINCIPAL', 'A'),
+        (202, '0202 - PONTA DE GONDOLA CORREDOR CENTRAL', 'A'),
+        (203, '0203 - PONTA GONDOLA BEBIDAS E CERVEJAS', 'A'),
+        (204, '0204 - ILHA REFRIGERADOS E LATICINIOS', 'A'),
+        (205, '0205 - CHECKOUT 01 DOCES E SNACKS', 'A'),
+        (206, '0206 - PONTA DE GONDOLA MERCEARIA SALGADA', 'A'),
+        (207, '0207 - ILHA CENTRAL HIGIENE E LIMPEZA', 'A')
+    ]
+    cursor.executemany("INSERT INTO MRL_PONTOEXTRA VALUES (?,?,?)", pontos_extras)
+
+    # Produtos nos Pontos Extras
+    ponto_produtos = [
+        (203, 10, 'A'),   # Corona no Ponto 203 (Ponta Bebidas)
+        (203, 3880, 'A'), # Heineken no Ponto 203
+        (203, 3881, 'A'), # Spaten no Ponto 203
+        (203, 4012, 'A'), # Coca-Cola no Ponto 203
+        (201, 3880, 'A'), # Heineken na Entrada
+        (201, 4012, 'A'), # Coca-Cola na Entrada
+        (204, 6210, 'A'), # Leite Piracanjuba na Ilha de Laticinios
+        (204, 6250, 'A'), # Mussarela na Ilha de Laticinios
+        (205, 5102, 'A'), # Nestlé Classic no Checkout
+        (205, 5105, 'A'), # Lacta no Checkout
+        (205, 5201, 'A'), # Oreo no Checkout
+        (206, 5405, 'A'), # Massa Adria na Ponta Mercearia
+        (206, 5310, 'A'), # Arroz Tio Joao na Ponta Mercearia
+        (207, 7100, 'A'), # Omo na Ilha de Limpeza
+        (207, 7110, 'A')  # Comfort na Ilha de Limpeza
+    ]
+    cursor.executemany("INSERT INTO MRL_PONTOEXTRAPRODUTO VALUES (?,?,?)", ponto_produtos)
+
+    # Configuração de Vigência, Estoque Mínimo e Máximo por Loja
+    # 1. Caso específico do usuário para teste exato do Monitor SQL:
+    # SEQPONTOEXTRA=203, SEQPRODUTO=10, NROEMPRESA=12, ESTQMINIMO=500, ESTQMAXIMO=600, VIGENCIA 2026-08-05 a 2026-12-01, SEQVIGENCIA=428
+    ponto_empresa_rows = [
+        (203, 10, 12, 428, 500.0, 600.0, '2026-08-05', '2026-12-01', 0.0, 'A')
+    ]
+
+    # Preencher para as demais lojas e produtos
+    lojas_pontas = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18]
+    seq_vig_counter = 500
+
+    for seq_ponto, seq_prod, status_p in ponto_produtos:
+        for loja in lojas_pontas:
+            # Pular se já inserido o caso do usuário
+            if seq_ponto == 203 and seq_prod == 10 and loja == 12:
+                continue
+            
+            seq_vig_counter += 1
+            estq_min = float(random.choice([20, 30, 40, 50, 60, 80, 100, 150, 200]))
+            estq_max = estq_min + float(random.choice([30, 50, 80, 100, 150, 250]))
+            dta_ini = '2026-08-01'
+            dta_fim = '2026-12-31'
+            dias_sug = float(random.choice([0, 3, 5, 7]))
+            status_pe = 'A' if random.random() > 0.05 else 'I'
+
+            ponto_empresa_rows.append((
+                seq_ponto, seq_prod, loja, seq_vig_counter,
+                estq_min, estq_max, dta_ini, dta_fim, dias_sug, status_pe
+            ))
+
+    cursor.executemany("""
+    INSERT INTO MRL_PONTOEXTRAPRODUTOEMPRESA (
+        SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
+        ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
+        QTDDIASSUGESTAO, STATUS
+    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+    """, ponto_empresa_rows)
+
+    # 9. Inserção de Títulos Financeiros e Operações
     seq_tit = 50000
     for forn in fornecedores:
         seqforn = forn[0]
@@ -677,7 +779,7 @@ def build_database():
                 cursor.execute("INSERT INTO FI_TITOPERACAO VALUES (?,?,?,?,?,?)",
                                (seq_tit * 10 + 1, seq_tit, 6, dta_quit, vlr, 'LIQUIDACAO BANCO'))
 
-    # 9. Pedidos de Transferência em Trânsito (MSU)
+    # 10. Pedidos de Transferência em Trânsito (MSU)
     seq_ped = 800000
     for loja in [1, 2, 3, 4, 5, 7, 8, 11, 14, 18]:
         seq_ped += 1
@@ -710,7 +812,7 @@ def build_database():
                            (seq_nf, num_nf, '1', 16, seqforn, dta_ent, dta_ent, vlr_nf, 'N', 'V', 1102, chave))
 
     # 11. Integrar Dicionário Oficial de 4.515 Tabelas do Consinco
-    dict_src_path = os.path.join(workspace_dir, 'Aplicativos', 'gerenciamento_sql', 'dicionario_consinco.db')
+    dict_src_path = os.path.join(aplicativos_dir, 'gerenciamento_sql', 'dicionario_consinco.db')
     if os.path.exists(dict_src_path):
         try:
             conn_src = sqlite3.connect(dict_src_path)

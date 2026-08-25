@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const editor = new SqlEditorManager('sql-editor', 'line-numbers', 'editor-cursor-pos', 'editor-char-count');
     const mentor = new ConsincoMentor(editor);
     const missions = new MissionsManager(editor);
+    const carga = new CargaTabelaManager(editor);
 
     // 2. Estado Global
     let currentResults = null;
@@ -14,6 +15,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 3. Snippets Consinco Homologados
     const snippets = [
+        {
+            title: 'MERGE INTO Pontas de Gôndola (MRL_PONTOEXTRAPRODUTOEMPRESA)',
+            desc: 'Sincronização inteligente de estoque min/max de pontas no Oracle',
+            sql: `MERGE INTO MRL_PONTOEXTRAPRODUTOEMPRESA DEST
+USING (
+    SELECT 203 AS SEQPONTOEXTRA, 10 AS SEQPRODUTO, 12 AS NROEMPRESA, 500 AS ESTQMINIMO, 600 AS ESTQMAXIMO, TO_DATE('2026-08-05', 'YYYY-MM-DD') AS DTAVIGENCIAINICIO, TO_DATE('2026-12-01', 'YYYY-MM-DD') AS DTAVIGENCIAFIM, 'A' AS STATUS FROM DUAL
+) ORIG
+ON (
+    DEST.SEQPONTOEXTRA = ORIG.SEQPONTOEXTRA
+    AND DEST.SEQPRODUTO = ORIG.SEQPRODUTO
+    AND DEST.NROEMPRESA = ORIG.NROEMPRESA
+)
+WHEN MATCHED THEN
+    UPDATE SET
+        DEST.ESTQMINIMO = ORIG.ESTQMINIMO,
+        DEST.ESTQMAXIMO = ORIG.ESTQMAXIMO,
+        DEST.DTAVIGENCIAINICIO = ORIG.DTAVIGENCIAINICIO,
+        DEST.DTAVIGENCIAFIM = ORIG.DTAVIGENCIAFIM,
+        DEST.STATUS = ORIG.STATUS
+WHEN NOT MATCHED THEN
+    INSERT (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS)
+    VALUES (ORIG.SEQPONTOEXTRA, ORIG.SEQPRODUTO, ORIG.NROEMPRESA, 1, ORIG.ESTQMINIMO, ORIG.ESTQMAXIMO, ORIG.DTAVIGENCIAINICIO, ORIG.DTAVIGENCIAFIM, 0, ORIG.STATUS);`
+        },
+        {
+            title: 'UPDATE Estoque Mín/Máx em Lote (Pontas de Lojas)',
+            desc: 'Atualização rápida parametrizada por Ponto e SEQPRODUTO',
+            sql: `UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA
+SET ESTQMINIMO = 500,
+    ESTQMAXIMO = 600,
+    DTAVIGENCIAINICIO = TO_DATE('2026-08-05', 'YYYY-MM-DD'),
+    DTAVIGENCIAFIM = TO_DATE('2026-12-01', 'YYYY-MM-DD'),
+    STATUS = 'A'
+WHERE SEQPONTOEXTRA = 203
+  AND SEQPRODUTO = 10
+  AND NROEMPRESA = :NROEMPRESA`
+        },
+        {
+            title: 'Conferência Geral de Pontas vs Estoque da Loja',
+            desc: 'Auditoria cruzando MRL_PONTOEXTRAPRODUTOEMPRESA e MRL_PRODUTOEMPRESA',
+            sql: `SELECT
+    PE.SEQPONTOEXTRA,
+    P.SEQPRODUTO,
+    P.DESCCOMPLETA,
+    PE.NROEMPRESA,
+    LPAD(E.NROEMPRESA, 6, '0') || ' - ' || E.RAZAOSOCIAL AS LOJA,
+    PE.ESTQMINIMO AS MINIMO_PONTA,
+    PE.ESTQMAXIMO AS MAXIMO_PONTA,
+    M.ESTQLOJA AS ESTOQUE_ATUAL_LOJA,
+    PE.DTAVIGENCIAINICIO,
+    PE.DTAVIGENCIAFIM,
+    PE.STATUS
+FROM MRL_PONTOEXTRAPRODUTOEMPRESA PE
+INNER JOIN MAP_PRODUTO P ON PE.SEQPRODUTO = P.SEQPRODUTO
+INNER JOIN MAX_EMPRESA E ON PE.NROEMPRESA = E.NROEMPRESA
+LEFT JOIN MRL_PRODUTOEMPRESA M ON PE.SEQPRODUTO = M.SEQPRODUTO AND PE.NROEMPRESA = M.NROEMPRESA
+WHERE PE.SEQPONTOEXTRA = 203
+ORDER BY PE.NROEMPRESA, P.SEQPRODUTO`
+        },
         {
             title: 'Bypass Consinco (SELECT * FROM WITH)',
             desc: 'Estrutura obrigatória para passar no validador da Consulta Criação',

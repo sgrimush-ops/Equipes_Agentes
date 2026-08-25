@@ -32,6 +32,9 @@
             </div>
 
             <div class="header-right">
+                <button id="btn-open-carga-module" class="btn btn-emerald btn-glow" title="Abrir Módulo de Carga de Planilha & Atualização de Tabelas de Pontas">
+                    <span class="btn-icon">📦</span> Carga & Atualização <span class="badge-new-pill">NOVO</span>
+                </button>
                 <button id="btn-toggle-varf7" class="btn btn-secondary" title="Abrir Painel de Variáveis de Tela (Var - F7)">
                     <span class="btn-icon">⚙️</span> Var - F7
                 </button>
@@ -66,7 +69,6 @@
                         <input type="text" id="search-tables-input" placeholder="Filtrar tabelas (ex: MAP, MRL, FI)...">
                     </div>
                     <div class="tables-tree-container" id="tables-list">
-                        <!-- Carregado via JS -->
                         <div class="loading-spinner">Carregando tabelas...</div>
                     </div>
                 </div>
@@ -79,7 +81,7 @@
                     </div>
                     <div class="dict-results-container" id="dict-results">
                         <div class="empty-state">
-                            <p>Digite o nome de uma tabela (ex: <code>MSU_</code>, <code>MBI_</code>, <code>FI_</code>) ou coluna (ex: <code>QTDVDA</code>, <code>ESTQLOJA</code>) para buscar no catálogo oficial.</p>
+                            <p>Digite o nome de uma tabela (ex: <code>MRL_PONTOEXTRA</code>, <code>MSU_</code>, <code>FI_</code>) ou coluna (ex: <code>SEQPRODUTO</code>, <code>ESTQMINIMO</code>) para buscar no catálogo oficial.</p>
                         </div>
                     </div>
                 </div>
@@ -87,7 +89,7 @@
                 <!-- Tab 3: Modelos & Snippets Rápidos Consinco -->
                 <div id="tab-snippets" class="tab-content">
                     <div class="snippets-list" id="snippets-list">
-                        <!-- Modelos prontos -->
+                        <!-- Modelos prontos carregados via JS -->
                     </div>
                 </div>
             </aside>
@@ -120,7 +122,7 @@
                                 <option value="7">7 - LOJA 07 SERRA</option>
                                 <option value="8">8 - LOJA 08 VALE</option>
                                 <option value="11">11 - LOJA 11 EXPRESS</option>
-                                <option value="12">12 - LOJA 12 BAIRRO</option>
+                                <option value="12" selected>12 - LOJA 12 BAIRRO</option>
                                 <option value="13">13 - LOJA 13 SHOPPING</option>
                                 <option value="14">14 - LOJA 14 PARQUE</option>
                                 <option value="15">15 - LOJA 15 AVENIDA</option>
@@ -164,7 +166,7 @@
                     <div class="editor-toolbar">
                         <div class="editor-title">
                             <span class="editor-icon">📝</span>
-                            <span>Editor de Consulta Oracle Consinco</span>
+                            <span>Editor de Instruções Oracle Consinco (SELECT, UPDATE, INSERT, MERGE)</span>
                         </div>
                         <div class="editor-stats">
                             <span id="editor-cursor-pos">Linha 1, Coluna 1</span>
@@ -175,17 +177,19 @@
 
                     <div class="editor-wrapper">
                         <div class="line-numbers" id="line-numbers">1</div>
-                        <textarea id="sql-editor" spellcheck="false" placeholder="Digite sua consulta Oracle SQL aqui ou selecione um modelo ao lado...
+                        <textarea id="sql-editor" spellcheck="false" placeholder="Digite sua instrução Oracle SQL aqui ou selecione um modelo ao lado...
 Exemplo:
 SELECT
-    A.SEQPRODUTO,
-    A.DESCCOMPLETA,
-    B.PRCBASE,
-    B.ESTQLOJA
-FROM MAP_PRODUTO A
-INNER JOIN MRL_PRODUTOEMPRESA B ON A.SEQPRODUTO = B.SEQPRODUTO
-WHERE B.NROEMPRESA = :NROEMPRESA
-  AND B.STATUSCOMPRA = 'A'"></textarea>
+    A.SEQPONTOEXTRA,
+    P.SEQPRODUTO,
+    P.DESCCOMPLETA,
+    A.NROEMPRESA,
+    A.ESTQMINIMO,
+    A.ESTQMAXIMO
+FROM MRL_PONTOEXTRAPRODUTOEMPRESA A
+INNER JOIN MAP_PRODUTO P ON A.SEQPRODUTO = P.SEQPRODUTO
+WHERE A.SEQPONTOEXTRA = 203
+  AND A.NROEMPRESA = :NROEMPRESA"></textarea>
                     </div>
                 </div>
 
@@ -212,7 +216,7 @@ WHERE B.NROEMPRESA = :NROEMPRESA
                             <div class="table-container" id="grid-table-container">
                                 <div class="empty-grid-msg">
                                     <div class="empty-icon">⚡</div>
-                                    <h3>Nenhuma consulta executada ainda</h3>
+                                    <h3>Nenhuma consulta ou comando executado ainda</h3>
                                     <p>Digite um comando SQL acima e clique em <strong>Executar (Ctrl+Enter)</strong> para visualizar o resultado em tempo real.</p>
                                 </div>
                             </div>
@@ -226,7 +230,7 @@ WHERE B.NROEMPRESA = :NROEMPRESA
                         <!-- Logs View -->
                         <div id="res-logs" class="res-view">
                             <div id="logs-container" class="logs-container">
-                                <div class="log-entry log-info">[INFO] Simulador inicializado e pronto para executar consultas.</div>
+                                <div class="log-entry log-info">[INFO] Simulador inicializado e pronto para executar consultas e comandos DML.</div>
                             </div>
                         </div>
                     </div>
@@ -287,6 +291,356 @@ WHERE B.NROEMPRESA = :NROEMPRESA
         </div>
     </div>
 
+    <!-- Modal Completo: Carga & Atualização de Tabelas (Pontas de Lojas) -->
+    <div id="carga-modal" class="modal-backdrop modal-fullscreen">
+        <div class="modal-window modal-window-large">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <span class="modal-icon">📦</span>
+                    <div>
+                        <h3>Laboratório de Carga & Atualização de Tabelas</h3>
+                        <p class="modal-sub">Aprenda a atualizar tabelas no Totvs Consinco (Oracle) usando planilhas e SEQPRODUTO como chave mestre</p>
+                    </div>
+                </div>
+                <div class="modal-header-actions">
+                    <button id="btn-reset-simulator-db" class="btn btn-outline" title="Restaurar dados originais do simulador">↺ Resetar Banco</button>
+                    <button id="btn-close-carga-modal" class="btn-close">✕</button>
+                </div>
+            </div>
+
+            <!-- Navegação de Abas do Módulo de Carga -->
+            <div class="carga-nav-bar">
+                <button class="carga-tab-btn active" data-ctab="ctab-tutorial">📖 1. Guia Didático: Como Atualizar Tabelas</button>
+                <button class="carga-tab-btn" data-ctab="ctab-extract">📥 2. Extrair Planilha Atual (Download TXT/Excel)</button>
+                <button class="carga-tab-btn" data-ctab="ctab-carga">📋 3. Importador de Planilha (Excel ➔ SQL)</button>
+                <button class="carga-tab-btn" data-ctab="ctab-monitor">🕵️ 4. Simulador do SQL Monitor Consinco</button>
+            </div>
+
+            <div class="modal-body carga-modal-body">
+                
+                <!-- Aba 1: Guia Didático e Conceitual -->
+                <div id="ctab-tutorial" class="carga-tab-content active">
+                    <div class="tutorial-grid">
+                        
+                        <div class="tutorial-card">
+                            <div class="tut-header">
+                                <span class="tut-badge">Arquitetura</span>
+                                <h4>As 3 Tabelas de Pontas de Gôndola / Pontos Extras</h4>
+                            </div>
+                            <div class="tut-body">
+                                <p>No ERP Totvs Consinco, uma ponta de gôndola ou ilha promocional é estruturada em 3 níveis hierárquicos obrigatórios:</p>
+                                
+                                <div class="table-hierarchy-box">
+                                    <div class="hier-item hier-level-1">
+                                        <div class="hier-title">1. MRL_PONTOEXTRA (Capa do Ponto)</div>
+                                        <div class="hier-desc">Cadastra a localização física na loja. <strong>Chave:</strong> <code>SEQPONTOEXTRA</code> (ex: 203 = Ponta de Bebidas).</div>
+                                    </div>
+                                    <div class="hier-arrow">▼</div>
+                                    <div class="hier-item hier-level-2">
+                                        <div class="hier-title">2. MRL_PONTOEXTRAPRODUTO (Produto no Ponto)</div>
+                                        <div class="hier-desc">Vincula quais produtos podem estar naquela ponta. <strong>Chave:</strong> <code>(SEQPONTOEXTRA, SEQPRODUTO)</code>.</div>
+                                    </div>
+                                    <div class="hier-arrow">▼</div>
+                                    <div class="hier-item hier-level-3">
+                                        <div class="hier-title">3. MRL_PONTOEXTRAPRODUTOEMPRESA (Regras por Loja)</div>
+                                        <div class="hier-desc">Onde ficam o <strong>Estoque Mínimo, Máximo e Vigência</strong> para cada filial. <strong>Chave:</strong> <code>(SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA)</code>.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tutorial-card">
+                            <div class="tut-header">
+                                <span class="tut-badge tut-green">Chave Primária</span>
+                                <h4>Por que usar SEQPRODUTO como Chave?</h4>
+                            </div>
+                            <div class="tut-body">
+                                <ul class="tut-list">
+                                    <li><strong>Imutabilidade:</strong> Descrições de produtos mudam, códigos EAN podem ter trocas de dígitos, mas o <code>SEQPRODUTO</code> é o identificador numérico interno fixo e eterno no Consinco.</li>
+                                    <li><strong>Integridade Referencial:</strong> Todas as tabelas operacionais (<code>MRL_PRODUTOEMPRESA</code>, <code>MRL_PRODEMPSEG</code>, <code>MRL_CUSTODIA</code>) utilizam <code>SEQPRODUTO</code> como chave estrangeira.</li>
+                                    <li><strong>Velocidade de Processamento:</strong> Índices em colunas <code>NUMBER</code> são ordens de magnitude mais rápidos no Oracle do que buscas por texto.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="tutorial-card">
+                            <div class="tut-header">
+                                <span class="tut-badge tut-purple">Oracle SQL</span>
+                                <h4>Estratégias de Atualização no Oracle</h4>
+                            </div>
+                            <div class="tut-body">
+                                <div class="strategy-cards">
+                                    <div class="strategy-item">
+                                        <strong>1. MERGE INTO (Padrão Ouro do Oracle)</strong>
+                                        <p>Executa "Upsert" inteligente: se o registro já existir, faz <code>UPDATE</code>; se não existir, faz <code>INSERT</code> em uma única operação atômica.</p>
+                                    </div>
+                                    <div class="strategy-item">
+                                        <strong>2. Blocos Transacionais (UPDATE + INSERT)</strong>
+                                        <p>Gera comandos diretos de <code>UPDATE</code> para linhas existentes e <code>INSERT</code> para novas, finalizando obrigatoriamente com <code>COMMIT;</code>.</p>
+                                    </div>
+                                    <div class="strategy-item">
+                                        <strong>3. Script de Conferência Prévia</strong>
+                                        <p>Sempre execute um <code>SELECT</code> comparativo antes e após a carga para validar que apenas as lojas e produtos desejados foram afetados.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tutorial-card">
+                            <div class="tut-header">
+                                <span class="tut-badge tut-danger">Segurança</span>
+                                <h4>As 5 Regras de Ouro para Nunca Travar o ERP</h4>
+                            </div>
+                            <div class="tut-body">
+                                <ol class="tut-numbered-list">
+                                    <li><strong>Nunca faça UPDATE sem WHERE:</strong> Isso sobrescreve todas as lojas e todos os produtos do banco!</li>
+                                    <li><strong>Formate datas com TO_DATE:</strong> Use sempre <code>TO_DATE('2026-08-05', 'YYYY-MM-DD')</code> para evitar erros de formato regional de data.</li>
+                                    <li><strong>Sempre crie o vínculo pai primeiro:</strong> Não tente inserir na <code>MRL_PONTOEXTRAPRODUTOEMPRESA</code> sem que o produto exista na <code>MRL_PONTOEXTRAPRODUTO</code>.</li>
+                                    <li><strong>Não esqueça o COMMIT:</strong> Alterações DML seguram locks em linhas da tabela até que o <code>COMMIT</code> ou <code>ROLLBACK</code> seja disparado.</li>
+                                    <li><strong>Sem Comentários em Scripts Finais:</strong> Se for colar no módulo Consulta Criação do SGI, remova comentários para evitar erros de parser.</li>
+                                </ol>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Aba 2: Extrair Planilha de Pontas (Download TXT / Excel) -->
+                <div id="ctab-extract" class="carga-tab-content">
+                    <div class="extract-container">
+                        <div class="extract-header-card">
+                            <div class="extract-step-badge">FLUXO DE MANUTENÇÃO DE PONTAS</div>
+                            <h3>📥 Extração da Tabela Oficial de Pontas para Edição no Excel / TXT</h3>
+                            <p>Utilize esta consulta no Consinco (ou execute aqui no simulador) para baixar a base atual de mínimos e máximos. Após o download, abra no Excel, altere as quantidades e cole na aba <strong>"3. Importador & Gerador SQL"</strong> para aplicar o <code>MERGE INTO</code>.</p>
+                        </div>
+
+                        <div class="extract-layout">
+                            <div class="extract-controls-card">
+                                <div class="panel-title" style="margin-bottom: 0.75rem;">
+                                    <span>⚙️ 1. Parâmetros de Filtro</span>
+                                </div>
+                                <div class="extract-form-grid">
+                                    <div class="form-group-mini">
+                                        <label>Ponto Extra:</label>
+                                        <select id="extract-ponto-select">
+                                            <option value="0">0 - TODOS OS PONTOS</option>
+                                            <option value="201">201 - PONTA ENTRADA PRINCIPAL</option>
+                                            <option value="202">202 - PONTA CORREDOR CENTRAL</option>
+                                            <option value="203" selected>203 - PONTA BEBIDAS E CERVEJAS</option>
+                                            <option value="204">204 - ILHA REFRIGERADOS E LATICINIOS</option>
+                                            <option value="205">205 - CHECKOUT 01 DOCES E SNACKS</option>
+                                            <option value="206">206 - PONTA MERCEARIA SALGADA</option>
+                                            <option value="207">207 - ILHA CENTRAL LIMPEZA</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group-mini">
+                                        <label>Loja (NroEmpresa):</label>
+                                        <select id="extract-emp-select">
+                                            <option value="0" selected>0 - TODAS AS LOJAS (REDE)</option>
+                                            <option value="1">1 - MATRIZ CENTRO</option>
+                                            <option value="2">2 - NORTE</option>
+                                            <option value="3">3 - SUL</option>
+                                            <option value="4">4 - LESTE</option>
+                                            <option value="5">5 - OESTE</option>
+                                            <option value="6">6 - PRAIA</option>
+                                            <option value="7">7 - SERRA</option>
+                                            <option value="8">8 - VALE</option>
+                                            <option value="11">11 - EXPRESS</option>
+                                            <option value="12">12 - BAKLIZI BAIRRO</option>
+                                            <option value="18">18 - PETROPOLIS</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group-mini">
+                                        <label>SeqProduto (Opcional):</label>
+                                        <input type="number" id="extract-prod-input" placeholder="0 = Todos">
+                                    </div>
+                                </div>
+
+                                <div class="extract-query-box">
+                                    <div class="query-box-header">
+                                        <span>📝 Query de Extração Homologada Consinco:</span>
+                                        <button id="btn-copy-extract-query" class="btn-xs btn-outline">📋 Copiar SQL</button>
+                                    </div>
+                                    <pre id="extract-sql-code" class="extract-sql-pre"></pre>
+                                </div>
+
+                                <div class="extract-actions-row">
+                                    <button id="btn-run-extract-query" class="btn btn-primary btn-glow">▶ Consultar Dados Atuais da Base</button>
+                                    <button id="btn-open-extract-editor" class="btn btn-purple">📝 Abrir no Editor Principal</button>
+                                </div>
+                            </div>
+
+                            <div class="extract-results-card">
+                                <div class="panel-header">
+                                    <div class="panel-title">
+                                        <span>📊 2. Dados Extraídos da Base (<span id="extract-count-badge">0</span> registros)</span>
+                                    </div>
+                                    <div class="panel-quick-actions">
+                                        <button id="btn-download-txt" class="btn-xs btn-emerald">📥 Baixar TXT (Consinco)</button>
+                                        <button id="btn-download-csv" class="btn-xs btn-outline">📊 Baixar CSV / Excel</button>
+                                        <button id="btn-copy-tsv" class="btn-xs btn-outline">📋 Copiar TSV</button>
+                                        <button id="btn-send-to-importer" class="btn-xs btn-primary">⚡ Enviar p/ Importador</button>
+                                    </div>
+                                </div>
+                                <div id="extract-grid-container" class="extract-grid-table-box">
+                                    <div class="empty-state">
+                                        <p>Clique em <strong>"▶ Consultar Dados Atuais da Base"</strong> para listar as pontas e fazer o download.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba 3: Laboratório Prático de Carga via Planilha -->
+                <div id="ctab-carga" class="carga-tab-content">
+                    <div class="carga-layout">
+                        
+                        <!-- Coluna Esquerda: Entrada de Dados da Planilha -->
+                        <div class="carga-col-left">
+                            <div class="panel-box">
+                                <div class="panel-header">
+                                    <div class="panel-title">
+                                        <span>📋 1. Cole os Dados da Planilha (Excel / TSV / CSV)</span>
+                                    </div>
+                                    <div class="panel-quick-actions">
+                                        <button id="btn-load-example-bebidas" class="btn-xs btn-outline">Exemplo Ponta Bebidas (203)</button>
+                                        <button id="btn-load-example-checkout" class="btn-xs btn-outline">Exemplo Checkout (205)</button>
+                                        <button id="btn-clear-carga-input" class="btn-xs btn-link">Limpar</button>
+                                    </div>
+                                </div>
+
+                                <div class="carga-defaults-row">
+                                    <div class="form-group-mini">
+                                        <label>Ponto Padrão:</label>
+                                        <select id="carga-default-ponto">
+                                            <option value="201">201 - PONTA ENTRADA</option>
+                                            <option value="202">202 - PONTA CORREDOR CENTRAL</option>
+                                            <option value="203" selected>203 - PONTA BEBIDAS E CERVEJAS</option>
+                                            <option value="204">204 - ILHA REFRIGERADOS</option>
+                                            <option value="205">205 - CHECKOUT DOCES</option>
+                                            <option value="206">206 - PONTA MERCEARIA</option>
+                                            <option value="207">207 - ILHA LIMPEZA</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group-mini">
+                                        <label>Vigência Início:</label>
+                                        <input type="date" id="carga-default-ini" value="2026-08-01">
+                                    </div>
+                                    <div class="form-group-mini">
+                                        <label>Vigência Fim:</label>
+                                        <input type="date" id="carga-default-fim" value="2026-12-31">
+                                    </div>
+                                </div>
+
+                                <textarea id="carga-raw-input" class="carga-textarea" placeholder="Cole aqui as linhas do Excel (Ctrl+V) com colunas:
+SEQPRODUTO | NROEMPRESA | SEQPONTOEXTRA | ESTQMINIMO | ESTQMAXIMO | DTAVIGENCIAINICIO | DTAVIGENCIAFIM
+
+Exemplo:
+10	12	203	500	600	2026-08-05	2026-12-01
+10	1	203	120	250	2026-08-01	2026-12-31
+3880	12	203	200	450	2026-08-01	2026-12-31"></textarea>
+
+                                <div class="carga-action-bar">
+                                    <button id="btn-process-carga" class="btn btn-primary btn-glow" style="width: 100%;">
+                                        🔍 Validar & Gerar Scripts SQL Oracle
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coluna Direita: Pré-Visualização, Validação e Scripts -->
+                        <div class="carga-col-right">
+                            
+                            <!-- Box 1: Pré-visualização com Validação -->
+                            <div class="panel-box">
+                                <div class="panel-header">
+                                    <div class="panel-title">
+                                        <span>🔍 2. Validação & Cruzamento com a Base Consinco</span>
+                                    </div>
+                                    <div id="carga-preview-stats" class="preview-stats"></div>
+                                </div>
+                                <div id="carga-preview-table" class="preview-table-container">
+                                    <div class="empty-state">
+                                        <p>Cole uma planilha ao lado e clique em <strong>"Validar & Gerar Scripts SQL"</strong>.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Box 2: Scripts SQL Gerados -->
+                            <div class="panel-box" style="margin-top: 1rem;">
+                                <div class="panel-header">
+                                    <div class="panel-title">
+                                        <span>⚡ 3. Scripts SQL Oracle Gerados</span>
+                                    </div>
+                                    <div class="script-type-selector">
+                                        <button class="script-type-pill active" data-script-type="merge">MERGE INTO (Padrão Oracle)</button>
+                                        <button class="script-type-pill" data-script-type="batch">UPDATE + INSERT (Transacional)</button>
+                                        <button class="script-type-pill" data-script-type="select">SELECT de Conferência</button>
+                                    </div>
+                                </div>
+
+                                <div class="script-view-box">
+                                    <pre id="carga-generated-sql" class="code-preview-block">-- O script SQL será gerado automaticamente aqui...</pre>
+                                </div>
+
+                                <div class="script-actions-footer">
+                                    <button id="btn-copy-generated-sql" class="btn btn-outline">📋 Copiar SQL</button>
+                                    <button id="btn-open-in-editor" class="btn btn-purple">📝 Abrir no Editor SQL</button>
+                                    <button id="btn-apply-carga-db" class="btn btn-emerald btn-glow">⚡ Executar no Banco Simulador Agora</button>
+                                </div>
+                            </div>
+
+                            <!-- Box 3: Auditoria Antes vs Depois (Diff) -->
+                            <div id="carga-diff-container" class="diff-result-area"></div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Aba 3: Simulador do Monitor SQL Consinco -->
+                <div id="ctab-monitor" class="carga-tab-content">
+                    <div class="monitor-controls-bar">
+                        <div class="form-group-mini">
+                            <label>Ponto Extra:</label>
+                            <select id="monitor-ponto-select">
+                                <option value="201">201 - PONTA DE GONDOLA ENTRADA PRINCIPAL</option>
+                                <option value="202">202 - PONTA DE GONDOLA CORREDOR CENTRAL</option>
+                                <option value="203" selected>203 - PONTA GONDOLA BEBIDAS E CERVEJAS</option>
+                                <option value="204">204 - ILHA REFRIGERADOS E LATICINIOS</option>
+                                <option value="205">205 - CHECKOUT 01 DOCES E SNACKS</option>
+                                <option value="206">206 - PONTA DE GONDOLA MERCEARIA SALGADA</option>
+                                <option value="207">207 - ILHA CENTRAL HIGIENE E LIMPEZA</option>
+                            </select>
+                        </div>
+                        <div class="form-group-mini">
+                            <label>SeqProduto:</label>
+                            <input type="number" id="monitor-prod-input" value="10" placeholder="Ex: 10">
+                        </div>
+                        <div class="form-group-mini">
+                            <label>Loja (NroEmpresa):</label>
+                            <select id="monitor-emp-select">
+                                <option value="1">1 - MATRIZ CENTRO</option>
+                                <option value="2">2 - NORTE</option>
+                                <option value="3">3 - SUL</option>
+                                <option value="11">11 - EXPRESS</option>
+                                <option value="12" selected>12 - BAKLIZI BAIRRO</option>
+                                <option value="18">18 - PETROPOLIS</option>
+                            </select>
+                        </div>
+                        <button id="btn-refresh-monitor-trace" class="btn btn-primary">🔄 Atualizar Rastreamento</button>
+                    </div>
+
+                    <div id="monitor-trace-results" class="monitor-trace-list">
+                        <!-- Carregado via JS -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Detalhes da Tabela -->
     <div id="table-modal" class="modal-backdrop">
         <div class="modal-window">
@@ -316,6 +670,7 @@ WHERE B.NROEMPRESA = :NROEMPRESA
     <script src="js/editor.js"></script>
     <script src="js/mentor.js"></script>
     <script src="js/missions.js"></script>
+    <script src="js/carga.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
