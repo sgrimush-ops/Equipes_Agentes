@@ -590,7 +590,7 @@ def build_database():
 
     # Lista fallback de produtos realistas de varejo caso poucos sejam carregados
     fallback_produtos = [
-        (10, 'CERVEJA CORONA EXTRA LONG NECK 330ML', 'BEBIDAS', 'WETER'),
+        (10, 'REFRIG COCA COLA PET 2L', 'BEBIDAS', 'WETER'),
         (3880, 'CERVEJA HEINEKEN LAGER LATA 350ML', 'BEBIDAS', 'WETER'),
         (3881, 'CERVEJA SPATEN PURO MALTE LN 355ML', 'BEBIDAS', 'WETER'),
         (3883, 'CERVEJA BRAHMA DUPLO MALTE LATA 350ML', 'BEBIDAS', 'WETER'),

@@ -26,12 +26,16 @@
             <div class="header-center">
                 <div class="db-status-pill">
                     <span class="status-dot green pulse"></span>
-                    <span class="status-label">Simulador Local Ativo:</span>
-                    <span class="status-val">4.515 Tabelas Dicionário | Dados Reais de Varejo</span>
+                    <span class="status-label">Dicionário Oficial Totvs Consinco:</span>
+                    <span class="status-val">7.111 Tabelas | 126.636 Colunas Reais</span>
                 </div>
             </div>
 
             <div class="header-right">
+                <button id="btn-open-ai-mentor" class="btn btn-ai-mentor btn-glow" title="Abrir Mentor IA Consinco (Ollama) [Atalho: F2 ou Ctrl+Espaço]">
+                    <span class="ai-status-dot online"></span>
+                    <span class="btn-icon">🤖</span> Mentor IA <span id="ai-status-text" class="badge-ai-model">Ollama</span>
+                </button>
                 <button id="btn-open-carga-module" class="btn btn-emerald btn-glow" title="Abrir Módulo de Carga de Planilha & Atualização de Tabelas de Pontas">
                     <span class="btn-icon">📦</span> Carga & Atualização <span class="badge-new-pill">NOVO</span>
                 </button>
@@ -73,10 +77,10 @@
                     </div>
                 </div>
 
-                <!-- Tab 2: Dicionário Completo de 4.515 Tabelas -->
+                <!-- Tab 2: Dicionário Completo de 7.111 Tabelas Oficiais -->
                 <div id="tab-dict" class="tab-content">
                     <div class="search-box">
-                        <input type="text" id="search-dict-input" placeholder="Buscar 4.515 tabelas/colunas...">
+                        <input type="text" id="search-dict-input" placeholder="Buscar em 7.111 tabelas e 126.636 colunas...">
                         <button id="btn-search-dict" class="btn-search-icon">🔍</button>
                     </div>
                     <div class="dict-results-container" id="dict-results">
@@ -423,12 +427,12 @@ WHERE A.SEQPONTOEXTRA = 203
                                     <div class="form-group-mini">
                                         <label>Ponto Extra:</label>
                                         <select id="extract-ponto-select">
-                                            <option value="0">0 - TODOS OS PONTOS</option>
+                                            <option value="0" selected>0 - TODOS OS PONTOS (GERAL)</option>
                                             <option value="101">101 - LOJA 8 APYCE</option>
                                             <option value="121">121 - PONTAS FIXAS</option>
                                             <option value="143">143 - PONTA DE BISCOITOS ISABELA L03</option>
                                             <option value="182">182 - PONTAS LOJA 01</option>
-                                            <option value="203" selected>203 - COCA (REFRIG COCA COLA PET 2L)</option>
+                                            <option value="203">203 - COCA (REFRIG COCA COLA PET 2L)</option>
                                             <option value="222">222 - FAROFA YOKI</option>
                                             <option value="223">223 - PONTA LOJA 2 AMOR CARIOCA</option>
                                             <option value="241">241 - CESTA BASICA</option>
@@ -505,24 +509,43 @@ WHERE A.SEQPONTOEXTRA = 203
                             <div class="panel-box">
                                 <div class="panel-header">
                                     <div class="panel-title">
-                                        <span>📋 1. Cole os Dados da Planilha (Excel / TSV / CSV)</span>
+                                        <span>📋 1. Importar ou Colar Dados da Planilha</span>
                                     </div>
                                     <div class="panel-quick-actions">
-                                        <button id="btn-load-example-bebidas" class="btn-xs btn-outline">Exemplo Ponta Bebidas (203)</button>
-                                        <button id="btn-load-example-checkout" class="btn-xs btn-outline">Exemplo Checkout (205)</button>
+                                        <button id="btn-upload-file-header" class="btn-xs btn-primary btn-glow">📁 Importar Arquivo</button>
+                                        <button id="btn-load-example-bebidas" class="btn-xs btn-outline">Exemplo Bebidas</button>
                                         <button id="btn-clear-carga-input" class="btn-xs btn-link">Limpar</button>
+                                    </div>
+                                </div>
+
+                                <!-- Dropzone de Upload de Arquivo -->
+                                <div id="carga-dropzone" class="carga-dropzone">
+                                    <input type="file" id="carga-file-input" accept=".csv,.txt,.tsv,.xlsx,.xls" style="display: none;">
+                                    <div class="dropzone-body">
+                                        <div class="dropzone-icon">📥</div>
+                                        <div class="dropzone-text">
+                                            <strong>Clique aqui ou arraste seu arquivo (.CSV, .TXT, .TSV)</strong>
+                                            <span>O sistema lê e processa a planilha automaticamente</span>
+                                        </div>
+                                    </div>
+                                    <div id="carga-file-badge" class="carga-file-badge" style="display: none;">
+                                        <span class="file-icon">📄</span>
+                                        <span id="carga-file-name" class="file-name">arquivo.csv</span>
+                                        <span id="carga-file-size" class="file-size">(0 KB)</span>
+                                        <button type="button" id="btn-remove-file" class="btn-remove-badge" title="Remover arquivo">✕</button>
                                     </div>
                                 </div>
 
                                 <div class="carga-defaults-row">
                                     <div class="form-group-mini">
-                                        <label>Ponto Padrão:</label>
+                                        <label>Ponto Padrão (se não informado):</label>
                                         <select id="carga-default-ponto">
+                                            <option value="0" selected>0 - AUTO (Ler da Planilha)</option>
                                             <option value="101">101 - LOJA 8 APYCE</option>
                                             <option value="121">121 - PONTAS FIXAS</option>
                                             <option value="143">143 - PONTA DE BISCOITOS ISABELA L03</option>
                                             <option value="182">182 - PONTAS LOJA 01</option>
-                                            <option value="203" selected>203 - COCA (REFRIG COCA COLA PET 2L)</option>
+                                            <option value="203">203 - COCA (REFRIG COCA COLA PET 2L)</option>
                                             <option value="222">222 - FAROFA YOKI</option>
                                             <option value="223">223 - PONTA LOJA 2 AMOR CARIOCA</option>
                                             <option value="241">241 - CESTA BASICA</option>
@@ -538,14 +561,12 @@ WHERE A.SEQPONTOEXTRA = 203
                                     </div>
                                 </div>
 
-                                <textarea id="carga-raw-input" class="carga-textarea" placeholder="Cole aqui as linhas do Excel (Ctrl+V) com colunas:
-SEQPRODUTO | NROEMPRESA | SEQPONTOEXTRA | ESTQMINIMO | ESTQMAXIMO | DTAVIGENCIAINICIO | DTAVIGENCIAFIM
+                                <textarea id="carga-raw-input" class="carga-textarea" placeholder="Ou cole aqui diretamente o conteúdo do Excel/CSV com as 9 colunas oficiais:
+SEQPONTOEXTRA | DESCRICAO | SEQPRODUTO | DESCCOMPLETA | NROEMPRESA | ESTQMINIMO | ESTQMAXIMO | DTAVIGENCIAINICIO | DTAVIGENCIAFIM
 
-Exemplo Real:
-10	12	203	500	600	2026-08-05	2026-12-01
-10	1	203	200	300	2026-08-05	2026-12-01
-36	3	121	1008	1308	2026-06-10	2026-12-31
-39233	2	121	4032	5232	2026-08-25	2026-12-30"></textarea>
+Exemplo:
+101	101 - LOJA 8 APYCE	6725	LAVA ROUPA OMO 7L LAVAGEM PERFEITA	8	100	150	2026-08-01	2026-12-31
+121	121 - PONTAS FIXAS	116	CERV SKOL 1L	11	900	1200	2026-08-01	2026-12-31"></textarea>
 
                                 <div class="carga-action-bar">
                                     <button id="btn-process-carga" class="btn btn-primary btn-glow" style="width: 100%;">
@@ -681,11 +702,113 @@ Exemplo Real:
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- DRAWER LATERAL: MENTOR IA CONSINCO (OLLAMA INTEGRADO) -->
+    <!-- ============================================================ -->
+    <div id="ai-mentor-drawer" class="ai-drawer">
+        <div class="ai-drawer-header">
+            <div class="ai-drawer-title">
+                <div class="ai-drawer-icon">🤖</div>
+                <div>
+                    <h3>Mentor IA Consinco</h3>
+                    <div class="ai-drawer-subtitle">
+                        <span class="ai-status-dot online"></span>
+                        <span id="ai-latency-badge" class="badge-latency">Local (Ollama)</span>
+                    </div>
+                </div>
+            </div>
+            <div class="ai-drawer-controls">
+                <select id="ai-model-select" class="ai-model-dropdown" title="Modelo de IA ativo no Ollama">
+                    <option value="qwen2.5-coder:1.5b" selected>⚡ qwen2.5-coder:1.5b (Ultrarrápido)</option>
+                    <option value="hermes3:latest">hermes3:latest (Médio)</option>
+                    <option value="gemma4:latest">gemma4:latest (Completo)</option>
+                </select>
+                <button id="btn-ai-chat-clear" class="btn-icon-only" title="Limpar conversa">🗑️</button>
+                <button id="btn-close-ai-drawer" class="btn-icon-only" title="Fechar Drawer (F2 ou Esc)">✕</button>
+            </div>
+        </div>
+
+        <!-- Abas de Navegação do Mentor IA -->
+        <div class="ai-drawer-nav">
+            <button class="ai-nav-tab active" data-target="ai-tab-chat">💬 1. Chat & Dúvidas</button>
+            <button class="ai-nav-tab" data-target="ai-tab-textsql">✍️ 2. Texto para SQL</button>
+            <button class="ai-nav-tab" data-target="ai-tab-findtable">🗺️ 3. Onde está o Dado?</button>
+        </div>
+
+        <!-- Conteúdo das Abas -->
+        <div class="ai-drawer-content">
+            
+            <!-- Aba 1: Chat Interativo -->
+            <div id="ai-tab-chat" class="ai-tab-pane active">
+                <div class="ai-chips-bar">
+                    <button class="ai-prompt-chip" data-prompt="Como funciona o processo de carga de pontas: download em CSV, edição de estoque mínimo/máximo e geração de UPDATE/MERGE para o Consinco?">🎯 Carga de Pontas (Passo a Passo)</button>
+                    <button class="ai-prompt-chip" data-prompt="Gere a query Oracle Consinco para extrair as pontas de gôndola com as 9 colunas oficiais (SEQPONTOEXTRA, DESCRICAO, SEQPRODUTO, DESCCOMPLETA, NROEMPRESA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM).">📥 Query Extração (9 Colunas)</button>
+                    <button class="ai-prompt-chip" data-prompt="Como montar um comando MERGE INTO ou UPDATE em MRL_PONTOEXTRAPRODUTOEMPRESA para atualizar os estoques de pontas no Consinco sem dar erro de validação?">⚡ Script UPDATE / MERGE</button>
+                    <button class="ai-prompt-chip" data-prompt="Onde vejo o código de barras de um produto?">🔍 Código de Barras</button>
+                </div>
+
+                <div id="ai-chat-messages" class="ai-chat-stream">
+                    <div class="ai-welcome-card">
+                        <div class="ai-welcome-icon">🤖</div>
+                        <h4>Olá! Eu sou o seu Mentor IA de SQL Consinco.</h4>
+                        <p>Estou conectado ao seu <strong>Ollama local</strong> e conheço toda a arquitetura de tabelas e regras de performance do Totvs Consinco.</p>
+                        <p>Pergunte-me qualquer dúvida, peça para criar consultas ou corrigir erros!</p>
+                    </div>
+                </div>
+
+                <div class="ai-chat-input-bar">
+                    <textarea id="ai-chat-input" placeholder="Faça uma pergunta sobre SQL Consinco... (Enter para enviar, Shift+Enter para nova linha)"></textarea>
+                    <button id="btn-ai-chat-send" class="btn btn-primary btn-glow" title="Enviar Mensagem">
+                        <span>➤</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Aba 2: Texto para SQL -->
+            <div id="ai-tab-textsql" class="ai-tab-pane">
+                <div class="ai-pane-header">
+                    <h4>✍️ Gerador Inteligente: Linguagem Natural ➔ SQL Consinco</h4>
+                    <p>Descreva o que você precisa em português e a IA criará a consulta pronta e otimizada seguindo as regras do ERP.</p>
+                </div>
+
+                <div class="ai-form-card">
+                    <label>Descreva sua necessidade de consulta:</label>
+                    <textarea id="ai-textsql-input" class="ai-textarea" placeholder="Ex: Listar os 10 produtos mais vendidos da Loja 8 nos últimos 7 dias com o estoque atual e o fornecedor principal."></textarea>
+                    <button id="btn-ai-generate-sql" class="btn btn-primary btn-glow" style="width: 100%; margin-top: 0.75rem;">
+                        🪄 Gerar SQL Consinco
+                    </button>
+                </div>
+
+                <div id="ai-textsql-output" class="ai-output-area"></div>
+            </div>
+
+            <!-- Aba 3: Onde está o Dado? -->
+            <div id="ai-tab-findtable" class="ai-tab-pane">
+                <div class="ai-pane-header">
+                    <h4>🗺️ Localizador Inteligente de Tabelas e Colunas</h4>
+                    <p>Tem dúvida de qual tabela armazena determinado dado? Pergunte e a IA indica a tabela certa, as chaves de ligação e um JOIN pronto.</p>
+                </div>
+
+                <div class="ai-form-card">
+                    <label>O que você está procurando?</label>
+                    <div class="ai-input-with-btn">
+                        <input type="text" id="ai-findtable-input" placeholder="Ex: contas a pagar, custo médio, margem, pontas de gôndola, validade...">
+                        <button id="btn-ai-findtable" class="btn btn-primary">🔍 Localizar</button>
+                    </div>
+                </div>
+
+                <div id="ai-findtable-output" class="ai-output-area"></div>
+            </div>
+
+        </div>
+    </div>
+
     <!-- Scripts da Aplicação -->
     <script src="js/editor.js"></script>
     <script src="js/mentor.js"></script>
     <script src="js/missions.js"></script>
     <script src="js/carga.js"></script>
+    <script src="js/ai_mentor.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

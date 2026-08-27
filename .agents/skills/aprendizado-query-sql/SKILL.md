@@ -91,5 +91,6 @@ Use esta estrutura sempre que ela couber no pedido:
 
 ## Recursos Locais
 - Consulte [trilha-aprendizado](./references/trilha-aprendizado.md) para escolher os arquivos do projeto mais uteis.
-- Quando o pedido for especificamente sobre Consinco, reaproveite os aprendizados e regras locais antes de criar uma query do zero.
+- Quando o pedido for especificamente sobre Consinco, consulte o catálogo oficial de 7.111 tabelas e 126.636 colunas em `database/banco_simulador_consinco.db` (`dicionario_tabelas` e `colunas`) e nunca invente nomes de tabelas informais.
+- Utilize a Zona SQL (`Aplicativos/zona_sql`) com o Mentor IA integrado ao Ollama para validação visual, simulação de execução e depuração assistida de erros `ORA-*`.
 - Quando o pedido envolver filtros antes da execucao, leia o aprendizado em `Aplicativos/gerenciamento_sql/aprendizado/aprendizado_filtros_consulta_criacao.md` e replique o padrao descoberto.

@@ -7,6 +7,7 @@ import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
+from mentor_ai import ollama_mentor
 
 PORT = 8550
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -158,6 +159,42 @@ def get_db_connection():
     conn.create_function("RPAD", 3, oracle_rpad)
     return conn
 
+def transpile_oracle_merge(sql):
+    if not re.search(r'^\s*MERGE\s+INTO\b', sql, flags=re.IGNORECASE):
+        return sql
+    
+    using_match = re.search(r'USING\s*\((.*?)\)\s*ORIG', sql, flags=re.IGNORECASE | re.DOTALL)
+    if not using_match:
+        return sql
+    
+    selects = re.findall(r'SELECT\s+(.*?)\s+FROM\s+DUAL', using_match.group(1), flags=re.IGNORECASE)
+    dml_statements = []
+    
+    for s in selects:
+        items = re.findall(r'(.*?)\s+AS\s+([A-Za-z0-9_]+)', s, flags=re.IGNORECASE)
+        d = {}
+        for val, col in items:
+            val_clean = val.strip().lstrip(',').strip()
+            val_clean = re.sub(r"TO_DATE\s*\(\s*'([^']+)'\s*,\s*'[^']+'\s*\)", r"'\1'", val_clean, flags=re.IGNORECASE)
+            d[col.upper()] = val_clean
+            
+        ponto = d.get('SEQPONTOEXTRA', '0')
+        prod = d.get('SEQPRODUTO', '0')
+        emp = d.get('NROEMPRESA', '1')
+        minimo = d.get('ESTQMINIMO', '0.0')
+        maximo = d.get('ESTQMAXIMO', '0.0')
+        ini = d.get('DTAVIGENCIAINICIO', "'2026-08-01'")
+        fim = d.get('DTAVIGENCIAFIM', "'2026-12-31'")
+        status = d.get('STATUS', "'A'")
+        seqvig = d.get('SEQVIGENCIA', '1')
+        qtddias = d.get('QTDDIASSUGESTAO', '0.0')
+        
+        dml_statements.append(f"INSERT OR IGNORE INTO MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS) VALUES ({ponto}, {prod}, 'A');")
+        dml_statements.append(f"UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA SET ESTQMINIMO = {minimo}, ESTQMAXIMO = {maximo}, DTAVIGENCIAINICIO = {ini}, DTAVIGENCIAFIM = {fim}, STATUS = {status} WHERE SEQPONTOEXTRA = {ponto} AND SEQPRODUTO = {prod} AND NROEMPRESA = {emp};")
+        dml_statements.append(f"INSERT OR IGNORE INTO MRL_PONTOEXTRAPRODUTOEMPRESA (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS) VALUES ({ponto}, {prod}, {emp}, {seqvig}, {minimo}, {maximo}, {ini}, {fim}, {qtddias}, {status});")
+        
+    return "\n".join(dml_statements)
+
 # -------------------------------------------------------------
 # 2. Pré-processador e Normalizador Oracle -> SQLite
 # -------------------------------------------------------------
@@ -166,6 +203,9 @@ def preprocess_oracle_sql(sql, binds=None):
         binds = {}
     
     clean_sql = sql
+
+    # 0. Transpilar MERGE INTO do Oracle para instruções compatíveis com SQLite
+    clean_sql = transpile_oracle_merge(clean_sql)
     
     # 1. Substituir Macros Hash (#C_NROEMPRESA#, #LS1#, etc)
     for k, v in binds.items():
@@ -471,17 +511,15 @@ COMMIT;"""
         pair = (r['seqpontoextra'], r['seqproduto'])
         if pair not in pairs_done:
             pairs_done.add(pair)
-            dml_lines.append(f"-- 1. Garante vinculo do produto {r['seqproduto']} no Ponto {r['seqpontoextra']}")
             dml_lines.append(f"INSERT INTO MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS) SELECT {r['seqpontoextra']}, {r['seqproduto']}, 'A' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM MRL_PONTOEXTRAPRODUTO WHERE SEQPONTOEXTRA = {r['seqpontoextra']} AND SEQPRODUTO = {r['seqproduto']});")
 
-    dml_lines.append("\n-- 2. Atualiza ou insere regras de estoque min/max por Loja")
     for r in valid_rows:
         if r['action'] == 'UPDATE':
             dml_lines.append(f"UPDATE MRL_PONTOEXTRAPRODUTOEMPRESA SET ESTQMINIMO = {r['estqminimo']:.1f}, ESTQMAXIMO = {r['estqmaximo']:.1f}, DTAVIGENCIAINICIO = TO_DATE('{r['dtavigenciainicio']}', 'YYYY-MM-DD'), DTAVIGENCIAFIM = TO_DATE('{r['dtavigenciafim']}', 'YYYY-MM-DD'), STATUS = '{r['status']}' WHERE SEQPONTOEXTRA = {r['seqpontoextra']} AND SEQPRODUTO = {r['seqproduto']} AND NROEMPRESA = {r['nroempresa']};")
         else:
             dml_lines.append(f"INSERT INTO MRL_PONTOEXTRAPRODUTOEMPRESA (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS) VALUES ({r['seqpontoextra']}, {r['seqproduto']}, {r['nroempresa']}, {r['seqvigencia']}, {r['estqminimo']:.1f}, {r['estqmaximo']:.1f}, TO_DATE('{r['dtavigenciainicio']}', 'YYYY-MM-DD'), TO_DATE('{r['dtavigenciafim']}', 'YYYY-MM-DD'), {r['qtddiassugestao']:.1f}, '{r['status']}');")
 
-    dml_lines.append("\nCOMMIT;")
+    dml_lines.append("COMMIT;")
     batch_dml_sql = "\n".join(dml_lines)
 
     # 3. Consulta de Auditoria e Conferência
@@ -543,6 +581,16 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             self.handle_carga_apply(data)
         elif parsed.path == '/api/carga/reset':
             self.handle_carga_reset()
+        elif parsed.path == '/api/ai/chat':
+            self.handle_ai_chat(data)
+        elif parsed.path == '/api/ai/explain_error':
+            self.handle_ai_explain_error(data)
+        elif parsed.path == '/api/ai/text_to_sql':
+            self.handle_ai_text_to_sql(data)
+        elif parsed.path == '/api/ai/find_table':
+            self.handle_ai_find_table(data)
+        elif parsed.path == '/api/ai/model':
+            self.handle_ai_set_model(data)
         else:
             self.send_error(404, "Endpoint nao encontrado")
 
@@ -565,6 +613,8 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             produto = int(params.get('produto', [10])[0])
             empresa = int(params.get('empresa', [12])[0])
             self.handle_carga_monitor_trace(ponto, produto, empresa)
+        elif parsed.path == '/api/ai/status':
+            self.handle_ai_status()
         else:
             super().do_GET()
 
@@ -702,7 +752,7 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
     def handle_get_tables(self):
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name != 'colunas' ORDER BY name")
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name != 'colunas' AND name NOT LIKE 'sqlite_%' ORDER BY name")
         tables = []
         for row in cursor.fetchall():
             t_name = row[0]
@@ -711,7 +761,8 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
                 cnt = cursor.fetchone()[0]
             except:
                 cnt = 0
-            tables.append({'name': t_name, 'row_count': cnt})
+            if cnt > 0:
+                tables.append({'name': t_name, 'row_count': cnt})
         conn.close()
         self.send_json({'tables': tables})
 
@@ -806,23 +857,24 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
         col_idx_map = {}
         if has_header:
             for idx, col in enumerate(header_candidate):
-                if any(x in col for x in ['SEQPROD', 'CODPROD', 'PRODUTO', 'CODIGO']):
+                col_clean = re.sub(r'[^A-Z0-9]', '', col)
+                if col_clean in ['SEQPRODUTO', 'SEQPROD', 'CODPRODUTO', 'CODPROD']:
                     col_idx_map['seqproduto'] = idx
-                elif any(x in col for x in ['NROEMP', 'EMPRESA', 'LOJA', 'FILIAL']):
-                    col_idx_map['nroempresa'] = idx
-                elif any(x in col for x in ['SEQPONTO', 'PONTOEXTRA', 'PONTO']):
+                elif col_clean in ['SEQPONTOEXTRA', 'SEQPONTO']:
                     col_idx_map['seqpontoextra'] = idx
-                elif any(x in col for x in ['ESTQMIN', 'MINIMO', 'MIN']):
+                elif col_clean in ['NROEMPRESA', 'NROEMP', 'LOJA', 'FILIAL']:
+                    col_idx_map['nroempresa'] = idx
+                elif col_clean in ['ESTQMINIMO', 'ESTQMIN', 'MINIMO', 'MIN']:
                     col_idx_map['estqminimo'] = idx
-                elif any(x in col for x in ['ESTQMAX', 'MAXIMO', 'MAX']):
+                elif col_clean in ['ESTQMAXIMO', 'ESTQMAX', 'MAXIMO', 'MAX']:
                     col_idx_map['estqmaximo'] = idx
-                elif any(x in col for x in ['DTAVIGENCIAINI', 'DTAINI', 'INICIO', 'VIGENCIA_INI']):
+                elif col_clean in ['DTAVIGENCIAINICIO', 'DTAVIGENCIAINI', 'DTAINICIO', 'DTAINI', 'VIGENCIAINI', 'INICIO']:
                     col_idx_map['dtavigenciainicio'] = idx
-                elif any(x in col for x in ['DTAVIGENCIAFIM', 'DTAFIM', 'FIM', 'VIGENCIA_FIM']):
+                elif col_clean in ['DTAVIGENCIAFIM', 'DTAFIM', 'VIGENCIAFIM', 'FIM']:
                     col_idx_map['dtavigenciafim'] = idx
-                elif any(x in col for x in ['QTDDIAS', 'SUGESTAO', 'DIAS']):
+                elif col_clean in ['QTDDIASSUGESTAO', 'QTDDIAS', 'SUGESTAO', 'DIAS']:
                     col_idx_map['qtddiassugestao'] = idx
-                elif col == 'STATUS' or col == 'SIT':
+                elif col_clean in ['STATUS', 'SITUACAO']:
                     col_idx_map['status'] = idx
 
         parsed_rows = []
@@ -842,15 +894,39 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
                     return parts[idx] if idx < len(parts) else fallback
                 return parts[default_idx] if default_idx < len(parts) else fallback
 
-            seqprod_str = get_val('seqproduto', 0, '')
-            nroemp_str = get_val('nroempresa', 1, '1')
-            seqponto_str = get_val('seqpontoextra', 2, str(ponto_default))
-            estqmin_str = get_val('estqminimo', 3 if len(parts) > 3 else 2, '50')
-            estqmax_str = get_val('estqmaximo', 4 if len(parts) > 4 else 3, '100')
-            dtaini_str = get_val('dtavigenciainicio', 5 if len(parts) > 5 else 4, vigencia_ini_default)
-            dtafim_str = get_val('dtavigenciafim', 6 if len(parts) > 6 else 5, vigencia_fim_default)
-            qtddias_str = get_val('qtddiassugestao', 7, '0')
-            status_str = get_val('status', 8, 'A').upper() or 'A'
+            if has_header:
+                seqprod_str = get_val('seqproduto', 2, '')
+                nroemp_str = get_val('nroempresa', 4, '1')
+                seqponto_str = get_val('seqpontoextra', 0, str(ponto_default))
+                estqmin_str = get_val('estqminimo', 5, '50')
+                estqmax_str = get_val('estqmaximo', 6, '100')
+                dtaini_str = get_val('dtavigenciainicio', 7, vigencia_ini_default)
+                dtafim_str = get_val('dtavigenciafim', 8, vigencia_fim_default)
+                qtddias_str = get_val('qtddiassugestao', 9, '0')
+                status_str = get_val('status', 10, 'A').upper() or 'A'
+            elif len(parts) >= 9:
+                # Formato oficial 9 colunas do download:
+                # 0: SEQPONTOEXTRA, 1: DESCRICAO, 2: SEQPRODUTO, 3: DESCCOMPLETA, 4: NROEMPRESA, 5: ESTQMINIMO, 6: ESTQMAXIMO, 7: DTAVIGENCIAINICIO, 8: DTAVIGENCIAFIM
+                seqponto_str = parts[0]
+                seqprod_str = parts[2]
+                nroemp_str = parts[4]
+                estqmin_str = parts[5]
+                estqmax_str = parts[6]
+                dtaini_str = parts[7]
+                dtafim_str = parts[8]
+                qtddias_str = '0'
+                status_str = 'A'
+            else:
+                # Formato enxuto 7 colunas
+                seqprod_str = parts[0] if len(parts) > 0 else ''
+                nroemp_str = parts[1] if len(parts) > 1 else '1'
+                seqponto_str = parts[2] if len(parts) > 2 else str(ponto_default)
+                estqmin_str = parts[3] if len(parts) > 3 else '50'
+                estqmax_str = parts[4] if len(parts) > 4 else '100'
+                dtaini_str = parts[5] if len(parts) > 5 else vigencia_ini_default
+                dtafim_str = parts[6] if len(parts) > 6 else vigencia_fim_default
+                qtddias_str = '0'
+                status_str = 'A'
 
             try:
                 seqproduto = int(re.sub(r'\D', '', seqprod_str))
@@ -879,7 +955,10 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
 
             dta_ini = oracle_to_date(dtaini_str) or vigencia_ini_default
             dta_fim = oracle_to_date(dtafim_str) or vigencia_fim_default
-            qtddias = float(qtddias_str) if qtddias_str else 0.0
+            try:
+                qtddias = float(qtddias_str)
+            except:
+                qtddias = 0.0
 
             # Validações
             cursor.execute("SELECT DESCCOMPLETA FROM MAP_PRODUTO WHERE SEQPRODUTO = ?", (seqproduto,))
@@ -1277,8 +1356,8 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
                 'difficulty': 'Avançado',
                 'category': 'Extração & Carga',
                 'description': 'Construa a consulta de extração completa das pontas de gôndola (MRL_PONTOEXTRA, MRL_PONTOEXTRAPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA, MAP_PRODUTO, MAX_EMPRESA) formatando as colunas exatas para download em TXT/Excel.',
-                'starter_sql': "SELECT * FROM (\n    WITH PONTAS_DETALHE AS (\n        SELECT /*+ MATERIALIZE */\n            PEPE.SEQPONTOEXTRA,\n            PE.DESCRICAO AS NOME_PONTO_EXTRA,\n            PEPE.SEQPRODUTO,\n            PROD.DESCCOMPLETA AS DESCRICAO_PRODUTO,\n            PEPE.NROEMPRESA,\n            LPAD(EMP.NROEMPRESA, 6, '0') || ' - ' || EMP.RAZAOSOCIAL AS LOJA,\n            PEPE.ESTQMINIMO,\n            PEPE.ESTQMAXIMO,\n            NVL(ESTQ.ESTQLOJA, 0) AS ESTOQUE_ATUAL_LOJA,\n            TO_CHAR(PEPE.DTAVIGENCIAINICIO, 'YYYY-MM-DD') AS DTAVIGENCIAINICIO,\n            TO_CHAR(PEPE.DTAVIGENCIAFIM, 'YYYY-MM-DD') AS DTAVIGENCIAFIM,\n            PEPE.STATUS\n        FROM MRL_PONTOEXTRA PE\n        INNER JOIN MRL_PONTOEXTRAPRODUTO PEP ON PEP.SEQPONTOEXTRA = PE.SEQPONTOEXTRA\n        INNER JOIN MRL_PONTOEXTRAPRODUTOEMPRESA PEPE ON PEPE.SEQPONTOEXTRA = PEP.SEQPONTOEXTRA AND PEPE.SEQPRODUTO = PEP.SEQPRODUTO\n        INNER JOIN MAP_PRODUTO PROD ON PROD.SEQPRODUTO = PEPE.SEQPRODUTO\n        INNER JOIN MAX_EMPRESA EMP ON EMP.NROEMPRESA = PEPE.NROEMPRESA\n        LEFT JOIN MRL_PRODUTOEMPRESA ESTQ ON ESTQ.SEQPRODUTO = PEPE.SEQPRODUTO AND ESTQ.NROEMPRESA = PEPE.NROEMPRESA\n        WHERE PEPE.SEQPONTOEXTRA = 203\n    )\n    SELECT * FROM PONTAS_DETALHE\n    ORDER BY NROEMPRESA, SEQPRODUTO\n)",
-                'hint': 'Esta é a query oficial que gera o arquivo TXT/Excel para você editar os mínimos e máximos e depois colar no módulo de Carga!'
+                'starter_sql': "SELECT\n    PEPE.SEQPONTOEXTRA,\n    PE.DESCRICAO,\n    PEPE.SEQPRODUTO,\n    PROD.DESCCOMPLETA,\n    PEPE.NROEMPRESA,\n    PEPE.ESTQMINIMO,\n    PEPE.ESTQMAXIMO,\n    PEPE.DTAVIGENCIAINICIO,\n    PEPE.DTAVIGENCIAFIM\nFROM MRL_PONTOEXTRA PE\nINNER JOIN MRL_PONTOEXTRAPRODUTO PEP ON PEP.SEQPONTOEXTRA = PE.SEQPONTOEXTRA\nINNER JOIN MRL_PONTOEXTRAPRODUTOEMPRESA PEPE ON PEPE.SEQPONTOEXTRA = PEP.SEQPONTOEXTRA AND PEPE.SEQPRODUTO = PEP.SEQPRODUTO\nINNER JOIN MAP_PRODUTO PROD ON PROD.SEQPRODUTO = PEPE.SEQPRODUTO\nWHERE PE.STATUS = 'A'\nORDER BY PEPE.SEQPONTOEXTRA, PEPE.NROEMPRESA, PEPE.SEQPRODUTO",
+                'hint': 'Esta é a query oficial com as 9 colunas exatas que gera o arquivo CSV/Excel de todas as pontas da rede para você editar os mínimos/máximos e depois colar no módulo de Carga!'
             }
         ]
         self.send_json({'missions': missions})
@@ -1344,6 +1423,52 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
                 'passed': False,
                 'message': f'Erro na execução: {str(e)}'
             })
+
+    # --- Módulo Mentor IA (Ollama) ---
+    def handle_ai_status(self):
+        status = ollama_mentor.check_status()
+        self.send_json(status)
+
+    def handle_ai_chat(self, data):
+        user_msg = data.get('message', '').strip()
+        current_sql = data.get('current_sql', '')
+        history = data.get('history', [])
+        model = data.get('model')
+        if model:
+            ollama_mentor.current_model = model
+        result = ollama_mentor.chat(user_msg, current_sql=current_sql, history=history)
+        self.send_json(result)
+
+    def handle_ai_explain_error(self, data):
+        sql = data.get('sql', '').strip()
+        error_msg = data.get('error', '').strip()
+        binds = data.get('binds', {})
+        model = data.get('model')
+        if model:
+            ollama_mentor.current_model = model
+        result = ollama_mentor.explain_and_fix_error(sql, error_msg, binds=binds)
+        self.send_json(result)
+
+    def handle_ai_text_to_sql(self, data):
+        request_text = data.get('request', '').strip()
+        model = data.get('model')
+        if model:
+            ollama_mentor.current_model = model
+        result = ollama_mentor.text_to_sql(request_text)
+        self.send_json(result)
+
+    def handle_ai_find_table(self, data):
+        query = data.get('query', '').strip()
+        model = data.get('model')
+        if model:
+            ollama_mentor.current_model = model
+        result = ollama_mentor.find_table(query)
+        self.send_json(result)
+
+    def handle_ai_set_model(self, data):
+        model_name = data.get('model', '').strip()
+        success, msg = ollama_mentor.set_model(model_name)
+        self.send_json({'success': success, 'message': msg, 'current_model': ollama_mentor.current_model})
 
 def run_server():
     print("=======================================================")

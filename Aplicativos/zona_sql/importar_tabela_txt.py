@@ -1,14 +1,22 @@
 """
-Importador Universal de Tabelas TXT / CSV para o Simulador de Banco Consinco (Zona SQL)
+Importador e Sincronizador Mestre de Dados Oficiais Totvs Consinco (Zona SQL)
+
+Este é o ÚNICO script central de importação e sincronização de dados para o simulador.
+Ele suporta:
+1. Tabelas Oficiais de Dados (MAP_PRODUTO, MRL_PRODUTOEMPRESA, MRL_PRODEMPSEG, etc.)
+2. Carga de Pontas de Gôndola (MRL_PONTOEXTRA, MRL_PONTOEXTRAPRODUTO, MRL_PONTOEXTRAPRODUTOEMPRESA)
+3. Catálogo e Dicionário Oficial (TABELAS_CONSICO_OFICIAIS.txt e TODAS_COLUNAS_CONSICO_OFICIAIS.txt)
+4. Mapeamento inteligente de arquivos para tabelas canônicas oficiais do Consinco.
 
 Uso Interativo:
     python importar_tabela_txt.py
-    (Você digita o nome do arquivo, ex: 'map_produto', ou o número da lista, e ele busca automaticamente na pasta import_querys)
+    (Você digita o nome do arquivo, ex: 'map_produto', ou o número da lista)
 
 Uso por Linha de Comando:
     python importar_tabela_txt.py map_produto
-    python importar_tabela_txt.py ean_dun.txt
-    python importar_tabela_txt.py a_pagar
+    python importar_tabela_txt.py tabelas_oficiais
+    python importar_tabela_txt.py colunas_oficiais
+    python importar_tabela_txt.py pontas
     python importar_tabela_txt.py todas
 """
 
@@ -18,7 +26,7 @@ import sqlite3
 import re
 import time
 
-# Garantir compatibilidade total de encoding no console Windows
+# Compatibilidade de encoding no console Windows
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 if hasattr(sys.stderr, 'reconfigure'):
@@ -28,19 +36,52 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "database", "banco_simulador_consinco.db")
 IMPORT_QUERYS_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "import_querys"))
 
-# Mapeamento amigável de nomes e descrições
+# Mapeamento de arquivos para Tabelas Canônicas Oficiais do Consinco
+MAPA_TABELAS_OFICIAIS = {
+    "map_produto": "MAP_PRODUTO",
+    "map_familia": "MAP_FAMILIA",
+    "map_categoria": "MAP_CATEGORIA",
+    "map_famdivcateg": "MAP_FAMDIVCATEG",
+    "map_famfornec": "MAP_FAMFORNEC",
+    "map_prodcodigo": "MAP_PRODCODIGO",
+    "max_empresa": "MAX_EMPRESA",
+    "max_comprador": "MAX_COMPRADOR",
+    "ge_pessoa": "GE_PESSOA",
+    "mrl_produtoempresa": "MRL_PRODUTOEMPRESA",
+    "mrl_prodempseg": "MRL_PRODEMPSEG",
+    "mrl_pontoextra": "MRL_PONTOEXTRA",
+    "mrl_pontoextraprodutoempresa": "MRL_PONTOEXTRAPRODUTOEMPRESA",
+    "fi_titulo": "FI_TITULO",
+    "msu_pedidosuprim": "MSU_PEDIDOSUPRIM",
+    "mbi_tabcdistrib": "MBI_TABCDISTRIB",
+    "mrl_custodia": "MRL_CUSTODIA",
+    "mrl_prodvendadia": "MRL_PRODVENDADIA",
+    "pontas_extraidas": "MRL_PONTOEXTRAPRODUTOEMPRESA",
+    "pontas": "MRL_PONTOEXTRAPRODUTOEMPRESA",
+    "tabelas_consico_oficiais": "DICIONARIO_TABELAS",
+    "tabelas_consinco_oficiais": "DICIONARIO_TABELAS",
+    "todas_colunas_consico_oficiais": "COLUNAS",
+    "todas_colunas_consinco_oficiais": "COLUNAS"
+}
+
 DESCRICOES_CONHECIDAS = {
     "map_produto": "Cadastro Oficial de Produtos Consinco (97 Colunas)",
-    "ean_dun": "Códigos de Barras EAN e Embalagens DUN/CX",
-    "a_pagar": "Títulos e Contas a Pagar Financeiro (FI_TITULO)",
-    "a_pagar_empresa": "Títulos e Contas a Pagar por Loja/Empresa",
-    "ped_pendente": "Pedidos de Suprimento e Transferência Pendentes",
-    "nivel_atendimento_cds": "Nível de Atendimento e Ruptura dos CDs",
-    "ranking_abc_produtos": "Curva ABC e Ranking de Faturamento de Produtos",
-    "ranking": "Ranking e Desempenho de Fornecedores",
-    "query": "Base Analítica Consolidada de Estoque e Venda",
-    "query_bz": "Base Analítica de Estoque Rede Baklizi",
-    "pontas_extraidas": "Manutenção de Pontas de Gôndola / Estoques Mín e Máx"
+    "map_familia": "Cadastro Oficial de Famílias Comerciais Consinco",
+    "map_categoria": "Departamentos, Seções e Grupos Mercadológicos",
+    "map_famdivcateg": "Vínculo Família x Categoria / Departamento",
+    "map_famfornec": "Fornecedor Principal de Produtos e Famílias",
+    "map_prodcodigo": "Códigos de Barras EAN e Embalagens DUN/CX",
+    "max_empresa": "Cadastro Oficial de Lojas e Centros de Distribuição",
+    "max_comprador": "Cadastro de Compradores da Rede",
+    "ge_pessoa": "Cadastro Geral de Fornecedores e Parceiros Comerciais",
+    "mrl_produtoempresa": "Estoque de Loja, Depósito e Custos por Empresa",
+    "mrl_prodempseg": "Tabela de Preços de Venda Normal e Promocional",
+    "mrl_pontoextra": "Cadastro de Pontas de Gôndola e Ilhas",
+    "mrl_pontoextraprodutoempresa": "Estoque Mínimo, Máximo e Vigência de Pontas por Loja",
+    "fi_titulo": "Títulos Financeiros e Contas a Pagar",
+    "msu_pedidosuprim": "Pedidos de Suprimento e Transferência em Trânsito",
+    "tabelas_consico_oficiais": "Dicionário de Tabelas Oficiais do ERP Consinco (7.111 Tabelas)",
+    "todas_colunas_consico_oficiais": "Dicionário de Colunas e Tipos de Dados Consinco (126.636 Colunas)"
 }
 
 def listar_arquivos_disponiveis():
@@ -53,12 +94,14 @@ def listar_arquivos_disponiveis():
             if (f.lower().endswith(".txt") or f.lower().endswith(".csv")) and f.lower() != "requeirements.txt":
                 caminho = os.path.join(IMPORT_QUERYS_DIR, f)
                 nome_base = os.path.splitext(f)[0].lower()
+                tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())
                 encontrados[nome_base] = {
                     "arquivo": f,
                     "caminho": caminho,
                     "pasta": "import_querys",
+                    "tabela_destino": tbl_oficial,
                     "tamanho_kb": round(os.path.getsize(caminho) / 1024, 1),
-                    "descricao": DESCRICOES_CONHECIDAS.get(nome_base, "Tabela de Dados Consinco")
+                    "descricao": DESCRICOES_CONHECIDAS.get(nome_base, f"Tabela Oficial {tbl_oficial}")
                 }
 
     # 2. Pasta local zona_sql
@@ -67,307 +110,410 @@ def listar_arquivos_disponiveis():
             caminho = os.path.join(BASE_DIR, f)
             nome_base = os.path.splitext(f)[0].lower()
             if nome_base not in encontrados:
+                tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())
                 encontrados[nome_base] = {
                     "arquivo": f,
                     "caminho": caminho,
                     "pasta": "zona_sql",
+                    "tabela_destino": tbl_oficial,
                     "tamanho_kb": round(os.path.getsize(caminho) / 1024, 1),
-                    "descricao": DESCRICOES_CONHECIDAS.get(nome_base, "Arquivo Local de Dados")
+                    "descricao": DESCRICOES_CONHECIDAS.get(nome_base, f"Tabela Oficial {tbl_oficial}")
                 }
 
     return encontrados
 
-def resolver_caminho_arquivo(entrada, arquivos_disp):
-    """Localiza o arquivo a partir do nome digitado pelo usuário ou número."""
-    entrada_limpa = entrada.strip().lower()
-
-    # Caso 1: Usuário digitou um número da lista
-    if entrada_limpa.isdigit():
-        idx = int(entrada_limpa) - 1
-        lista_chaves = list(arquivos_disp.keys())
-        if 0 <= idx < len(lista_chaves):
-            chave = lista_chaves[idx]
-            return arquivos_disp[chave]["caminho"], chave.upper()
-
-    # Caso 2: Usuário digitou o nome base ou nome com extensão
-    nome_base = os.path.splitext(entrada_limpa)[0]
-    if nome_base in arquivos_disp:
-        return arquivos_disp[nome_base]["caminho"], nome_base.upper()
-
-    # Caso 3: Busca direta por caminho absoluto ou relativo
-    if os.path.exists(entrada):
-        t_name = os.path.splitext(os.path.basename(entrada))[0].upper()
-        return os.path.abspath(entrada), t_name
-
-    # Caso 4: Tentar em import_querys com extensão .txt ou .csv
-    for ext in [".txt", ".csv"]:
-        cand1 = os.path.join(IMPORT_QUERYS_DIR, entrada_limpa + ext)
-        if os.path.exists(cand1):
-            return cand1, entrada_limpa.upper()
-        cand2 = os.path.join(BASE_DIR, entrada_limpa + ext)
-        if os.path.exists(cand2):
-            return cand2, entrada_limpa.upper()
-
-    return None, None
-
 def detectar_delimitador(linha):
-    """Detecta automaticamente o delimitador da linha."""
     contagens = {
         ';': linha.count(';'),
         '\t': linha.count('\t'),
         ',': linha.count(','),
         '|': linha.count('|')
     }
-    delim = max(contagens, key=contagens.get)
-    return delim if contagens[delim] > 0 else ';'
+    return max(contagens, key=contagens.get) if max(contagens.values()) > 0 else ';'
 
-def sanitizar_nome_coluna(col):
-    """Limpa e formata o nome da coluna para padrão SQL Consinco."""
-    c = col.strip().upper()
-    c = re.sub(r'[^A-Z0-9_]', '_', c)
-    c = re.sub(r'_+', '_', c).strip('_')
-    if not c or c[0].isdigit():
-        c = 'COL_' + c
-    return c
-
-def inferir_tipo_valor(v):
-    """Tenta converter strings para int, float ou mantém string limpa."""
-    if v is None:
+def sanitizar_valor(val):
+    if val is None:
         return None
-    s = str(v).strip()
-    if s == '' or s.upper() in ('NULL', 'NONE'):
+    s = str(val).strip().strip('"').strip("'")
+    if s == '' or s.upper() == 'NULL':
         return None
     
-    # Tentar inteiro
+    # Número com formato brasileiro (ex: 1.234,56 ou 123,45)
+    if re.match(r'^-?\d{1,3}(\.\d{3})*,\d+$', s):
+        try:
+            return float(s.replace('.', '').replace(',', '.'))
+        except:
+            return s
+    
+    # Número decimal simples com vírgula (ex: 10,50)
+    if re.match(r'^-?\d+,\d+$', s):
+        try:
+            return float(s.replace(',', '.'))
+        except:
+            return s
+
+    # Número inteiro
     if re.match(r'^-?\d+$', s):
         try:
             return int(s)
         except:
-            pass
-            
-    # Tentar float formato brasileiro (ex: 1.234,56 ou 1234,56)
-    if re.match(r'^-?\d{1,3}(\.\d{3})*,\d+$', s) or re.match(r'^-?\d+,\d+$', s):
-        try:
-            s_clean = s.replace('.', '').replace(',', '.')
-            return float(s_clean)
-        except:
-            pass
+            return s
 
-    # Tentar float padrão
+    # Número float com ponto
     if re.match(r'^-?\d+\.\d+$', s):
         try:
             return float(s)
         except:
-            pass
-
-    # Limpar datas com excesso de microssegundos se houver
-    if re.match(r'^\d{4}-\d{2}-\d{2}-\d{2}\.\d{2}\.\d{2}', s):
-        # Ex: 2026-08-25-15.52.54.000000 -> 2026-08-25 15:52:54
-        s_date = s[:10] + ' ' + s[11:19].replace('.', ':')
-        return s_date
+            return s
 
     return s
 
-def garantir_tabela(cursor, nome_tabela, colunas, tipos_amostra):
-    """Garante que a tabela existe com todas as colunas necessárias."""
-    # Verificar se a tabela já existe
-    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND UPPER(name)='{nome_tabela.upper()}'")
-    existe = cursor.fetchone() is not None
-
-    if not existe:
-        col_defs = []
-        for col in colunas:
-            tipo = tipos_amostra.get(col, 'TEXT')
-            if col.startswith('SEQ') or col.startswith('COD') or col.startswith('NRO'):
-                # Priorizar campos de sequência como inteiros
-                if tipo == 'INTEGER' or tipo == 'TEXT':
-                    tipo = 'INTEGER'
-            col_defs.append(f"    {col} {tipo}")
-            
-        sql_create = f"CREATE TABLE {nome_tabela} (\n" + ",\n".join(col_defs) + "\n);"
-        cursor.execute(sql_create)
-    else:
-        # Tabela já existe -> verificar se faltam colunas
-        cursor.execute(f"PRAGMA table_info({nome_tabela})")
-        existentes = set(r[1].upper() for r in cursor.fetchall())
-        
-        for col in colunas:
-            if col.upper() not in existentes:
-                tipo = tipos_amostra.get(col, 'TEXT')
-                try:
-                    cursor.execute(f"ALTER TABLE {nome_tabela} ADD COLUMN {col} {tipo}")
-                except Exception as e:
-                    pass
-
-def importar_arquivo(caminho_arquivo, nome_tabela=None):
-    """Executa a importação completa do arquivo para o SQLite da Zona SQL."""
-    inicio = time.time()
+def importar_dicionario_tabelas(file_path):
+    """Importa o catálogo oficial de 7.111 tabelas do Consinco."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DROP TABLE IF EXISTS dicionario_tabelas')
+    c.execute('''
+        CREATE TABLE dicionario_tabelas (
+            NOME_TABELA TEXT PRIMARY KEY,
+            DESCRICAO_TABELA TEXT,
+            QTD_LINHAS_ESTIMADA INTEGER,
+            TABLESPACE_NAME TEXT,
+            DATA_ULTIMA_ANALISE TEXT
+        )
+    ''')
     
-    if not os.path.exists(caminho_arquivo):
-        print(f"[-] Erro: Arquivo '{caminho_arquivo}' não encontrado.")
+    rows = []
+    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+        header = f.readline()
+        for line in f:
+            line = line.strip()
+            if not line: continue
+            parts = line.split(';')
+            if len(parts) >= 5:
+                rows.append((parts[0].strip().upper(), parts[1].strip(), int(parts[2]) if parts[2].isdigit() else None, parts[3].strip(), parts[4].strip()))
+            elif len(parts) >= 1:
+                rows.append((parts[0].strip().upper(), '', None, '', ''))
+
+    c.executemany('INSERT OR REPLACE INTO dicionario_tabelas VALUES (?, ?, ?, ?, ?)', rows)
+    c.execute('CREATE INDEX IF NOT EXISTS idx_dict_tab ON dicionario_tabelas(NOME_TABELA)')
+    conn.commit()
+    conn.close()
+    print(f"[+] Sucesso! {len(rows):,} tabelas oficiais salvas no catálogo dicionario_tabelas.")
+    return True
+
+def importar_dicionario_colunas(file_path):
+    """Importa o catálogo oficial de 126.636 colunas do Consinco."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DROP TABLE IF EXISTS colunas')
+    c.execute('''
+        CREATE TABLE colunas (
+            NOME_TABELA TEXT,
+            DESCRICAO_TABELA TEXT,
+            ORDEM INTEGER,
+            NOME_COLUNA TEXT,
+            TIPO_DADOS TEXT,
+            PERMITE_NULO TEXT,
+            DESCRICAO_COLUNA TEXT
+        )
+    ''')
+    
+    rows = []
+    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+        header = f.readline()
+        for line in f:
+            line = line.strip()
+            if not line: continue
+            parts = line.split(';')
+            if len(parts) >= 7:
+                ordem = int(parts[2]) if parts[2].isdigit() else 0
+                rows.append((parts[0].strip().upper(), parts[1].strip(), ordem, parts[3].strip().upper(), parts[4].strip(), parts[5].strip(), parts[6].strip()))
+            elif len(parts) >= 5:
+                ordem = int(parts[2]) if parts[2].isdigit() else 0
+                rows.append((parts[0].strip().upper(), parts[1].strip(), ordem, parts[3].strip().upper(), parts[4].strip(), 'Y', ''))
+
+    c.executemany('INSERT INTO colunas VALUES (?, ?, ?, ?, ?, ?, ?)', rows)
+    c.execute('CREATE INDEX IF NOT EXISTS idx_colunas_tab ON colunas(NOME_TABELA)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_colunas_col ON colunas(NOME_COLUNA)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_colunas_ord ON colunas(NOME_TABELA, ORDEM)')
+    conn.commit()
+    conn.close()
+    print(f"[+] Sucesso! {len(rows):,} colunas oficiais salvas na tabela colunas.")
+    return True
+
+def importar_map_produto_oficial(file_path):
+    """Importa a tabela MAP_PRODUTO garantindo os 97 campos oficiais."""
+    with open(file_path, 'r', encoding='latin1', errors='replace') as f:
+        lines = [l.strip() for l in f if l.strip()]
+
+    if not lines:
+        print("[-] Arquivo vazio.")
         return False
 
-    if nome_tabela is None:
-        nome_tabela = os.path.splitext(os.path.basename(caminho_arquivo))[0].upper()
-
-    print(f"\n=======================================================")
-    print(f"📥 IMPORTANDO: {os.path.basename(caminho_arquivo)}")
-    print(f"📁 Origem: {caminho_arquivo}")
-    print(f"💾 Tabela Alvo: {nome_tabela}")
-    print(f"=======================================================")
-
-    # 1. Leitura com suporte a latin1 e utf-8
-    linhas = []
-    for enc in ['latin1', 'utf-8', 'cp1252']:
-        try:
-            with open(caminho_arquivo, 'r', encoding=enc) as f:
-                linhas = [l.strip() for l in f if l.strip()]
-            if linhas:
-                break
-        except Exception:
-            continue
-
-    if not linhas:
-        print("[-] Arquivo vazio ou ilegível.")
-        return False
-
-    delimitador = detectar_delimitador(linhas[0])
-    raw_headers = linhas[0].split(delimitador)
-    colunas = [sanitizar_nome_coluna(h) for h in raw_headers]
-
-    print(f"[+] Delimitador detectado: '{delimitador}'")
-    print(f"[+] Total de Colunas ({len(colunas)}): {', '.join(colunas[:6])}{'...' if len(colunas) > 6 else ''}")
-    print(f"[+] Total de Linhas no Arquivo: {len(linhas) - 1:,}")
-
-    # 2. Amostragem de tipos
-    tipos_amostra = {}
-    linhas_amostra = linhas[1:min(50, len(linhas))]
-    for col_idx, col in enumerate(colunas):
-        tipo_detectado = 'INTEGER'
-        for l in linhas_amostra:
-            parts = l.split(delimitador)
-            if col_idx < len(parts):
-                val = inferir_tipo_valor(parts[col_idx])
-                if isinstance(val, float):
-                    tipo_detectado = 'REAL'
-                elif isinstance(val, str) and tipo_detectado != 'REAL':
-                    tipo_detectado = 'TEXT'
-        tipos_amostra[col] = tipo_detectado
-
-    # 3. Conectar ao Banco e Garantir Estrutura
+    headers = [h.strip().upper() for h in lines[0].split(';')]
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    cursor.execute("DELETE FROM MAP_PRODUTO")  # Limpar registros antigos para garantir 100% dados reais
 
-    garantir_tabela(cursor, nome_tabela, colunas, tipos_amostra)
+    count_imported = 0
+    for line in lines[1:]:
+        parts = line.split(';')
+        if len(parts) < len(headers):
+            parts.extend([''] * (len(headers) - len(parts)))
+        row = dict(zip(headers, parts))
+        
+        seqp = int(row.get('SEQPRODUTO') or 0)
+        if seqp <= 0:
+            continue
+            
+        cols = []
+        vals = []
+        for k, v in row.items():
+            cols.append(k)
+            sanitized = sanitizar_valor(v)
+            vals.append(sanitized)
 
-    # 4. Inserção em Lotes (Batch Execution)
-    placeholders = ",".join(["?"] * len(colunas))
-    cols_str = ",".join(colunas)
-    sql_insert = f"INSERT OR REPLACE INTO {nome_tabela} ({cols_str}) VALUES ({placeholders})"
+        if 'STATUS' not in cols:
+            cols.append('STATUS')
+            vals.append('A')
 
-    batch = []
-    total_inserido = 0
-    primeiros_registros = []
+        placeholders = ','.join(['?'] * len(cols))
+        col_names = ','.join(cols)
+        update_clause = ', '.join([f"{c}=excluded.{c}" for c in cols if c != 'SEQPRODUTO'])
 
-    for l in linhas[1:]:
-        parts = l.split(delimitador)
-        if len(parts) < len(colunas):
-            parts.extend([''] * (len(colunas) - len(parts)))
-        elif len(parts) > len(colunas):
-            parts = parts[:len(colunas)]
-
-        row_vals = [inferir_tipo_valor(p) for p in parts]
-        batch.append(row_vals)
-
-        if len(primeiros_registros) < 3:
-            primeiros_registros.append(dict(zip(colunas[:6], row_vals[:6])))
-
-        if len(batch) >= 1000:
-            cursor.executemany(sql_insert, batch)
-            total_inserido += len(batch)
-            batch = []
-
-    if batch:
-        cursor.executemany(sql_insert, batch)
-        total_inserido += len(batch)
-
-    # 5. Tratamentos Especializados para Consistência Relacional
-    if nome_tabela == "MAP_PRODUTO":
-        # Se importou MAP_PRODUTO, garantir que STATUS padrão seja 'A'
-        try:
-            cursor.execute("UPDATE MAP_PRODUTO SET STATUS='A' WHERE STATUS IS NULL OR STATUS=''")
-        except Exception:
-            pass
+        cursor.execute(f"""
+            INSERT INTO MAP_PRODUTO ({col_names})
+            VALUES ({placeholders})
+            ON CONFLICT(SEQPRODUTO) DO UPDATE SET {update_clause}
+        """, vals)
+        count_imported += 1
 
     conn.commit()
     conn.close()
-
-    tempo_gasto = round(time.time() - inicio, 2)
-    print(f"\n✅ SUCESSO! {total_inserido:,} registros importados para a tabela '{nome_tabela}' em {tempo_gasto}s!")
-    
-    print("\n🔍 Amostra dos Dados Importados (Primeiras Colunas):")
-    for idx, r in enumerate(primeiros_registros, 1):
-        print(f"  [{idx}] {r}")
-
+    print(f"[+] Sucesso! {count_imported} produtos oficiais importados para MAP_PRODUTO.")
     return True
 
-def main():
-    print("=======================================================")
-    print("       IMPORTADOR DE TABELAS TXT - ZONA SQL ERP        ")
-    print("=======================================================")
+def importar_pontas_gondola(file_path):
+    """Importa dados de pontas de gôndola garantindo capas e regras por empresa."""
+    with open(file_path, 'r', encoding='latin1', errors='ignore') as f:
+        lines = [l.strip() for l in f if l.strip()]
 
-    arquivos_disp = listar_arquivos_disponiveis()
+    if not lines: return False
+    sep = detectar_delimitador(lines[0])
+    headers = [h.strip().upper().replace('"', '') for h in lines[0].split(sep)]
 
-    # Se recebeu argumento na linha de comando
-    if len(sys.argv) > 1:
-        alvo = sys.argv[1].strip()
-        if alvo.lower() in ("todas", "all", "*"):
-            print(f"\n🚀 Importando todos os {len(arquivos_disp)} arquivos disponíveis...")
-            for chave, info in arquivos_disp.items():
-                importar_arquivo(info["caminho"], chave.upper())
-            print("\n🎉 Todas as tabelas foram importadas com sucesso para a Zona SQL!")
-            return
-        else:
-            caminho, t_name = resolver_caminho_arquivo(alvo, arquivos_disp)
-            if caminho:
-                importar_arquivo(caminho, t_name)
-            else:
-                print(f"[-] Arquivo correspondente a '{alvo}' não encontrado.")
-            return
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
-    # Modo Interativo: Exibir Lista Numerada
-    print("\n📂 Arquivos disponíveis para importação:")
-    lista_chaves = list(arquivos_disp.keys())
-    for idx, chave in enumerate(lista_chaves, 1):
-        info = arquivos_disp[chave]
-        print(f"  [{idx:2d}] {info['arquivo']:25s} ({info['tamanho_kb']:>6.1f} KB) - {info['descricao']}")
+    records = 0
+    for l_idx, line in enumerate(lines[1:], start=2):
+        parts = [p.strip().replace('"', '') for p in line.split(sep)]
+        if len(parts) < len(headers): parts.extend([''] * (len(headers) - len(parts)))
+        row = dict(zip(headers, parts))
 
-    print(f"  [ T] TODAS AS TABELAS         - Importa todos os {len(lista_chaves)} arquivos de uma vez")
-    print(f"  [ Q] Sair")
+        seqponto = int(float(str(row.get('SEQPONTOEXTRA') or row.get('COD_PONTO_EXTRA') or 203).replace(',', '.')))
+        nome_ponto = row.get('NOME_PONTO_EXTRA') or row.get('DESCRICAO_PONTO') or f"Ponto {seqponto}"
+        seqprod = int(float(str(row.get('SEQPRODUTO') or row.get('COD_PRODUTO') or 0).replace(',', '.')))
+        desc_prod = row.get('DESCRICAO_PRODUTO') or row.get('DESCCOMPLETA') or f"Produto {seqprod}"
+        nroemp = int(float(str(row.get('NROEMPRESA') or row.get('LOJA') or 1).replace(',', '.')))
+        nome_emp = row.get('NOME_LOJA') or row.get('FANTASIA') or f"Loja {nroemp}"
 
-    try:
-        escolha = input("\n👉 Digite o nome do arquivo (ex: map_produto), número [1-10] ou 'T': ").strip()
-    except (KeyboardInterrupt, EOFError):
-        print("\nOperação cancelada.")
-        return
+        estqmin = float(str(row.get('ESTQMINIMO') or 0).replace(',', '.'))
+        estqmax = float(str(row.get('ESTQMAXIMO') or 0).replace(',', '.'))
+        dt_ini = row.get('DTAVIGENCIAINICIO') or '2026-08-01'
+        dt_fim = row.get('DTAVIGENCIAFIM') or '2026-12-31'
+        seqvig = int(float(str(row.get('SEQVIGENCIA') or (500 + l_idx)).replace(',', '.')))
 
-    if not escolha or escolha.lower() in ('q', 'quit', 'exit', 'sair'):
-        print("Saindo sem alterações.")
-        return
+        if seqprod <= 0: continue
 
-    if escolha.lower() in ('t', 'todas', 'all'):
-        print(f"\n🚀 Importando todas as {len(arquivos_disp)} tabelas...")
-        for chave, info in arquivos_disp.items():
-            importar_arquivo(info["caminho"], chave.upper())
-        print("\n🎉 Todas as tabelas foram importadas com sucesso para a Zona SQL!")
-        return
+        cursor.execute("INSERT INTO MRL_PONTOEXTRA (SEQPONTOEXTRA, DESCRICAO, STATUS) VALUES (?, ?, 'A') ON CONFLICT(SEQPONTOEXTRA) DO UPDATE SET DESCRICAO=excluded.DESCRICAO", (seqponto, nome_ponto))
+        cursor.execute("INSERT INTO MAP_PRODUTO (SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, STATUS) VALUES (?, ?, ?, 100, 'A') ON CONFLICT(SEQPRODUTO) DO NOTHING", (seqprod, desc_prod, desc_prod[:20]))
+        cursor.execute("INSERT INTO MAX_EMPRESA (NROEMPRESA, NOMERAZAO, FANTASIA, RAZAOSOCIAL) VALUES (?, ?, ?, ?) ON CONFLICT(NROEMPRESA) DO UPDATE SET FANTASIA=excluded.FANTASIA", (nroemp, nome_emp, nome_emp, nome_emp))
+        cursor.execute("INSERT INTO MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS) VALUES (?, ?, 'A') ON CONFLICT(SEQPONTOEXTRA, SEQPRODUTO) DO UPDATE SET STATUS='A'", (seqponto, seqprod))
+        cursor.execute("""
+            INSERT INTO MRL_PONTOEXTRAPRODUTOEMPRESA (
+                SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA,
+                ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM,
+                QTDDIASSUGESTAO, STATUS
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'A')
+            ON CONFLICT(SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA) DO UPDATE SET
+                ESTQMINIMO=excluded.ESTQMINIMO,
+                ESTQMAXIMO=excluded.ESTQMAXIMO,
+                DTAVIGENCIAINICIO=excluded.DTAVIGENCIAINICIO,
+                DTAVIGENCIAFIM=excluded.DTAVIGENCIAFIM,
+                STATUS=excluded.STATUS
+        """, (seqponto, seqprod, nroemp, seqvig, estqmin, estqmax, dt_ini, dt_fim))
+        records += 1
 
-    caminho, t_name = resolver_caminho_arquivo(escolha, arquivos_disp)
-    if caminho:
-        importar_arquivo(caminho, t_name)
+    conn.commit()
+    conn.close()
+    print(f"[+] Sucesso! {records} regras de pontas gravadas em MRL_PONTOEXTRAPRODUTOEMPRESA.")
+    return True
+
+def importar_arquivo_generico(file_path, table_name):
+    """Importação universal para qualquer tabela oficial do Consinco."""
+    if not os.path.exists(file_path):
+        print(f"[-] Arquivo não encontrado: {file_path}")
+        return False
+
+    with open(file_path, 'r', encoding='latin1', errors='replace') as f:
+        lines = [l.strip() for l in f if l.strip()]
+
+    if not lines:
+        print("[-] Arquivo vazio.")
+        return False
+
+    sep = detectar_delimitador(lines[0])
+    raw_headers = [h.strip().replace('"', '').replace("'", "") for h in lines[0].split(sep)]
+    headers = [re.sub(r'[^A-Za-z0-9_]', '_', h).upper() for h in raw_headers]
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Compatibilidade amigável para MAX_EMPRESA (garantir NOMERAZAO se tiver RAZAOSOCIAL)
+    if table_name == 'MAX_EMPRESA' and 'NOMERAZAO' not in headers:
+        headers.append('NOMERAZAO')
+        has_nomerazao_in_txt = False
     else:
-        print(f"\n[-] Erro: Não foi possível localizar o arquivo correspondente a '{escolha}'.")
-        print(f"    Verifique se o arquivo existe na pasta '{IMPORT_QUERYS_DIR}'.")
+        has_nomerazao_in_txt = True
+
+    # Recriar tabela com o schema exato do arquivo oficial
+    cursor.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+    col_defs = ", ".join([f'"{h}" TEXT' for h in headers])
+    cursor.execute(f'CREATE TABLE "{table_name}" ({col_defs})')
+
+    placeholders = ", ".join(["?"] * len(headers))
+    cols_joined = ", ".join([f'"{h}"' for h in headers])
+    insert_sql = f'INSERT INTO "{table_name}" ({cols_joined}) VALUES ({placeholders})'
+
+    batch = []
+    count = 0
+
+    for line in lines[1:]:
+        parts = [p.strip().replace('"', '').replace("'", "") for p in line.split(sep)]
+        if not has_nomerazao_in_txt:
+            # Pegar RAZAOSOCIAL ou FANTASIA
+            rz = ''
+            if 'RAZAOSOCIAL' in raw_headers:
+                rz_idx = raw_headers.index('RAZAOSOCIAL')
+                rz = parts[rz_idx] if rz_idx < len(parts) else ''
+            elif 'FANTASIA' in raw_headers:
+                f_idx = raw_headers.index('FANTASIA')
+                rz = parts[f_idx] if f_idx < len(parts) else ''
+            parts.append(rz)
+
+        if len(parts) < len(headers):
+            parts.extend([''] * (len(headers) - len(parts)))
+        row_vals = [sanitizar_valor(parts[i]) if i < len(parts) else None for i in range(len(headers))]
+        batch.append(row_vals)
+        count += 1
+        if len(batch) >= 2000:
+            cursor.executemany(insert_sql, batch)
+            batch = []
+
+    if batch:
+        cursor.executemany(insert_sql, batch)
+
+    conn.commit()
+    conn.close()
+    print(f"[+] Sucesso! {count:,} registros importados para a tabela oficial {table_name}.")
+    return True
+
+def executar_importacao(caminho, nome_identificador):
+    """Roteador de importação especializada ou genérica."""
+    nome_low = nome_identificador.lower()
+    tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_low, nome_identificador.upper())
+
+    print(f"\n=======================================================")
+    print(f"IMPORTANDO DADOS: {os.path.basename(caminho)}")
+    print(f"Tabela Destino Oficial Consinco: {tbl_oficial}")
+    print(f"=======================================================")
+
+    t0 = time.time()
+    if tbl_oficial == "DICIONARIO_TABELAS":
+        res = importar_dicionario_tabelas(caminho)
+    elif tbl_oficial == "COLUNAS":
+        res = importar_dicionario_colunas(caminho)
+    elif tbl_oficial == "MAP_PRODUTO":
+        res = importar_map_produto_oficial(caminho)
+    elif nome_low in ["pontas_extraidas", "pontas"]:
+        res = importar_pontas_gondola(caminho)
+    else:
+        res = importar_arquivo_generico(caminho, tbl_oficial)
+
+    print(f"Tempo total: {time.time() - t0:.2f}s")
+    return res
+
+def menu_interativo():
+    print("\n" + "="*70)
+    print("  SIMULADOR ZONA SQL - IMPORTADOR MESTRE DE TABELAS CONSINCO")
+    print("="*70)
+    
+    arquivos = listar_arquivos_disponiveis()
+    if not arquivos:
+        print("[!] Nenhum arquivo .txt ou .csv encontrado na pasta import_querys.")
+        return
+
+    print("\nArquivos disponíveis para sincronização:")
+    lista_chaves = list(arquivos.keys())
+    for idx, chave in enumerate(lista_chaves, 1):
+        info = arquivos[chave]
+        print(f"  [{idx:2d}] {info['arquivo']:<35s} -> {info['tabela_destino']:<25s} ({info['tamanho_kb']:>6.1f} KB)")
+        print(f"       └─ {info['descricao']}")
+
+    print("\nOpções:")
+    print("  - Digite o NÚMERO (ex: 1) ou o NOME do arquivo (ex: map_produto)")
+    print("  - Digite 'todas' para importar todas as tabelas em lote")
+    print("  - Digite 'sair' para encerrar")
+    
+    try:
+        escolha = input("\nQual tabela deseja importar? > ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    if not escolha or escolha.lower() in ('sair', 'exit', 'q'):
+        print("Operação cancelada.")
+        return
+
+    if escolha.lower() in ('todas', 'all', '*'):
+        print(f"\n[+] Iniciando importação em lote de {len(lista_chaves)} arquivos...")
+        for k in lista_chaves:
+            executar_importacao(arquivos[k]["caminho"], k)
+        return
+
+    # Buscar arquivo escolhido
+    caminho, ident = None, None
+    if escolha.isdigit():
+        idx = int(escolha) - 1
+        if 0 <= idx < len(lista_chaves):
+            ident = lista_chaves[idx]
+            caminho = arquivos[ident]["caminho"]
+    else:
+        nome_low = os.path.splitext(escolha.lower())[0]
+        if nome_low in arquivos:
+            ident = nome_low
+            caminho = arquivos[nome_low]["caminho"]
+
+    if caminho and os.path.exists(caminho):
+        executar_importacao(caminho, ident)
+    else:
+        print(f"[-] Arquivo ou opção '{escolha}' não encontrada.")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        param = sys.argv[1].strip()
+        arquivos = listar_arquivos_disponiveis()
+        if param.lower() == "todas":
+            for k, info in arquivos.items():
+                executar_importacao(info["caminho"], k)
+        else:
+            nome_low = os.path.splitext(param.lower())[0]
+            if nome_low in arquivos:
+                executar_importacao(arquivos[nome_low]["caminho"], nome_low)
+            elif os.path.exists(param):
+                executar_importacao(param, os.path.splitext(os.path.basename(param))[0])
+            else:
+                print(f"[-] Arquivo '{param}' não encontrado.")
+    else:
+        menu_interativo()

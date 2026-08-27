@@ -69,9 +69,8 @@ WHERE SEQPONTOEXTRA = 203
 FROM MRL_PONTOEXTRAPRODUTOEMPRESA PE
 INNER JOIN MAP_PRODUTO P ON PE.SEQPRODUTO = P.SEQPRODUTO
 INNER JOIN MAX_EMPRESA E ON PE.NROEMPRESA = E.NROEMPRESA
-LEFT JOIN MRL_PRODUTOEMPRESA M ON PE.SEQPRODUTO = M.SEQPRODUTO AND PE.NROEMPRESA = M.NROEMPRESA
-WHERE PE.SEQPONTOEXTRA = 203
-ORDER BY PE.NROEMPRESA, P.SEQPRODUTO`
+WHERE PE.STATUS = 'A'
+ORDER BY PE.SEQPONTOEXTRA, PE.NROEMPRESA, P.SEQPRODUTO`
         },
         {
             title: 'Bypass Consinco (SELECT * FROM WITH)',
@@ -388,8 +387,20 @@ WHERE B.NROEMPRESA = :NROEMPRESA
                         <div class="empty-icon" style="color: #ef4444;">⚠️</div>
                         <h3 style="color: #ef4444;">Falha na Execução</h3>
                         <p style="font-family: var(--font-mono); font-size: 0.82rem; margin-top: 6px; color: #fca5a5;">${data.error}</p>
+                        <div style="margin-top: 12px;">
+                            <button id="btn-ai-explain-error" class="btn-ai-debug-card">
+                                🪄 Explicar e Corrigir com Mentor IA (Ollama)
+                            </button>
+                        </div>
                     </div>
                 `;
+
+                document.getElementById('btn-ai-explain-error')?.addEventListener('click', () => {
+                    if (window.explainErrorWithAi) {
+                        window.explainErrorWithAi(sql, data.error, binds);
+                    }
+                });
+
                 jsonViewer.textContent = JSON.stringify(data, null, 2);
 
                 // Alternar para a aba de logs

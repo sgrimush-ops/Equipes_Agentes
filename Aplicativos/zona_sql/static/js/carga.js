@@ -24,6 +24,15 @@ class CargaTabelaManager {
         this.diffContainer = document.getElementById('carga-diff-container');
         this.monitorTraceContainer = document.getElementById('monitor-trace-results');
         
+        // Elementos de Upload e Dropzone
+        this.fileInput = document.getElementById('carga-file-input');
+        this.dropzone = document.getElementById('carga-dropzone');
+        this.fileBadge = document.getElementById('carga-file-badge');
+        this.fileNameSpan = document.getElementById('carga-file-name');
+        this.fileSizeSpan = document.getElementById('carga-file-size');
+        this.btnRemoveFile = document.getElementById('btn-remove-file');
+        this.btnUploadHeader = document.getElementById('btn-upload-file-header');
+        
         // Elementos de Extração
         this.extractGridContainer = document.getElementById('extract-grid-container');
         this.extractCountBadge = document.getElementById('extract-count-badge');
@@ -62,6 +71,43 @@ class CargaTabelaManager {
                     this.loadMonitorTrace();
                 }
             });
+        });
+
+        // Eventos de Upload de Arquivo e Drag-and-Drop
+        this.btnUploadHeader?.addEventListener('click', () => this.fileInput?.click());
+        
+        this.dropzone?.addEventListener('click', (e) => {
+            if (e.target !== this.btnRemoveFile && !e.target.closest('#btn-remove-file')) {
+                this.fileInput?.click();
+            }
+        });
+
+        this.dropzone?.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            this.dropzone.classList.add('dragover');
+        });
+
+        this.dropzone?.addEventListener('dragleave', () => {
+            this.dropzone?.classList.remove('dragover');
+        });
+
+        this.dropzone?.addEventListener('drop', (e) => {
+            e.preventDefault();
+            this.dropzone?.classList.remove('dragover');
+            if (e.dataTransfer?.files?.length > 0) {
+                this.handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        this.fileInput?.addEventListener('change', (e) => {
+            if (e.target?.files?.length > 0) {
+                this.handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        this.btnRemoveFile?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearFile();
         });
 
         // Eventos da Aba de Extração
@@ -108,8 +154,7 @@ class CargaTabelaManager {
         });
 
         document.getElementById('btn-clear-carga-input')?.addEventListener('click', () => {
-            if (this.textarea) this.textarea.value = '';
-            this.clearPreview();
+            this.clearFile();
         });
 
         // Processar / Pré-Visualizar Dados
@@ -187,16 +232,10 @@ class CargaTabelaManager {
     PEPE.SEQPRODUTO,
     PROD.DESCCOMPLETA,
     PEPE.NROEMPRESA,
-    EMP.FANTASIA,
     PEPE.ESTQMINIMO,
     PEPE.ESTQMAXIMO,
-    NVL(ESTQ.ESTQLOJA, 0) AS ESTQLOJA,
     PEPE.DTAVIGENCIAINICIO,
-    PEPE.DTAVIGENCIAFIM,
-    PEPE.QTDDIASSUGESTAO,
-    PEPE.STATUS,
-    PEPE.SEQVIGENCIA,
-    COMP.APELIDO
+    PEPE.DTAVIGENCIAFIM
 FROM MRL_PONTOEXTRA PE
 INNER JOIN MRL_PONTOEXTRAPRODUTO PEP
     ON PEP.SEQPONTOEXTRA = PE.SEQPONTOEXTRA
@@ -205,18 +244,8 @@ INNER JOIN MRL_PONTOEXTRAPRODUTOEMPRESA PEPE
    AND PEPE.SEQPRODUTO    = PEP.SEQPRODUTO
 INNER JOIN MAP_PRODUTO PROD
     ON PROD.SEQPRODUTO    = PEPE.SEQPRODUTO
-INNER JOIN MAX_EMPRESA EMP
-    ON EMP.NROEMPRESA     = PEPE.NROEMPRESA
-LEFT JOIN MRL_PRODUTOEMPRESA ESTQ
-    ON ESTQ.SEQPRODUTO    = PEPE.SEQPRODUTO
-   AND ESTQ.NROEMPRESA    = PEPE.NROEMPRESA
-LEFT JOIN MAP_FAMDIVISAO FD
-    ON FD.SEQFAMILIA      = PROD.SEQFAMILIA
-   AND FD.NRODIVISAO      = 1
-LEFT JOIN MAX_COMPRADOR COMP
-    ON COMP.SEQCOMPRADOR  = FD.SEQCOMPRADOR
 ${whereSql}
-ORDER BY PEPE.SEQPONTOEXTRA, PROD.DESCCOMPLETA, PEPE.NROEMPRESA`;
+ORDER BY PEPE.SEQPONTOEXTRA, PEPE.NROEMPRESA, PEPE.SEQPRODUTO`;
     }
 
     renderExtractQuery() {
@@ -436,14 +465,46 @@ ORDER BY PEPE.SEQPONTOEXTRA, PROD.DESCCOMPLETA, PEPE.NROEMPRESA`;
     // MÉTODOS DO IMPORTADOR & LABORATÓRIO DE CARGA
     // =========================================================================
 
+    handleFileSelect(file) {
+        if (!file) return;
+
+        // Atualiza visualmente o badge do arquivo
+        if (this.fileBadge && this.fileNameSpan && this.fileSizeSpan) {
+            this.fileNameSpan.textContent = file.name;
+            const sizeKb = (file.size / 1024).toFixed(1);
+            this.fileSizeSpan.textContent = `(${sizeKb} KB)`;
+            this.fileBadge.style.display = 'flex';
+            const dropBody = this.dropzone?.querySelector('.dropzone-body');
+            if (dropBody) dropBody.style.display = 'none';
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            if (this.textarea) {
+                this.textarea.value = text;
+            }
+            // Auto-valida e gera os scripts automaticamente sem precisar clicar em outro botão
+            this.processPreview();
+        };
+        reader.readAsText(file);
+    }
+
+    clearFile() {
+        if (this.fileInput) this.fileInput.value = '';
+        if (this.fileBadge) this.fileBadge.style.display = 'none';
+        const dropBody = this.dropzone?.querySelector('.dropzone-body');
+        if (dropBody) dropBody.style.display = 'flex';
+        if (this.textarea) this.textarea.value = '';
+        this.clearPreview();
+    }
+
     loadExampleBebidas() {
-        const sample = `SEQPRODUTO\tNROEMPRESA\tSEQPONTOEXTRA\tESTQMINIMO\tESTQMAXIMO\tDTAVIGENCIAINICIO\tDTAVIGENCIAFIM\tQTDDIASSUGESTAO\tSTATUS
-10\t12\t203\t500\t600\t2026-08-05\t2026-12-01\t0\tA
-10\t1\t203\t120\t250\t2026-08-01\t2026-12-31\t3\tA
-3880\t12\t203\t200\t450\t2026-08-01\t2026-12-31\t5\tA
-3880\t1\t203\t300\t600\t2026-08-01\t2026-12-31\t5\tA
-3881\t12\t203\t150\t350\t2026-08-01\t2026-12-31\t0\tA
-4012\t12\t203\t400\t800\t2026-08-01\t2026-12-31\t7\tA`;
+        const sample = `SEQPONTOEXTRA\tDESCRICAO\tSEQPRODUTO\tDESCCOMPLETA\tNROEMPRESA\tESTQMINIMO\tESTQMAXIMO\tDTAVIGENCIAINICIO\tDTAVIGENCIAFIM
+101\t101 - LOJA 8 APYCE\t6725\tLAVA ROUPA OMO 7L LAVAGEM PERFEITA\t8\t100\t150\t2026-08-01\t2026-12-31
+121\t121 - PONTAS FIXAS\t116\tCERV SKOL 1L\t11\t900\t1200\t2026-08-01\t2026-12-31
+203\t203 - COCA\t10\tREFRIG COCA COLA PET 2L\t1\t150\t300\t2026-08-01\t2026-12-31
+203\t203 - COCA\t10\tREFRIG COCA COLA PET 2L\t12\t500\t800\t2026-08-01\t2026-12-31`;
 
         if (this.textarea) {
             this.textarea.value = sample;
@@ -452,11 +513,9 @@ ORDER BY PEPE.SEQPONTOEXTRA, PROD.DESCCOMPLETA, PEPE.NROEMPRESA`;
     }
 
     loadExampleCheckout() {
-        const sample = `SEQPRODUTO\tNROEMPRESA\tSEQPONTOEXTRA\tESTQMINIMO\tESTQMAXIMO\tDTAVIGENCIAINICIO\tDTAVIGENCIAFIM\tSTATUS
-5102\t1\t205\t80\t180\t2026-08-01\t2026-12-31\tA
-5102\t12\t205\t100\t220\t2026-08-01\t2026-12-31\tA
-5105\t1\t205\t70\t160\t2026-08-01\t2026-12-31\tA
-5201\t1\t205\t90\t200\t2026-08-01\t2026-12-31\tA`;
+        const sample = `SEQPONTOEXTRA\tDESCRICAO\tSEQPRODUTO\tDESCCOMPLETA\tNROEMPRESA\tESTQMINIMO\tESTQMAXIMO\tDTAVIGENCIAINICIO\tDTAVIGENCIAFIM
+121\t121 - PONTAS FIXAS\t144\tCERV AMSTEL LAGER LT 473ML\t11\t1800\t2800\t2026-08-01\t2026-12-31
+121\t121 - PONTAS FIXAS\t193\tCERV PROVINCIA PILSEN PREM LT 473ML\t11\t1400\t1900\t2026-08-01\t2026-12-31`;
 
         if (this.textarea) {
             this.textarea.value = sample;
@@ -468,7 +527,7 @@ ORDER BY PEPE.SEQPONTOEXTRA, PROD.DESCCOMPLETA, PEPE.NROEMPRESA`;
         if (this.previewTableContainer) {
             this.previewTableContainer.innerHTML = `
                 <div class="empty-state">
-                    <p>Cole uma planilha acima e clique em <strong>"Validar & Gerar Scripts SQL"</strong>.</p>
+                    <p>Cole uma planilha acima ou selecione um arquivo para <strong>Validar & Gerar Scripts SQL</strong>.</p>
                 </div>
             `;
         }

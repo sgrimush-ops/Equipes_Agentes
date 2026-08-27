@@ -52,6 +52,40 @@ Ao criar automações desktop ou protótipos em Python para interagir visualment
 3. **Mecânica de Rolagem no Consinco (Seta para Baixo):** Mapeie as `N` linhas visíveis iniciais (`step 0 até N-1`). A partir da `N`-ésima linha (`step >= N`), fixe a ancoragem de leitura e clique na coordenada `Y` da última linha visível, pois o foco permanece travado e os registros sobem na tabela.
 4. **Isolamento de Coluna OCR via Recorte Assimetricamente Estreito:** Em colunas adjacentes a datas (ex: Valor ao lado de Vencimento), recorte caixas estreitas à direita (`[x - 20, y - 10, x + 65, y + 10]`) para impedir a captura acidental de anos (`2026`).
 
+# Regras de Dicionário, Nomes Oficiais e Governança de Dados Consinco
+
+1. **Proibição Absoluta de Nomes Inventados / Informais:**
+   Nunca crie tabelas ou estruturas no banco com nomes informais (como `A_PAGAR`, `EAN_DUN`, `PED_PENDENTE`, `RANKING_ABC_PRODUTOS`, `NIVEL_ATENDIMENTO_CDS`). Use sempre as tabelas canônicas oficiais do Totvs Consinco:
+   - Títulos / Contas a Pagar: `FI_TITULO`, `FI_TITCOMPRADOR`, `FI_TITOPERACAO`.
+   - Códigos de Barras: `MAP_PRODCODIGO`.
+   - Pedidos de Suprimento e Transferência: `MSU_PEDIDOSUPRIM`, `MSU_PSITEMRECEBER`, `MSU_PSITEMEXPEDIDO`.
+   - Curva ABC e Distribuição: `MBI_TABCDISTRIB`.
+   - Estoque e Custos por Loja: `MRL_PRODUTOEMPRESA`, `MRL_CUSTODIA`.
+   - Vendas Diárias: `MRL_PRODVENDADIA`.
+   - Preços de Venda: `MRL_PRODEMPSEG`.
+   - Pontas de Gôndola / Ilhas: `MRL_PONTOEXTRA`, `MRL_PONTOEXTRAPRODUTO`, `MRL_PONTOEXTRAPRODUTOEMPRESA`.
+2. **Visualização no Simulador Zona SQL:**
+   - Na aba **`📚 Dicionário`**: manter as 7.111 tabelas e 126.636 colunas oficiais para busca e consulta de arquitetura.
+   - Na aba **`📁 Tabelas`**: exibir estritamente as tabelas oficiais que possuem dados reais populados (`row_count > 0`), ocultando tabelas vazias e internas.
+
+---
+
+# Regras de Carga e Atualização de Pontas de Gôndola (Mínimo, Máximo e Vigência)
+
+Ao atualizar estoques de pontas de gôndola via planilha:
+1. **Chaves Primárias Obrigatórias:** O registro na tabela `MRL_PONTOEXTRAPRODUTOEMPRESA` é unívoco por `(SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA)`.
+2. **Garantia de Capa:** Antes de inserir na tabela de empresa, garanta que o vínculo produto x ponta exista na tabela `MRL_PONTOEXTRAPRODUTO` (`STATUS = 'A'`).
+3. **Scripts de Carga:** Gerar script `MERGE INTO` ou blocos transacionais `UPDATE / INSERT` finalizando com `COMMIT;`.
+
+---
+
+# Padrões da Integração com o Mentor IA Local (Ollama)
+
+Na Zona SQL e ferramentas de apoio com IA:
+1. **Conexão Local:** Utilizar endpoint `http://127.0.0.1:11434` com modelos locais (`hermes3:latest`, `gemma4:latest`).
+2. **Parâmetros de Inferência Ágil:** Configurar `num_ctx: 2048`, `num_predict: 400`, `temperature: 0.2` e `timeout: 120` para evitar estouro de tempo em respostas complexas.
+3. **Depuração de Erros 1-Clique:** Quando o banco retornar erros `ORA-*` (ex: `ORA-00904`, `ORA-00936`, `ORA-00979`, `ORA-01790`), enviar o SQL e a mensagem para o método `explain_and_fix_error` gerando a explicação didática e o código corrigido sem comentários `--`.
+
 ---
 
 # Permissões e Autonomia no Workspace `Equipes_Agentes`
