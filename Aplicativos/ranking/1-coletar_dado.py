@@ -1,5 +1,7 @@
 from pathlib import Path
 import re
+import subprocess
+import sys
 
 import pandas as pd
 
@@ -84,6 +86,11 @@ def main():
 		) from exc
 
 	print(f"Excel gerado com sucesso: {output_path}")
+
+	script_dashboard = base_dir / "2-dashboard_ranking.py"
+	if script_dashboard.exists():
+		print("\nIniciando geracao do dashboard (2-dashboard_ranking.py)...")
+		subprocess.run([sys.executable, str(script_dashboard)], check=True)
 
 
 if __name__ == "__main__":

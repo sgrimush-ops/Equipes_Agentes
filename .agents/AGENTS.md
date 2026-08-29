@@ -42,6 +42,9 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 9. **Limite Rígido de 145 Caracteres para SQL da Lista (`Var - F7` / `LSx`):**
    O campo de cadastro da instrução SQL da lista de seleção (`LS1`, `LS2`, etc.) na tela `Var - F7` do Consinco possui limite físico restrito. O script da lista **nunca pode ultrapassar 145 caracteres (incluindo espaços e quebras)**. Construa queries de listas extremamente enxutas e em uma única linha.
 
+10. **Padrão Obrigatório de Vendas Rápidas via `MRL_CUSTODIA`:**
+    Para apuração de vendas consolidadas e faturamento por período e loja (Rankings, Giro, Curva ABC), **nunca varra documentos fiscais item a item** (`MLFV_BASENFE` + `MFLV_BASEDFITEM` ou `MFL_DFITEM`). Use obrigatoriamente a tabela analítica oficial **`MRL_CUSTODIA`** (`VLRTOTALVDA` para valor financeiro e `QTDVDA` para quantidade) filtrando por `DTAENTRADASAIDA`. Ao consultar saídas complementares (Devolução `802`, Troca `860`, Incineração `821, 831`), unifique todas as verificações fiscais em **um único scan** com `CASE WHEN CODGERALOPER IN (...)`.
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

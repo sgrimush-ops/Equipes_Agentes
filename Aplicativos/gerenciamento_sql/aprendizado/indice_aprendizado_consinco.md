@@ -32,6 +32,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_curva_abc_lucratividade.md`: como o Consinco calcula ABC, lucratividade e margem com funcoes nativas e tabelas BI.
 - `aprendizado_configuracoes_comerciais_fornecedor.md`: estrutura das regras de negocio, prazos de pagamento, forma de pagamento e restricoes sintaticas (Inline View vs CTE) em consultas do modulo de fornecedores.
 - `aprendizado_vendas_mrl_custodia.md`: descoberta critica provando que `MRL_CUSTODIA` (e nao `MRL_PRODVENDADIA`) e a fonte oficial consolidada de vendas no Consinco.
+- `aprendizado_performance_vendas_mrl_custodia_vs_documentos_fiscais.md`: padrao oficial de alta performance para vendas via `MRL_CUSTODIA` (VLRTOTALVDA/QTDVDA), eliminando leituras de documentos fiscais e unificando rotas de saida.
 
 ## Modelos de Consulta e Calculo
 - `referencia_abc_vendas_consico.sql`: exemplo de query ABC de vendas.

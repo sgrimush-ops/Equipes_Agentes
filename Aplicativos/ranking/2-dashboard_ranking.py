@@ -15,10 +15,13 @@ RENOMEAR_COLUNAS = [
 	"VLR_VENDA=VENDA",
 	"VLR_COMPRA=COMPRA",
 	"VLR_DEVOLUCAO_COMPRA=DEVOL",
+	"VLR_TROCA=TROCA",
+	"VLR_TROCA_COMPRA=TROCA",
 	"VLR_BONIFICADO=BONIF",
 	"VLR_CUSTO_CD=CUSTO_CD",
 	"VLR_CUSTO_LOJAS=CUSTO_LOJ",
-	"VLR_CUSTO_TOTAL_EMPRESA=T_EMPRESA",
+	"VLR_CUSTO_EMPRESA=CUSTO_TOTAL",
+	"VLR_CUSTO_TOTAL_EMPRESA=CUSTO_TOTAL",
 	"QTD_INCINERACAO_ANO=INCINER",
 ]
 
@@ -92,7 +95,7 @@ def preparar_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[
 			colunas_inteiras.append(coluna)
 
 	for coluna in df.columns:
-		if coluna.upper().startswith("VLR") or "%" in coluna or coluna.upper().startswith("PERC"):
+		if "%" in coluna or coluna.upper().startswith("PERC"):
 			df[coluna] = pd.to_numeric(df[coluna], errors="coerce").fillna(0.0)
 			colunas_decimais.append(coluna)
 
@@ -302,7 +305,7 @@ def gerar_html(
 				radial-gradient(circle at 100% 100%, #bfdbfe 0%, transparent 30%),
 				linear-gradient(160deg, var(--bg-1), var(--bg-2));
 			min-height: 100vh;
-			padding: 24px;
+			padding: 16px 20px;
 		}}
 
 		.container {{
@@ -313,24 +316,19 @@ def gerar_html(
 		.hero {{
 			background: linear-gradient(120deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.82));
 			border: 1px solid rgba(255, 255, 255, 0.9);
-			border-radius: 18px;
-			padding: 24px;
-			box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
-			margin-bottom: 18px;
+			border-radius: 10px;
+			padding: 8px 16px;
+			box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+			margin-bottom: 10px;
 			animation: riseIn 450ms ease-out;
 		}}
 
 		h1 {{
 			margin: 0;
 			color: var(--brand-strong);
-			font-size: clamp(1.35rem, 2.2vw, 2.15rem);
-			letter-spacing: -0.02em;
-		}}
-
-		.sub {{
-			margin-top: 8px;
-			color: var(--ink-soft);
-			font-size: 0.95rem;
+			font-size: 1.15rem;
+			letter-spacing: -0.01em;
+			line-height: 1.2;
 		}}
 
 		.card {{
@@ -342,10 +340,8 @@ def gerar_html(
 			animation: riseIn 500ms ease-out;
 		}}
 
-		.hint {{
-			margin: 0 0 12px 0;
-			color: var(--ink-soft);
-			font-size: 0.9rem;
+		table.dataTable {{
+			font-size: 0.82rem;
 		}}
 
 		table.dataTable thead th {{
@@ -353,6 +349,8 @@ def gerar_html(
 			color: #9a3412;
 			border-bottom: 1px solid #fed7aa;
 			font-weight: 800;
+			font-size: 0.80rem;
+			padding: 6px 8px;
 			white-space: normal;
 			word-break: break-word;
 		}}
@@ -363,6 +361,8 @@ def gerar_html(
 
 		table.dataTable tbody td {{
 			white-space: nowrap;
+			padding: 5px 8px;
+			font-size: 0.82rem;
 		}}
 
 		table.dataTable thead tr.totais-row th {{
@@ -370,21 +370,27 @@ def gerar_html(
 			border-top: 1px solid #fed7aa;
 			border-bottom: 1px solid #fed7aa;
 			font-weight: 800;
-			padding: 8px;
+			padding: 6px 8px;
 			text-align: right;
 			white-space: nowrap;
 			color: #7c2d12;
+			font-size: 0.83rem;
 		}}
 
 		table.dataTable thead tr.totais-row th:first-child {{
 			text-align: left;
 		}}
 
+		.dataTables_wrapper {{
+			font-size: 0.82rem;
+		}}
+
 		.dataTables_wrapper .dataTables_filter input,
 		.dataTables_wrapper .dataTables_length select {{
 			border: 1px solid #d1d5db;
-			border-radius: 10px;
-			padding: 6px 10px;
+			border-radius: 8px;
+			padding: 4px 8px;
+			font-size: 0.82rem;
 			background: #fff;
 		}}
 
@@ -401,8 +407,8 @@ def gerar_html(
 		}}
 
 		@media (max-width: 700px) {{
-			body {{ padding: 14px; }}
-			.hero {{ padding: 18px; }}
+			body {{ padding: 10px; }}
+			.hero {{ padding: 10px 14px; }}
 			.card {{ padding: 10px; }}
 		}}
 
@@ -432,7 +438,7 @@ def gerar_html(
 				border: none !important;
 				padding: 0 !important;
 			}}
-			.dataTables_length, .dataTables_filter, .dataTables_paginate, .dataTables_info, .hint {{
+			.dataTables_length, .dataTables_filter, .dataTables_paginate, .dataTables_info {{
 				display: none !important;
 			}}
 		}}
@@ -442,11 +448,9 @@ def gerar_html(
 	<div class="container">
 		<section class="hero">
 			<h1>{titulo}</h1>
-			<p class="sub">Clique no nome de qualquer coluna para reordenar os dados (crescente/decrescente).</p>
 		</section>
 
 		<section class="card">
-			<p class="hint">Use o campo de busca para filtrar rapidamente fornecedores, compradores e demais colunas.</p>
 			<div style="overflow-x: auto; width: 100%;">
 				<table id="tabelaRanck" class="display stripe hover" style="width:100%">
 					<thead>
