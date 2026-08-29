@@ -45,6 +45,8 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
 - `VALOR_ULTIMO_PAGAMENTO`: valor monetário da última operação/manutenção financeira realizada no título (`FI_TITOPERACAO.VLROPERACAO`) vinculada ao operador (ex: `R$ 500,00`).
 - `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação/quitação registrada (`USUARIO - DD/MM/YYYY HH24:MI:SS`).
+- `RESPONSAVEL_ACORDO`: nome do responsável do fornecedor pelo acordo (`MSU_ACORDOPROMOC.RESPACORDONOME`).
+- `OBSERVACAO_CONTRATO`: texto das observações do contrato/acordo (`MSU_ACORDOPROMOC.REFACORDOOBS` / `MSU_ACORDOPROMOC.OBSACORDO`).
 
 ## Variáveis para cadastrar em Var - F7
 
@@ -108,6 +110,12 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - **Valor padrão:** `0 - TODOS`
 - **Instrução p/ o usuário:** Selecione a situação desejada (`1 - QUITADO`, `2 - ABERTO`, `3 - SEM TITULO`, `4 - CANCELADO`) ou mantenha `0 - TODOS`.
 
+### LS4
+- **Tipo:** Lista
+- **Descrição:** Rede de Fornecedores
+- **Valor padrão:** ` TODAS AS REDES`
+- **Instrução p/ o usuário:** Selecione a rede desejada ou mantenha ` TODAS AS REDES` para consultar todas as redes.
+
 ## SQL das Listas de Seleção
 
 ### SQL da lista LS1 (Comprador)
@@ -144,6 +152,13 @@ UNION ALL
 SELECT '4 - CANCELADO' FROM DUAL
 ```
 
+### SQL da lista LS4 (Rede de Fornecedores)
+```sql
+SELECT ' TODAS AS REDES' FROM DUAL
+UNION
+SELECT DESCRICAO FROM GE_REDE
+```
+
 ## Passo a passo operacional na Consulta Criação
 1. Abrir a tela **Consulta Criação** no Totvs Consinco e colar o código de [`consulta_acordos_verbas_data_mov_filtro.sql`](../querys/consulta_acordos_verbas_data_mov_filtro.sql).
 2. Clicar no botão **Var - F7**.
@@ -158,5 +173,6 @@ SELECT '4 - CANCELADO' FROM DUAL
    - `LS1` (Lista) - Comprador
    - `LS2` (Lista) - Fornecedor
    - `LS3` (Lista) - Situação Financeira
-4. Colar as queries correspondentes nas listas `LS1`, `LS2` e `LS3`.
+   - `LS4` (Lista) - Rede de Fornecedores
+4. Colar as queries correspondentes nas listas `LS1`, `LS2`, `LS3` e `LS4`.
 5. Salvar o painel de variáveis e clicar em **Run**.
