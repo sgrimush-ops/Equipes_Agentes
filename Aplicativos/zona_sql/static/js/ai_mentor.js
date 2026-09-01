@@ -1,7 +1,7 @@
 /**
- * Mentor IA (Ollama) Controller para a Zona SQL ERP Totvs Consinco.
- * Gerencia a comunicação com os endpoints de IA, chat interativo,
- * depuração de erros com 1 clique e geração de consultas em linguagem natural.
+ * Mentor IA (Google Gemini Flash & Ollama) Controller para a Zona SQL ERP Totvs Consinco.
+ * Gerencia a comunicação de alta velocidade com a nuvem (Gemini Flash) e local (Ollama),
+ * chat interativo, depuração de erros com 1 clique e geração de consultas em linguagem natural.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +17,18 @@ function initAiMentor() {
     const aiStatusText = document.getElementById('ai-status-text');
     const aiModelSelect = document.getElementById('ai-model-select');
     const aiLatencyBadge = document.getElementById('ai-latency-badge');
+    const aiWelcomeText = document.getElementById('ai-welcome-text');
+
+    // Modal de Configuração do Gemini
+    const btnOpenGeminiConfig = document.getElementById('btn-open-gemini-config');
+    const geminiModal = document.getElementById('gemini-config-modal');
+    const btnCloseGeminiModal = document.getElementById('btn-close-gemini-modal');
+    const inputGeminiKey = document.getElementById('input-gemini-key');
+    const btnToggleKeyVis = document.getElementById('btn-toggle-key-visibility');
+    const selectGeminiModalModel = document.getElementById('select-gemini-modal-model');
+    const btnTestGeminiKey = document.getElementById('btn-test-gemini-key');
+    const btnSaveGeminiKey = document.getElementById('btn-save-gemini-key');
+    const geminiTestResult = document.getElementById('gemini-test-result');
 
     // Abas do Drawer
     const aiNavTabs = document.querySelectorAll('.ai-nav-tab');
@@ -42,44 +54,68 @@ function initAiMentor() {
     // Histórico de Conversa em Memória
     let chatHistory = [];
     let isAiOnline = false;
+    let hasGeminiKey = false;
+    let currentProvider = 'gemini';
 
-    // 1. Verificar Status do Ollama ao Iniciar
-    checkOllamaStatus();
-    setInterval(checkOllamaStatus, 30000); // Polling a cada 30s
+    // 1. Verificar Status de IA ao Iniciar
+    checkAiStatus();
+    setInterval(checkAiStatus, 25000); // Polling a cada 25s
 
-    async function checkOllamaStatus() {
+    async function checkAiStatus() {
         try {
             const resp = await fetch('/api/ai/status');
             const data = await resp.json();
+            
+            hasGeminiKey = data.has_gemini_key;
+            currentProvider = data.provider || 'gemini';
+
             if (data.online) {
                 isAiOnline = true;
                 if (aiStatusDot) {
                     aiStatusDot.className = 'ai-status-dot online';
-                    aiStatusDot.title = `Ollama Online (${data.current_model})`;
+                    aiStatusDot.title = `Mentor Ativo: ${data.current_model} (${currentProvider === 'gemini' ? 'Nuvem Gemini Flash' : 'Ollama Local'})`;
                 }
-                if (aiStatusText) aiStatusText.textContent = data.current_model || 'Online';
-                if (aiLatencyBadge) aiLatencyBadge.textContent = `${data.latency_ms}ms`;
+                
+                if (aiStatusText) {
+                    if (currentProvider === 'gemini') {
+                        aiStatusText.textContent = 'Gemini Flash';
+                    } else {
+                        aiStatusText.textContent = data.current_model || 'Ollama';
+                    }
+                }
+
+                if (aiLatencyBadge) {
+                    if (currentProvider === 'gemini') {
+                        aiLatencyBadge.className = 'badge-latency badge-gemini';
+                        aiLatencyBadge.textContent = `⚡ Flash (${data.latency_ms}ms)`;
+                    } else {
+                        aiLatencyBadge.className = 'badge-latency badge-ollama';
+                        aiLatencyBadge.textContent = `🖥️ Local (${data.latency_ms}ms)`;
+                    }
+                }
+
+                if (aiWelcomeText) {
+                    if (currentProvider === 'gemini') {
+                        aiWelcomeText.innerHTML = 'Estou conectado ao <strong>Google Gemini Flash</strong> de alta velocidade e conheço toda a arquitetura de tabelas e regras de performance do Totvs Consinco.';
+                    } else {
+                        aiWelcomeText.innerHTML = 'Estou conectado ao seu <strong>Ollama local</strong> e conheço toda a arquitetura de tabelas e regras de performance do Totvs Consinco.';
+                    }
+                }
 
                 // Atualizar seletor de modelos
-                if (aiModelSelect && data.models && data.models.length > 0) {
-                    const currentVal = aiModelSelect.value;
-                    aiModelSelect.innerHTML = '';
-                    data.models.forEach(m => {
-                        const opt = document.createElement('option');
-                        opt.value = m;
-                        opt.textContent = m;
-                        if (m === data.current_model) opt.selected = true;
-                        aiModelSelect.appendChild(opt);
-                    });
-                }
+                updateModelDropdown(data);
             } else {
                 isAiOnline = false;
                 if (aiStatusDot) {
                     aiStatusDot.className = 'ai-status-dot offline';
-                    aiStatusDot.title = 'Ollama Offline';
+                    aiStatusDot.title = 'Mentor Offline (Sem chave Gemini ou Ollama offline)';
                 }
                 if (aiStatusText) aiStatusText.textContent = 'Offline';
-                if (aiLatencyBadge) aiLatencyBadge.textContent = 'Offline';
+                if (aiLatencyBadge) {
+                    aiLatencyBadge.className = 'badge-latency';
+                    aiLatencyBadge.textContent = 'Offline';
+                }
+                updateModelDropdown(data);
             }
         } catch (e) {
             isAiOnline = false;
@@ -88,7 +124,170 @@ function initAiMentor() {
         }
     }
 
-    // 2. Abertura / Fechamento do Drawer
+    function updateModelDropdown(data) {
+        if (!aiModelSelect) return;
+        const currentVal = data.current_model || 'gemini-2.5-flash';
+        
+        let html = '';
+        
+        // Grupo Gemini Flash
+        html += '<optgroup label="⚡ Google Gemini (Nuvem Ultrarrápida < 1s)">';
+        const geminiModels = data.gemini_models || ['gemini-2.5-flash', 'gemini-3.5-flash'];
+        geminiModels.forEach(m => {
+            const isSelected = m === currentVal ? 'selected' : '';
+            const keyHint = !data.has_gemini_key ? ' [🔑 Inserir Chave]' : ' (Ativo ⚡)';
+            html += `<option value="${m}" ${isSelected}>⚡ ${m}${keyHint}</option>`;
+        });
+        html += '</optgroup>';
+
+        // Grupo Ollama Local
+        if (data.ollama_models && data.ollama_models.length > 0) {
+            html += '<optgroup label="🖥️ Ollama (Local - Mais Lento)">';
+            data.ollama_models.filter(m => !m.toLowerCase().includes('hermes')).forEach(m => {
+                const isSelected = m === currentVal ? 'selected' : '';
+                html += `<option value="${m}" ${isSelected}>🖥️ ${m}</option>`;
+            });
+            html += '</optgroup>';
+        } else {
+            html += '<optgroup label="🖥️ Ollama (Local)">';
+            html += '<option value="qwen2.5-coder:1.5b">🖥️ qwen2.5-coder:1.5b</option>';
+            html += '<option value="gemma4:latest">🖥️ gemma4:latest</option>';
+            html += '</optgroup>';
+        }
+
+        aiModelSelect.innerHTML = html;
+    }
+
+    // 2. Modal de Configuração do Gemini
+    if (btnOpenGeminiConfig) {
+        btnOpenGeminiConfig.addEventListener('click', openGeminiModal);
+    }
+
+    if (btnCloseGeminiModal) {
+        btnCloseGeminiModal.addEventListener('click', closeGeminiModal);
+    }
+
+    if (geminiModal) {
+        geminiModal.addEventListener('click', (e) => {
+            if (e.target === geminiModal) closeGeminiModal();
+        });
+    }
+
+    if (btnToggleKeyVis && inputGeminiKey) {
+        btnToggleKeyVis.addEventListener('click', () => {
+            if (inputGeminiKey.type === 'password') {
+                inputGeminiKey.type = 'text';
+                btnToggleKeyVis.textContent = '🙈';
+            } else {
+                inputGeminiKey.type = 'password';
+                btnToggleKeyVis.textContent = '👁️';
+            }
+        });
+    }
+
+    async function openGeminiModal() {
+        if (!geminiModal) return;
+        geminiModal.classList.add('active');
+        if (geminiTestResult) geminiTestResult.style.display = 'none';
+
+        // Carregar config atual
+        try {
+            const resp = await fetch('/api/ai/config');
+            const cfg = await resp.json();
+            if (cfg.has_gemini_key && inputGeminiKey) {
+                inputGeminiKey.placeholder = `Chave configurada (${cfg.masked_key}). Digite para alterar.`;
+            }
+            if (cfg.current_model && selectGeminiModalModel) {
+                selectGeminiModalModel.value = cfg.current_model.startsWith('gemini') ? cfg.current_model : 'gemini-2.5-flash';
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        if (inputGeminiKey) inputGeminiKey.focus();
+    }
+
+    function closeGeminiModal() {
+        if (geminiModal) geminiModal.classList.remove('active');
+    }
+
+    // Testar Chave Gemini
+    if (btnTestGeminiKey) {
+        btnTestGeminiKey.addEventListener('click', async () => {
+            const keyVal = inputGeminiKey ? inputGeminiKey.value.trim() : '';
+            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-2.5-flash';
+
+            btnTestGeminiKey.disabled = true;
+            btnTestGeminiKey.textContent = '⏳ Testando...';
+            if (geminiTestResult) {
+                geminiTestResult.style.display = 'block';
+                geminiTestResult.className = 'gemini-test-result testing';
+                geminiTestResult.innerHTML = '⚡ Enviando requisição de teste para o Google Gemini Flash...';
+            }
+
+            try {
+                const resp = await fetch('/api/ai/test_gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gemini_api_key: keyVal, model: modelVal })
+                });
+                const data = await resp.json();
+                btnTestGeminiKey.disabled = false;
+                btnTestGeminiKey.textContent = '🧪 Testar Conexão';
+
+                if (data.success) {
+                    geminiTestResult.className = 'gemini-test-result success';
+                    geminiTestResult.innerHTML = `✅ <strong>Conexão bem-sucedida!</strong> Respondido pelo <code>${data.model}</code> em <strong>${data.latency_ms} ms</strong>.`;
+                } else {
+                    geminiTestResult.className = 'gemini-test-result error';
+                    geminiTestResult.innerHTML = `❌ <strong>Falha na validação:</strong> ${data.error || 'Verifique se a chave de API é válida.'}`;
+                }
+            } catch (err) {
+                btnTestGeminiKey.disabled = false;
+                btnTestGeminiKey.textContent = '🧪 Testar Conexão';
+                if (geminiTestResult) {
+                    geminiTestResult.className = 'gemini-test-result error';
+                    geminiTestResult.innerHTML = `❌ Erro de rede: ${err.message}`;
+                }
+            }
+        });
+    }
+
+    // Salvar Chave Gemini
+    if (btnSaveGeminiKey) {
+        btnSaveGeminiKey.addEventListener('click', async () => {
+            const keyVal = inputGeminiKey ? inputGeminiKey.value.trim() : '';
+            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-2.5-flash';
+
+            btnSaveGeminiKey.disabled = true;
+            btnSaveGeminiKey.textContent = '⏳ Salvando...';
+
+            try {
+                const resp = await fetch('/api/ai/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gemini_api_key: keyVal, model: modelVal })
+                });
+                const data = await resp.json();
+                btnSaveGeminiKey.disabled = false;
+                btnSaveGeminiKey.textContent = '💾 Salvar e Ativar Flash';
+
+                if (data.success) {
+                    showToast(`⚡ Gemini Flash ativado com sucesso! (${modelVal})`);
+                    closeGeminiModal();
+                    checkAiStatus();
+                    appendSystemMessage(`🚀 **Google Gemini Flash (${modelVal})** ativado com sucesso! Suas dúvidas e consultas agora respondem em velocidade máxima.`);
+                } else {
+                    alert(`Erro ao salvar: ${data.error || 'Não foi possível salvar.'}`);
+                }
+            } catch (err) {
+                btnSaveGeminiKey.disabled = false;
+                btnSaveGeminiKey.textContent = '💾 Salvar e Ativar Flash';
+                alert(`Erro: ${err.message}`);
+            }
+        });
+    }
+
+    // 3. Abertura / Fechamento do Drawer
     if (btnOpenMentor) {
         btnOpenMentor.addEventListener('click', () => {
             toggleAiDrawer(true);
@@ -101,29 +300,74 @@ function initAiMentor() {
         });
     }
 
-    function toggleAiDrawer(open) {
+    const aiDrawerBackdrop = document.getElementById('ai-drawer-backdrop');
+
+    function toggleAiDrawer(forceOpen) {
         if (!aiDrawer) return;
-        if (open) {
+        const shouldOpen = (forceOpen !== undefined) ? Boolean(forceOpen) : !aiDrawer.classList.contains('active');
+        if (shouldOpen) {
             aiDrawer.classList.add('active');
+            if (aiDrawerBackdrop) aiDrawerBackdrop.classList.add('active');
             if (chatInput) chatInput.focus();
         } else {
             aiDrawer.classList.remove('active');
+            if (aiDrawerBackdrop) aiDrawerBackdrop.classList.remove('active');
         }
     }
+    window.toggleAiDrawer = toggleAiDrawer;
 
-    // Atalho de Teclado (F2 ou Ctrl+Espaço abre o Mentor IA)
+    // Botão de Abrir no Cabeçalho Superior
+    if (btnOpenMentor) {
+        btnOpenMentor.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleAiDrawer();
+        });
+    }
+
+    // Botão ✕ de Fechar no Topo do Drawer
+    if (btnCloseMentor) {
+        btnCloseMentor.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleAiDrawer(false);
+        });
+    }
+
+    // Clique no Backdrop Translúcido fecha o Drawer imediatamente
+    if (aiDrawerBackdrop) {
+        aiDrawerBackdrop.addEventListener('click', () => {
+            toggleAiDrawer(false);
+        });
+    }
+
+    // Atalhos de Teclado (F2 ou Esc)
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'F2' || (e.ctrlKey && e.code === 'Space')) {
-            e.preventDefault();
-            if (aiDrawer && aiDrawer.classList.contains('active')) {
+        if (e.key === 'Escape') {
+            if (geminiModal && geminiModal.classList.contains('active')) {
+                closeGeminiModal();
+            } else if (aiDrawer && aiDrawer.classList.contains('active')) {
                 toggleAiDrawer(false);
-            } else {
-                toggleAiDrawer(true);
+            }
+        } else if (e.key === 'F2') {
+            e.preventDefault();
+            toggleAiDrawer();
+        }
+    });
+
+    // Fechar ao clicar fora do Drawer
+    document.addEventListener('mousedown', (e) => {
+        if (aiDrawer && aiDrawer.classList.contains('active')) {
+            const isClickInsideDrawer = aiDrawer.contains(e.target);
+            const isClickOnOpenBtn = btnOpenMentor && btnOpenMentor.contains(e.target);
+            const isClickOnGeminiModal = geminiModal && geminiModal.contains(e.target);
+            const isClickOnDebugBtn = e.target.closest && e.target.closest('#btn-ai-explain-error');
+            
+            if (!isClickInsideDrawer && !isClickOnOpenBtn && !isClickOnGeminiModal && !isClickOnDebugBtn) {
+                toggleAiDrawer(false);
             }
         }
     });
 
-    // 3. Troca de Abas do Mentor
+    // 4. Troca de Abas do Mentor
     aiNavTabs.forEach(tab => {
         tab.addEventListener('click', () => {
             aiNavTabs.forEach(t => t.classList.remove('active'));
@@ -135,10 +379,18 @@ function initAiMentor() {
         });
     });
 
-    // 4. Mudança de Modelo Ativo
+    // 5. Mudança de Modelo Ativo no Dropdown
     if (aiModelSelect) {
         aiModelSelect.addEventListener('change', async () => {
             const selectedModel = aiModelSelect.value;
+
+            // Se for modelo Gemini e não tiver chave, abrir modal
+            if (selectedModel.startsWith('gemini') && !hasGeminiKey) {
+                openGeminiModal();
+                if (selectGeminiModalModel) selectGeminiModalModel.value = selectedModel;
+                return;
+            }
+
             try {
                 const resp = await fetch('/api/ai/model', {
                     method: 'POST',
@@ -147,7 +399,14 @@ function initAiMentor() {
                 });
                 const res = await resp.json();
                 if (res.success) {
-                    appendSystemMessage(`Modelo do Mentor alterado para **${selectedModel}**.`);
+                    const isGem = selectedModel.startsWith('gemini');
+                    const badgeTxt = isGem ? '⚡ Google Gemini Flash (Ultrarrápido)' : '🖥️ Ollama Local';
+                    appendSystemMessage(`Modelo do Mentor alterado para **${selectedModel}** (${badgeTxt}).`);
+                    checkAiStatus();
+                } else {
+                    if (selectedModel.startsWith('gemini')) {
+                        openGeminiModal();
+                    }
                 }
             } catch (e) {
                 console.error(e);
@@ -155,7 +414,7 @@ function initAiMentor() {
         });
     }
 
-    // 5. Chat com o Mentor IA
+    // 6. Chat com o Mentor IA
     if (btnSendChat) {
         btnSendChat.addEventListener('click', sendUserChatMessage);
     }
@@ -177,7 +436,7 @@ function initAiMentor() {
                     <div class="ai-welcome-card">
                         <div class="ai-welcome-icon">🤖</div>
                         <h4>Olá! Eu sou o seu Mentor IA de SQL Consinco.</h4>
-                        <p>Estou conectado ao seu <strong>Ollama local</strong> e conheço toda a arquitetura de tabelas e regras de performance do Totvs Consinco.</p>
+                        <p>${currentProvider === 'gemini' ? 'Estou conectado ao <strong>Google Gemini Flash</strong> de alta velocidade' : 'Estou conectado ao seu <strong>Ollama local</strong>'} e conheço toda a arquitetura de tabelas e regras de performance do Totvs Consinco.</p>
                         <p>Pergunte-me qualquer dúvida, peça para criar consultas ou corrigir erros!</p>
                     </div>
                 `;
@@ -234,17 +493,22 @@ function initAiMentor() {
             if (data.success) {
                 chatHistory.push({ role: 'user', content: text });
                 chatHistory.push({ role: 'assistant', content: data.response });
-                appendChatMessage('assistant', data.response, data.extracted_sql, data.elapsed_seconds);
+                appendChatMessage('assistant', data.response, data.extracted_sql, data.elapsed_seconds, data.provider);
             } else {
-                appendChatMessage('assistant', `⚠️ **Aviso:** ${data.error || 'Não foi possível obter resposta do Ollama.'}`);
+                if (data.error && data.error.includes('Chave de API do Gemini não configurada')) {
+                    appendChatMessage('assistant', `🔑 **Chave Necessária:** Para usar o **Gemini Flash**, clique no ícone da chave 🔑 no topo para colar sua chave gratuita do Google AI Studio.`);
+                    openGeminiModal();
+                } else {
+                    appendChatMessage('assistant', `⚠️ **Aviso:** ${data.error || 'Não foi possível obter resposta do Mentor.'}`);
+                }
             }
         } catch (err) {
             removeTypingIndicator(typingId);
-            appendChatMessage('assistant', `❌ **Erro de Conexão:** Verifique se o serviço Ollama está rodando localmente.`);
+            appendChatMessage('assistant', `❌ **Erro de Comunicação:** Falha ao contatar o servidor local.`);
         }
     }
 
-    function appendChatMessage(role, text, extractedSql = null, elapsed = null) {
+    function appendChatMessage(role, text, extractedSql = null, elapsed = null, provider = null) {
         if (!chatMessages) return;
 
         // Remover o card de boas-vindas se existir
@@ -254,11 +518,11 @@ function initAiMentor() {
         const msgDiv = document.createElement('div');
         msgDiv.className = `ai-msg ${role}`;
 
-        const avatar = role === 'user' ? '👤' : '🤖';
-        const author = role === 'user' ? 'Você' : 'Mentor IA';
+        const avatar = role === 'user' ? '👤' : (provider === 'gemini' ? '⚡' : '🤖');
+        const author = role === 'user' ? 'Você' : (provider === 'gemini' ? 'Mentor Gemini Flash' : 'Mentor IA');
         const meta = elapsed ? `<span class="ai-meta">⏱️ ${elapsed}s</span>` : '';
 
-        // Formatação simples de Markdown (negrito, código, listas)
+        // Formatação simples de Markdown
         const formattedText = formatMarkdown(text);
 
         let sqlActionHtml = '';
@@ -314,7 +578,7 @@ function initAiMentor() {
         if (!chatMessages) return;
         const div = document.createElement('div');
         div.className = 'ai-sys-msg';
-        div.innerHTML = `<em>ℹ️ ${text}</em>`;
+        div.innerHTML = `<em>ℹ️ ${formatMarkdown(text)}</em>`;
         chatMessages.appendChild(div);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
@@ -327,10 +591,13 @@ function initAiMentor() {
         div.id = id;
         div.className = 'ai-msg assistant ai-typing';
         let seconds = 0;
+        const isGem = aiModelSelect && aiModelSelect.value.startsWith('gemini');
+        const providerName = isGem ? 'Gemini Flash' : 'Ollama Local';
+
         div.innerHTML = `
             <div class="ai-msg-header">
-                <span class="ai-msg-avatar">🤖</span>
-                <span class="ai-msg-author" id="typing-author-text">Mentor IA está pensando localmente... (0s)</span>
+                <span class="ai-msg-avatar">${isGem ? '⚡' : '🤖'}</span>
+                <span class="ai-msg-author" id="typing-author-text">Mentor ${providerName} está processando... (0s)</span>
             </div>
             <div class="ai-typing-dots">
                 <span></span><span></span><span></span>
@@ -346,7 +613,7 @@ function initAiMentor() {
             seconds++;
             const authorEl = document.getElementById('typing-author-text');
             if (authorEl) {
-                authorEl.textContent = `Mentor IA está processando localmente... (${seconds}s)`;
+                authorEl.textContent = `Mentor ${providerName} está processando... (${seconds}s)`;
             }
         }, 1000);
 
@@ -362,21 +629,25 @@ function initAiMentor() {
         if (el) el.remove();
     }
 
-    // 6. Texto para SQL
+    // 7. Texto para SQL
     if (btnGenSql) {
         btnGenSql.addEventListener('click', async () => {
             const reqText = textSqlInput ? textSqlInput.value.trim() : '';
             if (!reqText) return;
 
+            const isGem = aiModelSelect && aiModelSelect.value.startsWith('gemini');
             btnGenSql.disabled = true;
             btnGenSql.textContent = '⏳ Gerando SQL com IA...';
-            if (textSqlOutput) textSqlOutput.innerHTML = '<div class="ai-loading-box">Consultando o modelo local...</div>';
+            if (textSqlOutput) textSqlOutput.innerHTML = `<div class="ai-loading-box">Consultando ${isGem ? 'Google Gemini Flash' : 'modelo local'}...</div>`;
 
             try {
                 const resp = await fetch('/api/ai/text_to_sql', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ request: reqText })
+                    body: JSON.stringify({
+                        request: reqText,
+                        model: aiModelSelect ? aiModelSelect.value : undefined
+                    })
                 });
                 const data = await resp.json();
                 btnGenSql.disabled = false;
@@ -387,7 +658,7 @@ function initAiMentor() {
                     textSqlOutput.innerHTML = `
                         <div class="ai-result-box">
                             <div class="ai-result-header">
-                                <span>⚡ Consulta Gerada (${data.model || 'Ollama'})</span>
+                                <span>⚡ Consulta Gerada (${data.model || 'Gemini Flash'}) [${data.elapsed_seconds}s]</span>
                                 <div class="ai-sql-actions">
                                     <button id="btn-copy-gen-sql" class="btn-xs btn-outline">📋 Copiar</button>
                                     <button id="btn-apply-gen-sql" class="btn-xs btn-primary">▶️ Inserir no Editor</button>
@@ -414,17 +685,20 @@ function initAiMentor() {
                         }
                     });
                 } else {
+                    if (data.error && data.error.includes('Chave de API')) {
+                        openGeminiModal();
+                    }
                     textSqlOutput.innerHTML = `<div class="ai-error-box">❌ ${data.error}</div>`;
                 }
             } catch (e) {
                 btnGenSql.disabled = false;
                 btnGenSql.textContent = '🪄 Gerar SQL Consinco';
-                if (textSqlOutput) textSqlOutput.innerHTML = `<div class="ai-error-box">❌ Erro ao conectar ao Ollama.</div>`;
+                if (textSqlOutput) textSqlOutput.innerHTML = `<div class="ai-error-box">❌ Erro ao processar requisição.</div>`;
             }
         });
     }
 
-    // 7. Localizador de Tabelas
+    // 8. Localizador de Tabelas
     if (btnFindTable) {
         btnFindTable.addEventListener('click', async () => {
             const query = findTableInput ? findTableInput.value.trim() : '';
@@ -438,7 +712,10 @@ function initAiMentor() {
                 const resp = await fetch('/api/ai/find_table', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: query })
+                    body: JSON.stringify({
+                        query: query,
+                        model: aiModelSelect ? aiModelSelect.value : undefined
+                    })
                 });
                 const data = await resp.json();
                 btnFindTable.disabled = false;
@@ -472,12 +749,12 @@ function initAiMentor() {
             } catch (e) {
                 btnFindTable.disabled = false;
                 btnFindTable.textContent = '🔍 Onde está o Dado?';
-                if (findTableOutput) findTableOutput.innerHTML = `<div class="ai-error-box">❌ Erro na comunicação com Ollama.</div>`;
+                if (findTableOutput) findTableOutput.innerHTML = `<div class="ai-error-box">❌ Erro na comunicação.</div>`;
             }
         });
     }
 
-    // 8. Função Global Exposta: Depuração de Erro com IA em 1 Clique
+    // 9. Função Global Exposta: Depuração de Erro com IA em 1 Clique
     window.explainErrorWithAi = async function(sql, errorMsg, binds = {}) {
         toggleAiDrawer(true);
 
@@ -505,9 +782,14 @@ function initAiMentor() {
             const data = await resp.json();
 
             if (data.success) {
-                appendChatMessage('assistant', data.explanation, data.fixed_sql, data.elapsed_seconds);
+                appendChatMessage('assistant', data.explanation, data.fixed_sql, data.elapsed_seconds, data.provider);
             } else {
-                appendChatMessage('assistant', `⚠️ Não foi possível analisar o erro: ${data.error}`);
+                if (data.requires_key || (data.error && data.error.includes('Chave da API'))) {
+                    appendChatMessage('assistant', `🔑 **Ativação Necessária do Gemini Flash:** Para obter diagnósticos e correções em menos de 1 segundo, clique no ícone **🔑** no topo para colar sua chave gratuita do Google AI Studio.`);
+                    openGeminiModal();
+                } else {
+                    appendChatMessage('assistant', `⚠️ Não foi possível analisar o erro: ${data.error}`);
+                }
             }
         } catch (e) {
             removeTypingIndicator(typingId);
@@ -528,12 +810,11 @@ function initAiMentor() {
             }
         }
 
-        // Feedback visual
         showToast('Consulta inserida no editor com sucesso!');
         toggleAiDrawer(false);
     }
 
-    // Helper: Toast de Notificação
+    // Helper: Toast de Notificação Global
     function showToast(msg) {
         const toast = document.createElement('div');
         toast.className = 'ai-toast';
@@ -545,6 +826,8 @@ function initAiMentor() {
             setTimeout(() => toast.remove(), 300);
         }, 2500);
     }
+
+    window.showAppToast = showToast;
 
     // Helper: Formatação de Markdown simples
     function formatMarkdown(txt) {

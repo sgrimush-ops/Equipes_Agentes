@@ -1,5 +1,7 @@
 /**
- * ZONA SQL - Gerenciador do Editor de Código SQL
+ * ZONA SQL - Gerenciador do Editor de Código SQL Consinco
+ * Suporte a numeração de linhas, cálculo de estatísticas, atalhos de teclado,
+ * limpeza rápida para nova digitação e autocomplete IntelliSense.
  */
 
 class SqlEditorManager {
@@ -8,10 +10,16 @@ class SqlEditorManager {
         this.lineNumbers = document.getElementById(lineNumbersId);
         this.cursorStat = document.getElementById(cursorStatId);
         this.charStat = document.getElementById(charStatId);
+        this.autocomplete = null;
         
         this.initEvents();
         this.updateLineNumbers();
         this.updateStats();
+
+        // Inicializar autocomplete se a classe estiver carregada
+        if (window.SqlAutocompleteManager) {
+            this.autocomplete = new window.SqlAutocompleteManager(this);
+        }
     }
 
     initEvents() {
@@ -30,9 +38,16 @@ class SqlEditorManager {
         this.textarea.addEventListener('keyup', () => this.updateStats());
         this.textarea.addEventListener('click', () => this.updateStats());
 
-        // Suporte a tecla TAB (inserir 4 espaços) e atalho Ctrl+Enter
+        // Suporte a tecla TAB (inserir 4 espaços), atalho Ctrl+Enter e atalhos de limpeza
         this.textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') {
+            // Se o autocomplete estiver visível, deixar ele tratar Tab/Enter/Setas
+            if (this.autocomplete && this.autocomplete.isVisible) {
+                if (['ArrowDown', 'ArrowUp', 'Tab', 'Enter', 'Escape'].includes(e.key)) {
+                    return;
+                }
+            }
+
+            if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey) {
                 e.preventDefault();
                 const start = this.textarea.selectionStart;
                 const end = this.textarea.selectionEnd;
@@ -41,9 +56,19 @@ class SqlEditorManager {
                 this.textarea.selectionStart = this.textarea.selectionEnd = start + 4;
                 this.updateLineNumbers();
                 this.updateStats();
+                this.textarea.dispatchEvent(new Event('input'));
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
-                document.getElementById('btn-run-query').click();
+                const runBtn = document.getElementById('btn-run-query');
+                if (runBtn) runBtn.click();
+            } else if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+                // Atalho Alt + L para limpar editor
+                e.preventDefault();
+                this.clear();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+                // Atalho Ctrl + K para limpar editor
+                e.preventDefault();
+                this.clear();
             }
         });
     }
@@ -85,6 +110,22 @@ class SqlEditorManager {
         this.updateStats();
         // Disparar evento de input para o linter
         this.textarea.dispatchEvent(new Event('input'));
+    }
+
+    clear() {
+        this.textarea.value = '';
+        this.updateLineNumbers();
+        this.updateStats();
+        this.textarea.dispatchEvent(new Event('input'));
+        this.textarea.focus();
+        
+        if (window.showAppToast) {
+            window.showAppToast('✨ Editor limpo para nova digitação!');
+        }
+    }
+
+    focus() {
+        this.textarea.focus();
     }
 
     insertTextAtCursor(text) {

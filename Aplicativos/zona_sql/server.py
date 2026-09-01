@@ -7,6 +7,15 @@ import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
+
+try:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 from mentor_ai import ollama_mentor
 
 PORT = 8550
@@ -591,6 +600,10 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             self.handle_ai_find_table(data)
         elif parsed.path == '/api/ai/model':
             self.handle_ai_set_model(data)
+        elif parsed.path == '/api/ai/config':
+            self.handle_ai_save_config(data)
+        elif parsed.path == '/api/ai/test_gemini':
+            self.handle_ai_test_gemini(data)
         else:
             self.send_error(404, "Endpoint nao encontrado")
 
@@ -615,6 +628,8 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             self.handle_carga_monitor_trace(ponto, produto, empresa)
         elif parsed.path == '/api/ai/status':
             self.handle_ai_status()
+        elif parsed.path == '/api/ai/config':
+            self.handle_ai_get_config()
         else:
             super().do_GET()
 
@@ -1469,6 +1484,37 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
         model_name = data.get('model', '').strip()
         success, msg = ollama_mentor.set_model(model_name)
         self.send_json({'success': success, 'message': msg, 'current_model': ollama_mentor.current_model})
+
+    def handle_ai_get_config(self):
+        gemini_key = ollama_mentor.get_gemini_key()
+        masked_key = gemini_key[:6] + "..." + gemini_key[-4:] if len(gemini_key) > 10 else ("***" if gemini_key else "")
+        self.send_json({
+            'has_gemini_key': bool(gemini_key),
+            'masked_key': masked_key,
+            'current_model': ollama_mentor.current_model,
+            'provider': 'gemini' if ollama_mentor.is_gemini_model() else 'ollama',
+            'gemini_models': ["gemini-2.5-flash", "gemini-3.5-flash"]
+        })
+
+    def handle_ai_save_config(self, data):
+        gemini_key = data.get('gemini_api_key', '').strip()
+        model_name = data.get('model', '').strip()
+        if gemini_key:
+            ollama_mentor.set_gemini_key(gemini_key)
+        if model_name:
+            ollama_mentor.set_model(model_name)
+        self.send_json({
+            'success': True,
+            'message': 'Configurações de IA salvas com sucesso!',
+            'current_model': ollama_mentor.current_model,
+            'has_gemini_key': bool(ollama_mentor.get_gemini_key())
+        })
+
+    def handle_ai_test_gemini(self, data):
+        api_key = data.get('gemini_api_key', '').strip()
+        model = data.get('model', 'gemini-2.5-flash').strip()
+        result = ollama_mentor.test_gemini_connection(api_key=api_key, model=model)
+        self.send_json(result)
 
 def run_server():
     print("=======================================================")

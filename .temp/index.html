@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPU Hunter Pro | Comparador de Preços & Custo-Benefício RTX 5070 vs 5070 Ti</title>
+  
+  <!-- Fontes Google -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js para Gráficos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Estilos Customizados -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Bar & Header -->
+  <header class="app-header">
+    <div class="container header-container">
+      <div class="logo-area">
+        <div class="logo-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/><path d="M12 3v12"/><path d="M21 21H3"/></svg>
+        </div>
+        <div>
+          <h1 class="logo-title">GPU HUNTER <span class="accent-text">PRO</span></h1>
+          <p class="logo-subtitle">Foco em Alto Custo-Benefício • RTX 5070 & RTX 5070 Ti • KaBuM! • Pichau • Terabyte</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-indicator">
+          <span class="pulse-dot"></span>
+          <span id="status-text">Monitorando 3 Lojas</span>
+        </div>
+        <button id="btn-refresh" class="btn btn-primary" onclick="triggerRefresh()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          <span>Varredura & Gravar Dia</span>
+        </button>
+        <a href="/api/history/export/csv" class="btn btn-secondary" title="Exportar histórico diário para Excel/CSV">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Histórico (CSV)</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="container main-content">
+
+    <!-- TICKER DE OSCILAÇÃO DIÁRIA (24h / 7d) -->
+    <section class="variation-ticker-section">
+      <div class="section-title-bar">
+        <h2>Monitor de Oscilação Diária de Preços</h2>
+        <p>Acompanhamento diário automático com alerta de menor preço histórico (All-Time Low)</p>
+      </div>
+
+      <div class="ticker-cards-grid" id="ticker-cards-grid">
+        <!-- Inserido dinamicamente via JS -->
+      </div>
+    </section>
+
+    <!-- GRÁFICO HISTÓRICO DIA A DIA -->
+    <section class="history-chart-section">
+      <div class="history-chart-card">
+        <div class="history-chart-header">
+          <div>
+            <h3>📉 Curva de Oscilação de Preços Dia a Dia</h3>
+            <p>Evolução dos menores preços encontrados nas lojas ao longo do tempo</p>
+          </div>
+          
+          <div class="history-controls">
+            <div class="btn-group">
+              <button class="btn-time-filter" data-days="7" onclick="changeHistoryPeriod(7)">7 Dias</button>
+              <button class="btn-time-filter" data-days="15" onclick="changeHistoryPeriod(15)">15 Dias</button>
+              <button class="btn-time-filter active" data-days="30" onclick="changeHistoryPeriod(30)">30 Dias</button>
+            </div>
+            
+            <select id="history-store-filter" onchange="loadHistoryChart()" class="filter-select-mini">
+              <option value="all">Menor Preço Geral</option>
+              <option value="pichau">Pichau</option>
+              <option value="terabyte">TerabyteShop</option>
+              <option value="kabum">KaBuM!</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="chart-container history-chart-height">
+          <canvas id="chart-daily-history"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Hero / Campeã de Custo-Benefício -->
+    <section class="champion-section" id="champion-card">
+      <div class="champion-glow"></div>
+      <div class="champion-card-inner">
+        <div class="champion-header">
+          <div class="trophy-badge">
+            <span>🏆 CAMPEÃ DE CUSTO X BENEFÍCIO DO DIA</span>
+          </div>
+          <span class="live-pill">MENOR VALOR POR FRAME</span>
+        </div>
+
+        <div class="champion-grid">
+          <div class="champion-info">
+            <h2 class="champion-title" id="winner-title">NVIDIA GeForce RTX 5070 (12GB GDDR7)</h2>
+            <p class="champion-desc" id="winner-desc">
+              Carregando melhor opção e parecer técnico...
+            </p>
+            
+            <div class="champion-metrics">
+              <div class="metric-box">
+                <span class="metric-label">Melhor Preço à Vista</span>
+                <span class="metric-val text-green" id="winner-price">R$ 4.899,99</span>
+                <span class="metric-sub" id="winner-store">no PIX (Pichau)</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Prestação em 15x</span>
+                <span class="metric-val text-yellow" id="winner-15x">15x de R$ 422,74</span>
+                <span class="metric-sub" id="winner-15x-sub">+10% acréscimo sobre a prazo</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Custo / FPS (1440p)</span>
+                <span class="metric-val" id="winner-cost-fps">R$ 42,61 / FPS</span>
+                <span class="metric-sub">115 FPS Médio Ultra</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Custo / FPS (4K Nativo)</span>
+                <span class="metric-val text-accent" id="winner-cost-fps-4k">R$ 68,06 / FPS</span>
+                <span class="metric-sub">72 FPS 4K Nativo</span>
+              </div>
+            </div>
+
+            <div class="champion-actions">
+              <a href="#" id="winner-link" target="_blank" class="btn btn-lg btn-accent">
+                <span>Ir para a Melhor Oferta na Loja</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </a>
+              <a href="#simulator-15x-section" class="btn btn-lg btn-secondary">
+                <span>Ver Parcelamento 15x</span>
+              </a>
+              <a href="#verdict-section" class="btn btn-lg btn-ghost">
+                <span>Justificativa Técnica</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="champion-visual">
+            <div class="gpu-badge-visual">
+              <div class="chip-label">BLACKWELL ARCHITECTURE</div>
+              <div class="gpu-huge-name">RTX 5070</div>
+              <div class="chip-specs">12GB GDDR7 • 672 GB/s • 250W</div>
+              <div class="chip-sub-specs">72 FPS 4K • 115 FPS 1440p</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comparativo dos Modelos -->
+    <section class="models-overview-section">
+      <div class="section-title-bar">
+        <h2>Comparativo Direto: RTX 5070 vs RTX 5070 Ti</h2>
+        <p>Preços à vista no PIX, prestações em 15x, rendimento em 1440p e 4K Nativo</p>
+      </div>
+
+      <div class="models-grid" id="models-grid">
+        <!-- Inserido dinamicamente via JS -->
+      </div>
+    </section>
+
+    <!-- SEÇÃO DEDICADA: SIMULADOR DE PARCELAMENTO EM 15X -->
+    <section class="simulator-15x-section" id="simulator-15x-section">
+      <div class="sim-15x-card">
+        <div class="sim-15x-header">
+          <div class="badge-pill-finance">💳 ANÁLISE FINANCEIRA & PARCELAMENTO ESTENDIDO</div>
+          <h2>Simulação de Parcelamento em 15x (+10% de Acréscimo Médio)</h2>
+          <p class="sim-15x-subtitle">
+            O preço anunciado nas lojas (PIX) já inclui o desconto à vista de <strong>15%</strong>. 
+            Ao optar pelo parcelamento em <strong>15 vezes</strong>, aplicamos o acréscimo médio de <strong>10%</strong> 
+            sobre o valor a prazo para calcular a prestação real mensal.
+          </p>
+        </div>
+
+        <div class="sim-15x-grid" id="sim-15x-grid">
+          <!-- Preenchido dinamicamente via JS -->
+        </div>
+
+        <div class="sim-15x-takeaway">
+          <div class="takeaway-icon">💡</div>
+          <div class="takeaway-text">
+            <strong>Dica de Decisão Financeira:</strong>
+            Para saltar da <strong>RTX 5070 (12GB)</strong> para a <strong>RTX 5070 Ti (16GB)</strong> no plano de 15x, 
+            a diferença na prestação é de aproximadamente <strong>+R$ 284,71 por mês</strong>. Essa diferença garante +28% de FPS em 4K nativo 
+            e os 16GB de VRAM essenciais para longevidade sem engasgos de textura nos próximos anos.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Gráficos de Inteligência de Preço e FPS -->
+    <section class="charts-section">
+      <div class="section-title-bar">
+        <h2>Análise Gráfica de Rendimento e Custo por Frame</h2>
+        <p>Comparativo direto de custo por quadro em 1440p vs 4K Nativo e comparação de Preço vs Prestação 15x</p>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>💸 Custo por FPS (1440p vs 4K Nativo)</h3>
+            <span class="badge-mini">Menor é melhor</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-cost-fps"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>💳 Preço à Vista vs Prestação Mensal 15x</h3>
+            <span class="badge-mini">Comparativo de Esforço Financeiro</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-perf-price"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Simulador de Orçamento Interativo -->
+    <section class="budget-simulator-section">
+      <div class="simulator-card">
+        <div class="simulator-header">
+          <div class="sim-icon">🎯</div>
+          <div>
+            <h3>Simulador de Bolso: Qual GPU comprar com o meu Orçamento?</h3>
+            <p>Ajuste o valor à vista ou veja a prestação equivalente em 15x</p>
+          </div>
+        </div>
+
+        <div class="simulator-controls">
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Seu Orçamento Disponível (à vista):</span>
+              <span class="budget-display" id="budget-value-display">R$ 6.500,00</span>
+            </div>
+            <input type="range" id="budget-slider" min="4500" max="12000" step="200" value="6500" oninput="updateBudgetSimulation()">
+            <div class="slider-ticks">
+              <span>R$ 4.500</span>
+              <span>R$ 6.500</span>
+              <span>R$ 8.500</span>
+              <span>R$ 11.000+</span>
+            </div>
+          </div>
+
+          <div class="sim-result-box" id="sim-result-box">
+            <!-- Resultado preenchido dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabela Dinâmica de Todas as Ofertas -->
+    <section class="offers-section" id="offers-table-section">
+      <div class="section-title-bar table-header-flex">
+        <div>
+          <h2>Tabela Geral de Cotações do Dia</h2>
+          <p id="offers-count-label">Carregando ofertas...</p>
+        </div>
+
+        <!-- Filtros Rápidos -->
+        <div class="table-filters">
+          <div class="filter-group">
+            <label>Modelo:</label>
+            <select id="filter-model" onchange="renderOffersTable()">
+              <option value="ALL">Todas as Placas</option>
+              <option value="RTX 5070">Apenas RTX 5070 (12GB)</option>
+              <option value="RTX 5070 Ti">Apenas RTX 5070 Ti (16GB)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label>Loja:</label>
+            <select id="filter-store" onchange="renderOffersTable()">
+              <option value="ALL">Todas as Lojas</option>
+              <option value="kabum">KaBuM!</option>
+              <option value="pichau">Pichau</option>
+              <option value="terabyte">TerabyteShop</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label>Pagamento:</label>
+            <select id="filter-payment" onchange="renderOffersTable()">
+              <option value="cash">À Vista (PIX / Boleto)</option>
+              <option value="card_15x">Parcelado 15x (+10% juros)</option>
+              <option value="card">Cartão Padrão (10x/12x)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label>Ordenar Por:</label>
+            <select id="filter-sort" onchange="renderOffersTable()">
+              <option value="score">Melhor Custo-Benefício</option>
+              <option value="price_asc">Menor Preço à Vista (PIX)</option>
+              <option value="installment_15x">Menor Parcela em 15x</option>
+              <option value="fps_cost_4k">Menor R$ por FPS (4K Nativo)</option>
+              <option value="fps_cost_1440p">Menor R$ por FPS (1440p)</option>
+              <option value="price_desc">Maior Preço</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabela -->
+      <div class="table-wrapper">
+        <table class="custom-table" id="offers-table">
+          <thead>
+            <tr>
+              <th>Loja</th>
+              <th>Modelo & Specs</th>
+              <th>Placa / Fabricante</th>
+              <th class="text-right">Preço à Vista (PIX)</th>
+              <th class="text-right">Prestação 15x</th>
+              <th class="text-center">R$ / FPS (1440p)</th>
+              <th class="text-center">R$ / FPS (4K Nativo)</th>
+              <th class="text-center">Score C/B</th>
+              <th class="text-center">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="offers-tbody">
+            <!-- Linhas inseridas dinamicamente -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SEÇÃO TECNOLÓGICA: NVIDIA DLSS 5 (NOVEMBRO/2026) -->
+    <section class="dlss5-section" id="dlss5-section">
+      <div class="dlss5-card">
+        <div class="dlss5-glow"></div>
+        <div class="dlss5-header">
+          <div class="badge-dlss5">🚀 PRÉVIA OFICIAL • LANÇAMENTO NOVEMBRO / 2026</div>
+          <h2 class="dlss5-title">NVIDIA DLSS 5: Filtro Neural de IA para Texturas & Fotorrealismo</h2>
+          <p class="dlss5-desc" id="dlss5-main-desc">
+            Em Novembro de 2026, a NVIDIA lançará o <strong>DLSS 5</strong>. A nova geração vai além do upscaling tradicional e introduz a 
+            <strong>Reconstrução Neural de Texturas por IA em Tempo Real</strong>: uma rede neural profunda processa as superfícies do jogo 
+            e sintetiza microdetalhes físicos fotográficos (micro-relevo de asfalto, porosidade de pele, micro-trama de tecidos e dispersão de luz em metais) 
+            criando uma sensação inédita de fotorrealismo cinematográfico nos jogos.
+          </p>
+        </div>
+
+        <div class="dlss5-grid" id="dlss5-cards-grid">
+          <!-- Inserido dinamicamente via JS -->
+        </div>
+
+        <div class="dlss5-summary-box">
+          <div class="dlss5-takeaways-title">🧠 Conclusão Técnica sobre o Impacto do DLSS 5 na Escolha:</div>
+          <ul class="dlss5-takeaways-list" id="dlss5-takeaways-list">
+            <!-- Inserido dinamicamente via JS -->
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Parecer Técnico e Justificativa ("Porquê da Escolha") -->
+    <section class="verdict-section" id="verdict-section">
+      <div class="verdict-card">
+        <div class="verdict-header">
+          <div class="badge-verdict">DIAGNÓSTICO TÉCNICO & COMPARATIVO 4K</div>
+          <h2 id="verdict-main-title">Por Que a RTX 5070 é a Melhor Escolha em C/B e Quando Vale a 5070 Ti em 4K?</h2>
+          <p id="verdict-main-summary" class="verdict-intro">
+            Carregando análise técnica detalhada...
+          </p>
+        </div>
+
+        <div class="verdict-cards-grid" id="verdict-points-grid">
+          <!-- Inserido dinamicamente -->
+        </div>
+
+
+        <!-- Guia de Lojas -->
+        <div class="store-guide-box">
+          <h3>🏬 Estratégia de Compra nas 3 Lojas Avaliadas</h3>
+          <div class="store-guide-grid">
+            <div class="store-guide-item pichau-border">
+              <h4>🔴 Pichau</h4>
+              <p>Melhor precificação à vista no PIX para os modelos de entrada (ex: Galax RTX 5070). Se você vai pagar à vista, é frequentemente a mais barata.</p>
+            </div>
+            <div class="store-guide-item terabyte-border">
+              <h4>🟢 TerabyteShop</h4>
+              <p>Excelentes ofertas com marcas parceiras (Palit e PNY), especialmente na RTX 5070 Ti, além de promoções relâmpago de frete e parcelamento facilitado.</p>
+            </div>
+            <div class="store-guide-item kabum-border">
+              <h4>🟠 KaBuM!</h4>
+              <p>Maior variedade de modelos (ASUS, MSI, Gigabyte) e excelente opção se você pretende <strong>parcelar no cartão sem sobrepreço abusivo</strong>.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="container footer-container">
+      <p>GPU Hunter Pro • Monitor Diário com Banco SQLite • Foco em Custo-Benefício (RTX 5070 & RTX 5070 Ti)</p>
+      <p class="footer-sub">KaBuM! • Pichau • TerabyteShop | Histórico Diário Persistido Automaticamente</p>
+    </div>
+  </footer>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>

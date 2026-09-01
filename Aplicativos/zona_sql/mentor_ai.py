@@ -1,6 +1,7 @@
 """
-Módulo do Mentor IA (Ollama) para a Zona SQL ERP Totvs Consinco.
-Integra modelos locais (Hermes 3, Gemma 4, Llama 3, etc.) com a base de conhecimento
+Módulo do Mentor IA para a Zona SQL ERP Totvs Consinco.
+Integra modelos ultrarrápidos em nuvem (Google Gemini 2.5 Flash, 2.0 Flash, 1.5 Flash)
+e modelos locais via Ollama (Qwen 2.5 Coder, Hermes 3, Gemma 4) com a base de conhecimento
 e regras de performance do Totvs Consinco / Oracle.
 """
 
@@ -11,8 +12,16 @@ import urllib.error
 import time
 import re
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, "gemini_config.json")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
-DEFAULT_MODEL = "qwen2.5-coder:1.5b"
+
+GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-3.5-flash"
+]
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_OLLAMA_MODEL = "qwen2.5-coder:1.5b"
 
 SYSTEM_PROMPT_CONSINCO = """Você é o Mentor IA Especialista em SQL Oracle do ERP Totvs Consinco.
 Responda sempre em Português do Brasil de forma didática, direta e concisa.
@@ -35,6 +44,13 @@ Responda sempre em Português do Brasil de forma didática, direta e concisa.
 - GE_PESSOA (SEQPESSOA, NOMERAZAO, FANTASIA, CGCCPF)
 - MRL_PRODUTOEMPRESA (SEQPRODUTO, NROEMPRESA, ESTQLOJA, ESTQDEPOSITO, PRCBASE, CMULTCUSLIQUIDOEMP, STATUSCOMPRA)
 - MRL_PRODEMPSEG (SEQPRODUTO, NROEMPRESA, PRECOVALIDNORMAL, PRECOVALIDPROMOC, STATUSVENDA)
+- MRL_PONTOEXTRA (SEQPONTOEXTRA, DESCRICAO, STATUS)
+- MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS)
+- MRL_PONTOEXTRAPRODUTOEMPRESA (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS)
+- MRL_CUSTODIA (SEQPRODUTO, NROEMPRESA, DTAENTRADASAIDA, QTDVDA, VLRTOTALVDA, CODGERALOPER)
+- MRL_PRODVENDADIA (SEQPRODUTO, NROEMPRESA, DTAVENDA, QTDVENDA, VLRVENDA)
+- FI_TITULO (SEQTITULO, NROEMPRESA, SEQPESSOA, DTOVENCIMENTO, VLRORIGINAL, VLRLIQUIDO, STATUS)
+- MSU_PEDIDOSUPRIM (NROPEDIDOSUPRIM, NROEMPRESA, SEQPESSOA, DTAPEDIDO, SITUACAOPEDIDO)
 7. FLUXO OFICIAL DE CARGA E UPDATE DE PONTAS (MRL_PONTOEXTRAPRODUTOEMPRESA):
 - EXTRAÇÃO (9 COLUNAS EXATAS):
   SELECT PEPE.SEQPONTOEXTRA, PE.DESCRICAO, PEPE.SEQPRODUTO, PROD.DESCCOMPLETA, PEPE.NROEMPRESA, PEPE.ESTQMINIMO, PEPE.ESTQMAXIMO, PEPE.DTAVIGENCIAINICIO, PEPE.DTAVIGENCIAFIM
@@ -49,60 +65,244 @@ Responda sempre em Português do Brasil de forma didática, direta e concisa.
 
 Responda com clareza, explicando o conceito e fornecendo o código SQL no bloco ```sql ... ```."""
 
-class OllamaMentorService:
-    def __init__(self, base_url=OLLAMA_BASE_URL, default_model=DEFAULT_MODEL):
-        self.base_url = base_url.rstrip("/")
-        self.current_model = default_model
 
-    def check_status(self):
+class UnifiedMentorService:
+    def __init__(self, ollama_base_url=OLLAMA_BASE_URL):
+        self.ollama_base_url = ollama_base_url.rstrip("/")
+        self.config = self._load_config()
+        
+        # Define modelo padrão: Sempre Gemini 2.5 Flash
+        self.current_model = self.config.get("preferred_model", DEFAULT_GEMINI_MODEL)
+
+    def _load_config(self):
+        """Carrega as configurações locais persistidas."""
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
+    def _save_config(self):
+        """Salva as configurações locais em arquivo JSON."""
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[MentorAI] Erro ao salvar config: {e}")
+
+    def get_gemini_key(self):
+        """Retorna a chave da API do Gemini obtida do ambiente ou do arquivo de configuração."""
+        return (
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or self.config.get("gemini_api_key", "").strip()
+        )
+
+    def set_gemini_key(self, api_key):
+        """Atualiza e salva a chave da API do Gemini."""
+        self.config["gemini_api_key"] = api_key.strip()
+        if api_key.strip():
+            self.config["preferred_model"] = DEFAULT_GEMINI_MODEL
+            self.current_model = DEFAULT_GEMINI_MODEL
+        self._save_config()
+        return True, "Chave Gemini API salva com sucesso!"
+
+    def is_gemini_model(self, model_name=None):
+        """Verifica se o modelo informado (ou atual) é da família Google Gemini."""
+        m = (model_name or self.current_model).lower()
+        return "gemini" in m
+
+    def check_ollama_status(self):
         """Verifica se o servidor Ollama está online e quais modelos estão disponíveis."""
         start = time.time()
         try:
-            url = f"{self.base_url}/api/tags"
-            req = urllib.request.Request(url, headers={"User-Agent": "ZonaSQL-Mentor/1.0"})
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            url = f"{self.ollama_base_url}/api/tags"
+            req = urllib.request.Request(url, headers={"User-Agent": "ZonaSQL-Mentor/2.0"})
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                models = [m.get("name") for m in data.get("models", [])]
-                
-                # Se o modelo atual não estiver instalado, selecionar hermes3 ou o primeiro disponível
-                if models:
-                    if "hermes3:latest" in models and self.current_model not in models:
-                        self.current_model = "hermes3:latest"
-                    elif self.current_model not in models:
-                        self.current_model = models[0]
-
+                raw_models = [m.get("name") for m in data.get("models", [])]
+                # Filtrar modelos indesejados (ex: hermes3)
+                models = [m for m in raw_models if "hermes" not in m.lower()]
                 latency_ms = round((time.time() - start) * 1000, 1)
                 return {
                     "online": True,
                     "models": models,
-                    "current_model": self.current_model,
-                    "latency_ms": latency_ms,
-                    "endpoint": self.base_url
+                    "latency_ms": latency_ms
                 }
         except Exception as e:
             return {
                 "online": False,
                 "models": [],
-                "current_model": self.current_model,
                 "latency_ms": 0,
-                "error": str(e),
-                "endpoint": self.base_url
+                "error": str(e)
             }
 
-    def set_model(self, model_name):
-        """Define o modelo ativo do Ollama."""
-        status = self.check_status()
-        if model_name in status.get("models", []):
-            self.current_model = model_name
-            return True, f"Modelo alterado para {model_name}"
-        elif status.get("online"):
-            self.current_model = model_name
-            return True, f"Modelo definido como {model_name}"
-        return False, "Ollama offline"
+    def check_status(self):
+        """Verifica o status consolidado de ambos os provedores (Gemini Flash e Ollama)."""
+        ollama_status = self.check_ollama_status()
+        gemini_key = self.get_gemini_key()
+        has_gemini = bool(gemini_key)
 
-    def _call_generate(self, prompt, system_prompt=None, temperature=0.2, timeout=240, max_tokens=2048):
-        """Executa a chamada HTTP para /api/generate do Ollama com multi-threading em CPU e buffer ampliado de 2048 tokens."""
-        url = f"{self.base_url}/api/generate"
+        is_gemini = self.is_gemini_model()
+        is_online = (is_gemini and has_gemini) or ollama_status["online"]
+
+        # Lista unificada de modelos disponíveis
+        available_models = []
+        if has_gemini:
+            for gm in GEMINI_MODELS:
+                available_models.append({
+                    "id": gm,
+                    "name": f"✨ {gm} (Google Cloud - Flash)",
+                    "provider": "gemini"
+                })
+        else:
+            for gm in GEMINI_MODELS:
+                available_models.append({
+                    "id": gm,
+                    "name": f"🔑 {gm} (Requer Chave API)",
+                    "provider": "gemini",
+                    "requires_key": True
+                })
+
+        for om in ollama_status.get("models", []):
+            available_models.append({
+                "id": om,
+                "name": f"🖥️ {om} (Ollama Local)",
+                "provider": "ollama"
+            })
+
+        latency_ms = 0
+        if is_gemini and has_gemini:
+            latency_ms = self.config.get("last_gemini_latency_ms", 180)
+        elif ollama_status["online"]:
+            latency_ms = ollama_status["latency_ms"]
+
+        masked_key = ""
+        if gemini_key:
+            masked_key = gemini_key[:6] + "..." + gemini_key[-4:] if len(gemini_key) > 10 else "***"
+
+        return {
+            "online": is_online,
+            "provider": "gemini" if is_gemini else "ollama",
+            "current_model": self.current_model,
+            "has_gemini_key": has_gemini,
+            "masked_gemini_key": masked_key,
+            "gemini_models": GEMINI_MODELS,
+            "ollama_online": ollama_status["online"],
+            "ollama_models": ollama_status.get("models", []),
+            "all_models": available_models,
+            "latency_ms": latency_ms,
+            "endpoint": "Google Gemini API" if is_gemini else self.ollama_base_url
+        }
+
+    def set_model(self, model_name):
+        """Define o modelo ativo do Mentor (Gemini ou Ollama)."""
+        self.current_model = model_name
+        self.config["preferred_model"] = model_name
+        self._save_config()
+
+        if self.is_gemini_model(model_name):
+            if not self.get_gemini_key():
+                return False, f"Modelo {model_name} selecionado, mas a Chave de API do Gemini ainda não foi informada."
+            return True, f"Mentor conectado ao {model_name} (Google Gemini Flash - Nuvem de Alta Velocidade)"
+        
+        return True, f"Mentor configurado para o modelo local {model_name} (Ollama)"
+
+    # -------------------------------------------------------------
+    # Invocação do Google Gemini Flash REST API
+    # -------------------------------------------------------------
+    def _call_gemini(self, prompt, system_prompt=None, temperature=0.2, timeout=120, model=None, history=None):
+        """Executa chamada direta à API REST do Google Gemini Flash com retry inteligente."""
+        api_key = self.get_gemini_key()
+        if not api_key:
+            raise ValueError("Chave de API do Gemini não configurada. Adicione sua chave para usar o Gemini Flash.")
+
+        model_name = model or self.current_model
+        if not self.is_gemini_model(model_name) or model_name not in GEMINI_MODELS:
+            model_name = DEFAULT_GEMINI_MODEL
+
+        # URL oficial da API Gemini v1beta generateContent
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+
+        # Montagem dos contents com histórico
+        contents = []
+        if history and isinstance(history, list):
+            for h in history[-6:]:
+                role = "user" if h.get("role") == "user" else "model"
+                txt = h.get("content", "").strip()
+                if txt:
+                    contents.append({
+                        "role": role,
+                        "parts": [{"text": txt}]
+                    })
+
+        contents.append({
+            "role": "user",
+            "parts": [{"text": prompt}]
+        })
+
+        payload = {
+            "contents": contents,
+            "systemInstruction": {
+                "parts": [{"text": system_prompt or SYSTEM_PROMPT_CONSINCO}]
+            },
+            "generationConfig": {
+                "temperature": temperature,
+                "topP": 0.95,
+                "maxOutputTokens": 4096
+            }
+        }
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "ZonaSQL-Consinco/2.0"
+            }
+        )
+
+        last_error = None
+        for attempt in range(2):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    candidates = data.get("candidates", [])
+                    if not candidates:
+                        return "Não foi possível gerar resposta do Gemini Flash."
+                    
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "").strip()
+                    return ""
+            except urllib.error.HTTPError as he:
+                err_body = he.read().decode("utf-8")
+                try:
+                    err_json = json.loads(err_body)
+                    msg = err_json.get("error", {}).get("message", err_body)
+                except Exception:
+                    msg = err_body
+                if he.code in (429, 503) and attempt == 0:
+                    time.sleep(1.5)
+                    continue
+                raise RuntimeError(f"Erro na API do Gemini ({he.code}): {msg}")
+            except Exception as e:
+                last_error = e
+                if attempt == 0:
+                    time.sleep(1.0)
+                    continue
+                raise RuntimeError(f"Erro de conexão com Gemini Flash: {str(e)}")
+
+        raise RuntimeError(f"Erro de conexão com Gemini Flash: {str(last_error)}")
+
+    # -------------------------------------------------------------
+    # Invocação do Ollama Local
+    # -------------------------------------------------------------
+    def _call_ollama(self, prompt, system_prompt=None, temperature=0.2, timeout=180, max_tokens=2048):
+        """Executa a chamada HTTP para /api/generate do Ollama local."""
+        url = f"{self.ollama_base_url}/api/generate"
         threads = max(2, (os.cpu_count() or 4) - 2)
         payload = {
             "model": self.current_model,
@@ -122,21 +322,85 @@ class OllamaMentorService:
         req = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "User-Agent": "ZonaSQL-Mentor/1.0"}
+            headers={"Content-Type": "application/json", "User-Agent": "ZonaSQL-Mentor/2.0"}
         )
         
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("response", "").strip()
 
+    # -------------------------------------------------------------
+    # Roteador de Inferência (Gemini vs Ollama)
+    # -------------------------------------------------------------
+    def _generate(self, prompt, system_prompt=None, temperature=0.2, history=None):
+        """Roteia a geração para o Gemini Flash ou Ollama de acordo com o modelo selecionado."""
+        if self.is_gemini_model():
+            return self._call_gemini(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                history=history
+            )
+        else:
+            return self._call_ollama(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature
+            )
+
+    def test_gemini_connection(self, api_key=None, model=None):
+        """Testa se uma chave da API do Gemini está válida e mede a latência."""
+        target_key = api_key or self.get_gemini_key()
+        if not target_key:
+            return {"success": False, "error": "Nenhuma chave informada para teste."}
+
+        target_model = model or DEFAULT_GEMINI_MODEL
+        if target_model not in GEMINI_MODELS:
+            target_model = DEFAULT_GEMINI_MODEL
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={target_key}"
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": "Responda apenas com a palavra OK."}]}],
+            "generationConfig": {"maxOutputTokens": 10, "temperature": 0.0}
+        }
+
+        start = time.time()
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                elapsed_ms = round((time.time() - start) * 1000, 1)
+                self.config["last_gemini_latency_ms"] = elapsed_ms
+                self._save_config()
+                return {
+                    "success": True,
+                    "latency_ms": elapsed_ms,
+                    "model": target_model,
+                    "message": f"Conexão com {target_model} realizada com sucesso em {elapsed_ms}ms!"
+                }
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode("utf-8")
+            try:
+                msg = json.loads(err_body).get("error", {}).get("message", err_body)
+            except Exception:
+                msg = err_body
+            return {"success": False, "error": f"Erro HTTP {he.code}: {msg}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------
+    # Métodos de Negócio do Mentor Consinco
+    # -------------------------------------------------------------
     def chat(self, user_message, current_sql="", history=None):
         """Conversação interativa com o Mentor IA."""
-        status = self.check_status()
-        if not status.get("online"):
+        if self.is_gemini_model() and not self.get_gemini_key():
             return {
                 "success": False,
-                "error": "Ollama não está respondendo em http://127.0.0.1:11434. Verifique se o serviço está em execução.",
-                "online": False
+                "requires_key": True,
+                "error": "Chave da API Google Gemini não configurada. Por favor, insira sua chave gratuita do Google AI Studio para ativar o Gemini Flash."
             }
 
         start_time = time.time()
@@ -145,7 +409,7 @@ class OllamaMentorService:
         if current_sql and current_sql.strip():
             context_parts.append(f"--- SQL ATUAL NO EDITOR DO USUÁRIO ---\n{current_sql.strip()}\n--------------------------------------")
 
-        if history and isinstance(history, list):
+        if not self.is_gemini_model() and history and isinstance(history, list):
             context_parts.append("--- HISTÓRICO DA CONVERSA RECENTE ---")
             for h in history[-4:]:
                 role = "Usuário" if h.get("role") == "user" else "Mentor IA"
@@ -156,7 +420,11 @@ class OllamaMentorService:
         full_prompt = f"{context_str}\n\nPergunta do Usuário: {user_message}\n\nResposta do Mentor IA:" if context_str else f"Pergunta do Usuário: {user_message}\n\nResposta do Mentor IA:"
 
         try:
-            response_text = self._call_generate(full_prompt, temperature=0.3)
+            response_text = self._generate(
+                prompt=full_prompt,
+                temperature=0.3,
+                history=history if self.is_gemini_model() else None
+            )
             
             # Extrair blocos de SQL sugeridos se houver
             extracted_sql = None
@@ -170,6 +438,7 @@ class OllamaMentorService:
                 "response": response_text,
                 "extracted_sql": extracted_sql,
                 "model": self.current_model,
+                "provider": "gemini" if self.is_gemini_model() else "ollama",
                 "elapsed_seconds": elapsed
             }
         except Exception as e:
@@ -180,11 +449,11 @@ class OllamaMentorService:
 
     def explain_and_fix_error(self, sql, error_msg, binds=None):
         """Diagnostica erros de execução Oracle/Consinco e gera a correção automática."""
-        status = self.check_status()
-        if not status.get("online"):
+        if self.is_gemini_model() and not self.get_gemini_key():
             return {
                 "success": False,
-                "error": "Ollama não está respondendo. Inicie o Ollama para depuração com IA."
+                "requires_key": True,
+                "error": "Chave da API Google Gemini não configurada. Por favor, insira sua chave gratuita do Google AI Studio para ativar o Gemini Flash."
             }
 
         start_time = time.time()
@@ -206,7 +475,7 @@ Por favor, faça:
 3. SQL CORRIGIDO: Forneça a consulta SQL corrigida e completa em um bloco ```sql ... ``` (LEMBRE-SE: NUNCA insira comentários com -- dentro do SQL!)."""
 
         try:
-            response_text = self._call_generate(prompt, temperature=0.1)
+            response_text = self._generate(prompt, temperature=0.1)
             
             # Extrair o SQL corrigido
             fixed_sql = None
@@ -222,6 +491,7 @@ Por favor, faça:
                 "original_sql": sql,
                 "error_analyzed": error_msg,
                 "model": self.current_model,
+                "provider": "gemini" if self.is_gemini_model() else "ollama",
                 "elapsed_seconds": elapsed
             }
         except Exception as e:
@@ -232,11 +502,11 @@ Por favor, faça:
 
     def text_to_sql(self, natural_language_request):
         """Transforma um pedido em linguagem natural em SQL Consinco/Oracle com explicação."""
-        status = self.check_status()
-        if not status.get("online"):
+        if self.is_gemini_model() and not self.get_gemini_key():
             return {
                 "success": False,
-                "error": "Ollama offline. Inicie o Ollama para gerar SQL por IA."
+                "requires_key": True,
+                "error": "Chave da API Google Gemini não configurada. Por favor, insira sua chave gratuita do Google AI Studio para ativar o Gemini Flash."
             }
 
         start_time = time.time()
@@ -253,7 +523,7 @@ Requisitos Obrigatórios:
 5. Explique resumidamente como a consulta funciona (quais tabelas e filtros foram usados)."""
 
         try:
-            response_text = self._call_generate(prompt, temperature=0.2)
+            response_text = self._generate(prompt, temperature=0.2)
             
             sql_match = re.search(r"```sql\s*(.*?)\s*```", response_text, flags=re.DOTALL | re.IGNORECASE)
             generated_sql = sql_match.group(1).strip() if sql_match else ""
@@ -265,6 +535,7 @@ Requisitos Obrigatórios:
                 "explanation": response_text,
                 "request": natural_language_request,
                 "model": self.current_model,
+                "provider": "gemini" if self.is_gemini_model() else "ollama",
                 "elapsed_seconds": elapsed
             }
         except Exception as e:
@@ -275,11 +546,11 @@ Requisitos Obrigatórios:
 
     def find_table(self, intent_or_keyword):
         """Localiza a tabela e as colunas certas a partir de uma dúvida de negócio."""
-        status = self.check_status()
-        if not status.get("online"):
+        if self.is_gemini_model() and not self.get_gemini_key():
             return {
                 "success": False,
-                "error": "Ollama offline."
+                "requires_key": True,
+                "error": "Chave da API Google Gemini não configurada. Por favor, insira sua chave gratuita do Google AI Studio para ativar o Gemini Flash."
             }
 
         start_time = time.time()
@@ -294,7 +565,7 @@ Indique com clareza:
 4. Um exemplo prático e limpo de consulta SQL dentro de ```sql ... ``` (sem comentários --)."""
 
         try:
-            response_text = self._call_generate(prompt, temperature=0.2)
+            response_text = self._generate(prompt, temperature=0.2)
             
             sql_match = re.search(r"```sql\s*(.*?)\s*```", response_text, flags=re.DOTALL | re.IGNORECASE)
             sample_sql = sql_match.group(1).strip() if sql_match else ""
@@ -306,6 +577,7 @@ Indique com clareza:
                 "sample_sql": sample_sql,
                 "query": intent_or_keyword,
                 "model": self.current_model,
+                "provider": "gemini" if self.is_gemini_model() else "ollama",
                 "elapsed_seconds": elapsed
             }
         except Exception as e:
@@ -314,5 +586,5 @@ Indique com clareza:
                 "error": f"Erro ao buscar tabela com IA: {str(e)}"
             }
 
-# Instância global singleton
-ollama_mentor = OllamaMentorService()
+# Instância global singleton do Mentor
+ollama_mentor = UnifiedMentorService()

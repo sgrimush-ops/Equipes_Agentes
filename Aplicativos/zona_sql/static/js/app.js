@@ -5,9 +5,25 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Inicializar Módulos
     const editor = new SqlEditorManager('sql-editor', 'line-numbers', 'editor-cursor-pos', 'editor-char-count');
+    window.editor = editor;
     const mentor = new ConsincoMentor(editor);
     const missions = new MissionsManager(editor);
     const carga = new CargaTabelaManager(editor);
+
+    // Botões de Limpar o Editor para Nova Digitação
+    const btnClearEditor = document.getElementById('btn-clear-editor');
+    if (btnClearEditor) {
+        btnClearEditor.addEventListener('click', () => {
+            editor.clear();
+        });
+    }
+
+    const btnToolbarClear = document.getElementById('btn-toolbar-clear');
+    if (btnToolbarClear) {
+        btnToolbarClear.addEventListener('click', () => {
+            editor.clear();
+        });
+    }
 
     // 2. Estado Global
     let currentResults = null;
@@ -187,6 +203,13 @@ WHERE B.NROEMPRESA = :NROEMPRESA
             const data = await resp.json();
             tablesData = data.tables || [];
             renderTablesList(tablesData);
+
+            // Registrar tabelas carregadas no autocomplete do editor
+            if (editor.autocomplete) {
+                tablesData.forEach(t => {
+                    editor.autocomplete.addCustomTable(t.name, `Tabela Oficial (${t.row_count} registros)`);
+                });
+            }
         } catch (err) {
             container.innerHTML = `<div class="log-entry log-error">Erro ao carregar tabelas: ${err.message}</div>`;
         }
@@ -389,7 +412,7 @@ WHERE B.NROEMPRESA = :NROEMPRESA
                         <p style="font-family: var(--font-mono); font-size: 0.82rem; margin-top: 6px; color: #fca5a5;">${data.error}</p>
                         <div style="margin-top: 12px;">
                             <button id="btn-ai-explain-error" class="btn-ai-debug-card">
-                                🪄 Explicar e Corrigir com Mentor IA (Ollama)
+                                ⚡ Explicar e Corrigir com Mentor IA (Gemini Flash)
                             </button>
                         </div>
                     </div>
