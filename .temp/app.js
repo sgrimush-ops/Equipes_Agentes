@@ -1,6 +1,7 @@
 /**
  * GPU Hunter Pro - Frontend Application Logic
  * Foco exclusivo em RTX 5070 e RTX 5070 Ti (Alto Custo-Benefício)
+ * Inclui: Top 3 Melhores Opções por Loja, Radar de Promoções por Tempo Limitado e Histórico Diário.
  */
 
 let globalData = null;
@@ -8,6 +9,8 @@ let chartCostFps = null;
 let chartPerfPrice = null;
 let chartDailyHistory = null;
 let currentHistoryDays = 30;
+let currentTopStoreTab = 'all';
+let currentTopModel = 'RTX 5070';
 
 document.addEventListener('DOMContentLoaded', () => {
   fetchGPUData();
@@ -66,6 +69,8 @@ async function triggerRefresh() {
 function renderAll(data) {
   renderTickerCards(data.variation_stats);
   renderChampion(data);
+  renderTopByStore(data.top_by_store);
+  renderLimitedPromos(data.limited_promos);
   renderModelsGrid(data.model_stats);
   renderSimulator15x(data.model_stats, data.recommendation);
   renderCharts(data.model_stats);
@@ -74,7 +79,6 @@ function renderAll(data) {
   renderVerdict(data.recommendation);
   updateBudgetSimulation();
 }
-
 
 // 1. Ticker de Oscilação Diária (24h / 7d / Recorde)
 function renderTickerCards(variations) {
@@ -162,32 +166,35 @@ function changeHistoryPeriod(days) {
 
 function renderHistoryChart(timeline) {
   const ctx = document.getElementById('chart-daily-history');
-  if (!ctx || !timeline) return;
+  if (!ctx) return;
 
-  if (chartDailyHistory) chartDailyHistory.destroy();
+  if (chartDailyHistory) {
+    chartDailyHistory.destroy();
+  }
 
-  const formattedDates = timeline.dates.map(d => {
+  const dates = timeline.dates || [];
+  const series5070 = timeline.series['RTX 5070']?.min_prices || [];
+  const series5070ti = timeline.series['RTX 5070 Ti']?.min_prices || [];
+
+  const formattedLabels = dates.map(d => {
     const parts = d.split('-');
     return `${parts[2]}/${parts[1]}`;
   });
 
-  const series5070 = timeline.series['RTX 5070']?.min_prices || [];
-  const series5070ti = timeline.series['RTX 5070 Ti']?.min_prices || [];
-
   chartDailyHistory = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: formattedDates,
+      labels: formattedLabels,
       datasets: [
         {
           label: 'RTX 5070 (Menor Preço)',
           data: series5070,
-          borderColor: '#76B900',
-          backgroundColor: 'rgba(118, 185, 0, 0.09)',
-          borderWidth: 2.8,
-          pointRadius: 4.5,
-          pointHoverRadius: 7,
-          pointBackgroundColor: '#76B900',
+          borderColor: '#10B981',
+          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+          borderWidth: 3,
+          pointRadius: dates.length > 30 ? 2 : 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#10B981',
           tension: 0.25,
           fill: true
         },
@@ -196,9 +203,9 @@ function renderHistoryChart(timeline) {
           data: series5070ti,
           borderColor: '#38bdf8',
           backgroundColor: 'rgba(56, 189, 248, 0.06)',
-          borderWidth: 2.8,
-          pointRadius: 4.5,
-          pointHoverRadius: 7,
+          borderWidth: 3,
+          pointRadius: dates.length > 30 ? 2 : 4,
+          pointHoverRadius: 6,
           pointBackgroundColor: '#38bdf8',
           tension: 0.25,
           fill: true
@@ -210,65 +217,255 @@ function renderHistoryChart(timeline) {
       maintainAspectRatio: false,
       interaction: {
         mode: 'index',
-        intersect: false,
+        intersect: false
       },
       plugins: {
         legend: {
-          labels: { color: '#c9d1d9', font: { family: 'Inter', size: 12 } }
+          position: 'top',
+          labels: {
+            color: '#e6edf3',
+            font: { family: 'Outfit', size: 13, weight: '600' },
+            boxWidth: 14,
+            usePointStyle: true
+          }
         },
         tooltip: {
+          backgroundColor: '#161b22',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#fff',
+          bodyColor: '#c9d1d9',
+          padding: 12,
           callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}`
+            label: function(ctx) {
+              return ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`;
+            }
           }
         }
       },
       scales: {
         x: {
-          ticks: { color: '#8b949e', font: { size: 11 } },
-          grid: { color: 'rgba(255, 255, 255, 0.04)' }
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#8b949e', font: { family: 'Inter', size: 11 } }
         },
         y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
           ticks: {
             color: '#8b949e',
-            callback: (v) => `R$ ${v/1000}k`
-          },
-          grid: { color: 'rgba(255, 255, 255, 0.06)' }
+            font: { family: 'Inter', size: 11 },
+            callback: value => `R$ ${(value / 1000).toFixed(1)}k`
+          }
         }
       }
     }
   });
 }
 
-// 3. Hero do Campeão
+// 3. Hero / Campeã de Custo-Benefício
 function renderChampion(data) {
   const winner = data.winner;
-  const rec = data.recommendation;
-  if (!winner) return;
+  const stats = data.model_stats['RTX 5070'];
+  if (!winner || !stats) return;
 
-  document.getElementById('winner-title').textContent = `${winner.gpu_model} (${winner.brand})`;
-  document.getElementById('winner-desc').textContent = rec.verdict_summary || '';
-  document.getElementById('winner-price').textContent = formatCurrency(winner.price_cash);
-  document.getElementById('winner-store').textContent = `no PIX (${winner.store})`;
-  
-  const winner15x = document.getElementById('winner-15x');
-  if (winner15x) {
-    winner15x.textContent = `15x de ${formatCurrency(winner.installment_15x_val)}`;
+  const titleEl = document.getElementById('winner-title');
+  const descEl = document.getElementById('winner-desc');
+  const priceEl = document.getElementById('winner-price');
+  const storeEl = document.getElementById('winner-store');
+  const inst15xEl = document.getElementById('winner-15x');
+  const costFpsEl = document.getElementById('winner-cost-fps');
+  const costFps4kEl = document.getElementById('winner-cost-fps-4k');
+  const linkEl = document.getElementById('winner-link');
+
+  if (titleEl) titleEl.textContent = `${stats.best_title || 'NVIDIA GeForce RTX 5070'}`;
+  if (descEl) {
+    descEl.innerHTML = `
+      A <strong>RTX 5070 (12GB GDDR7)</strong> conquistou o 1º lugar geral em eficiência financeira: 
+      entrega <strong>115 FPS em 1440p Quad HD</strong> e <strong>72 FPS em 4K Nativo</strong> com o menor custo por quadro gerado do mercado 
+      (<strong>R$ ${stats.cost_per_fps_1440p}/FPS em 1440p</strong> e <strong>R$ ${stats.cost_per_fps_4k}/FPS em 4K</strong>). 
+      Disponível com arrefecimento superior Triplo Fan (ex: Gainward Python III) por apenas R$ 4.859,99 à vista.
+    `;
   }
+  if (priceEl) priceEl.textContent = formatCurrency(stats.min_price);
+  if (storeEl) storeEl.textContent = `à vista no PIX (${stats.best_store})`;
+  if (inst15xEl) inst15xEl.textContent = stats.min_installment_15x_text;
+  if (costFpsEl) costFpsEl.textContent = `R$ ${stats.cost_per_fps_1440p} / FPS`;
+  if (costFps4kEl) costFps4kEl.textContent = `R$ ${stats.cost_per_fps_4k} / FPS`;
+  if (linkEl) linkEl.href = stats.best_url || '#';
+}
+
+// 4. NOVA SEÇÃO: TOP 3 MELHORES OPÇÕES POR LOJA
+function switchStoreTab(storeKey) {
+  currentTopStoreTab = storeKey;
+  document.querySelectorAll('.btn-store-tab').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  const activeBtn = document.querySelector(`.btn-store-tab[onclick="switchStoreTab('${storeKey}')"]`);
+  if (activeBtn) activeBtn.classList.add('active');
   
-  document.getElementById('winner-cost-fps').textContent = `R$ ${winner.cost_per_fps_1440p} / FPS`;
-  
-  const winner4k = document.getElementById('winner-cost-fps-4k');
-  if (winner4k) {
-    winner4k.textContent = `R$ ${winner.cost_per_fps_4k} / FPS`;
-  }
-  
-  const winnerLink = document.getElementById('winner-link');
-  if (winnerLink) {
-    winnerLink.href = winner.url;
+  if (globalData && globalData.top_by_store) {
+    renderTopByStore(globalData.top_by_store);
   }
 }
 
-// 4. Grid dos 2 Modelos (5070 vs 5070 Ti)
+function switchTopModel(modelName) {
+  currentTopModel = modelName;
+  document.getElementById('btn-top-5070')?.classList.toggle('active', modelName === 'RTX 5070');
+  document.getElementById('btn-top-5070ti')?.classList.toggle('active', modelName === 'RTX 5070 Ti');
+
+  if (globalData && globalData.top_by_store) {
+    renderTopByStore(globalData.top_by_store);
+  }
+}
+
+function renderTopByStore(topByStore) {
+  const container = document.getElementById('top-store-container');
+  if (!container || !topByStore) return;
+
+  container.innerHTML = '';
+  const storesToRender = currentTopStoreTab === 'all' ? ['pichau', 'terabyte', 'kabum'] : [currentTopStoreTab];
+
+  storesToRender.forEach(storeKey => {
+    const storeData = topByStore[storeKey];
+    if (!storeData) return;
+
+    const offersList = storeData.by_model?.[currentTopModel] || [];
+    if (offersList.length === 0) return;
+
+    const column = document.createElement('div');
+    column.className = `store-top-column ${storeKey}-theme-column`;
+
+    let cardsHtml = '';
+    offersList.forEach(item => {
+      const isTripleFan = (item.cooling_type || '').includes('Triplo') || item.title.includes('3X') || item.title.includes('Python III') || item.title.includes('Infinity 3');
+      const coolingBadge = isTripleFan ? 
+        '<span class="badge-cooling-triple">❄️ Triplo Fan (3 Fans)</span>' : 
+        '<span class="badge-cooling-dual">🌬️ Dual Fan (2 Fans)</span>';
+
+      const promoBadge = item.is_limited_promo ? 
+        `<span class="badge-promo-live pulse-glow">${item.promo_badge || '⚡ Preço Promocional'}</span>` : 
+        '';
+
+      const unitsBadge = item.promo_units_left ? 
+        `<span class="badge-units-left">📦 Restam ${item.promo_units_left} un.</span>` : 
+        '';
+
+      cardsHtml += `
+        <div class="top-rank-card rank-${item.rank_position}">
+          <div class="top-rank-card-header">
+            <div class="medal-badge medal-pos-${item.rank_position}">
+              ${item.rank_label}
+            </div>
+            <div class="rank-highlight-tag">${item.rank_highlight}</div>
+          </div>
+
+          <div class="top-rank-card-body">
+            <div class="top-rank-img-wrap">
+              <img src="${item.image}" alt="${item.title}" class="top-rank-img" loading="lazy" onerror="this.src='https://media.pichau.com.br/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/n/e/ne75070019k9-gb2050t-nac4.jpg'">
+            </div>
+
+            <div class="top-rank-details">
+              <div class="top-rank-badges-row">
+                ${coolingBadge}
+                ${promoBadge}
+                ${unitsBadge}
+              </div>
+
+              <h4 class="top-rank-title" title="${item.title}">${item.title}</h4>
+
+              <div class="top-rank-pricing">
+                <div class="top-rank-cash">
+                  <span class="cash-label">À VISTA NO PIX:</span>
+                  <span class="cash-val">${formatCurrency(item.price_cash)}</span>
+                </div>
+                <div class="top-rank-installments">
+                  <span>${item.installments || '12x no cartão'}</span>
+                  <span class="inst-15x-note">ou <strong>15x de ${formatCurrency(item.installment_15x_val)}</strong></span>
+                </div>
+              </div>
+
+              <div class="top-rank-actions">
+                <a href="${item.url}" target="_blank" class="btn btn-primary btn-rank-action">
+                  <span>Acessar Oferta na ${storeData.store_name}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    column.innerHTML = `
+      <div class="store-column-header">
+        <div class="store-column-brand">
+          <span class="store-big-logo">${storeData.store_logo}</span>
+          <span class="store-model-tag">${currentTopModel}</span>
+        </div>
+        <span class="store-column-sub">Top 3 Melhores Opções Encontradas</span>
+      </div>
+      <div class="store-column-cards">
+        ${cardsHtml}
+      </div>
+    `;
+
+    container.appendChild(column);
+  });
+}
+
+// 5. NOVA SEÇÃO: RADAR DE PROMOÇÕES POR TEMPO LIMITADO
+function renderLimitedPromos(limitedPromos) {
+  const container = document.getElementById('promos-cards-grid');
+  const countBadge = document.getElementById('promo-count-badge');
+  if (!container) return;
+
+  const promos = limitedPromos || [];
+  if (countBadge) {
+    countBadge.textContent = `🔥 ${promos.length} Ofertas com Preço Promocional Ativo`;
+  }
+
+  container.innerHTML = '';
+  if (promos.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted); padding:20px;">Nenhuma oferta com preço limitado ativa no momento.</p>';
+    return;
+  }
+
+  promos.slice(0, 6).forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'promo-radar-card';
+
+    const isTripleFan = (p.cooling_type || '').includes('Triplo') || p.title.includes('3X') || p.title.includes('Python III');
+    const coolingTag = isTripleFan ? '<span class="tag-fan-mini">❄️ 3 Fans</span>' : '<span class="tag-fan-mini">🌬️ 2 Fans</span>';
+    const discountTag = p.promo_discount_pct ? `<span class="tag-disc-mini">-${p.promo_discount_pct}%</span>` : '';
+
+    card.innerHTML = `
+      <div class="promo-radar-top">
+        <span class="promo-radar-store">${p.store_logo || p.store}</span>
+        <span class="promo-radar-badge pulse-glow">${p.promo_badge || '⚡ OFERTA LIMITADA'}</span>
+      </div>
+
+      <div class="promo-radar-middle">
+        <img src="${p.image}" alt="${p.title}" class="promo-radar-thumb" onerror="this.src='https://media.pichau.com.br/media/catalog/product/cache/74c1057f7991b4edb2bc7bdaa94de933/n/e/ne75070019k9-gb2050t-nac4.jpg'">
+        <div class="promo-radar-info">
+          <div class="promo-radar-tags">${coolingTag} ${discountTag}</div>
+          <h5 class="promo-radar-title">${p.title}</h5>
+          <div class="promo-radar-prices">
+            <span class="promo-radar-cash">${formatCurrency(p.price_cash)}</span>
+            <span class="promo-radar-sub">no PIX</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="promo-radar-bottom">
+        <span class="promo-radar-inst">15x de ${formatCurrency(p.installment_15x_val)}</span>
+        <a href="${p.url}" target="_blank" class="btn btn-sm btn-primary">Ir p/ Loja ↗</a>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+// 6. Comparativo dos Modelos (5070 vs 5070 Ti)
 function renderModelsGrid(modelStats) {
   const container = document.getElementById('models-grid');
   if (!container || !modelStats) return;
@@ -282,174 +479,172 @@ function renderModelsGrid(modelStats) {
 
     const isChampion = modelName === 'RTX 5070';
     const card = document.createElement('div');
-    card.className = `model-card ${isChampion ? 'highlight' : ''}`;
+    card.className = `model-card ${isChampion ? 'champion-border' : 'enthusiast-border'}`;
 
     card.innerHTML = `
-      <div>
-        <div class="model-card-header">
-          <div>
-            <h3 class="model-card-name">${modelName}</h3>
-            <span style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">${st.vram}</span>
-          </div>
-          <span class="model-tier-tag">${isChampion ? '🏆 MELHOR C/B GERAL' : '⚡ 16GB RECOMENDADA 4K'}</span>
+      <div class="model-card-header">
+        <div class="model-badge ${isChampion ? 'badge-champion' : 'badge-4k'}">
+          ${isChampion ? '🥇 MELHOR CUSTO X BENEFÍCIO' : '🥈 CAMPEÃ 4K NATIVO (16GB)'}
         </div>
+        <h3 class="model-title">${modelName}</h3>
+        <p class="model-tier-sub">${isChampion ? '1440p Ultra High Refresh / 4K DLSS' : '4K Ultra Nativo + Imunidade de VRAM'}</p>
+      </div>
 
-        <div class="specs-list">
-          <div class="spec-row">
-            <span class="spec-row-label">Consumo (TDP):</span>
-            <span class="spec-row-val">${st.tdp}</span>
-          </div>
-          <div class="spec-row">
-            <span class="spec-row-label">Desempenho Relativo:</span>
-            <span class="spec-row-val">${st.perf_index} pts</span>
-          </div>
-          <div class="spec-row">
-            <span class="spec-row-label">🎮 FPS 1440p Ultra:</span>
-            <span class="spec-row-val font-bold">${st.avg_fps_1440p} FPS</span>
-          </div>
-          <div class="spec-row">
-            <span class="spec-row-label">💸 R$/FPS (1440p):</span>
-            <span class="spec-row-val text-green font-bold">R$ ${st.cost_per_fps_1440p} / FPS</span>
-          </div>
-          <div class="spec-row spec-highlight-4k">
-            <span class="spec-row-label">🖥️ FPS 4K Nativo Ultra:</span>
-            <span class="spec-row-val font-bold text-accent">${st.avg_fps_4k} FPS</span>
-          </div>
-          <div class="spec-row spec-highlight-4k">
-            <span class="spec-row-label">💎 R$/FPS (4K Nativo):</span>
-            <span class="spec-row-val text-accent font-bold">R$ ${st.cost_per_fps_4k} / FPS</span>
-          </div>
+      <div class="model-pricing-highlight">
+        <div class="price-main">${formatCurrency(st.min_price)} <span class="price-type">à vista (PIX)</span></div>
+        <div class="price-15x-box">
+          <span class="inst-pill">15x de ${formatCurrency(st.min_installment_15x_val)}</span>
+          <span class="inst-total-note">Total ${formatCurrency(st.min_price_15x_total)} (+10% juros)</span>
+        </div>
+        <div class="best-offer-link-box">
+          <span style="font-size:0.8rem; color:var(--text-muted);">Menor preço na loja:</span>
+          <a href="${st.best_url}" target="_blank" class="store-mini-link">
+            ${st.best_store} - ${st.best_title.substring(0, 42)}... ↗
+          </a>
         </div>
       </div>
 
-      <div class="model-price-area">
-        <div class="price-cash-block">
-          <span class="model-price-label">Menor Preço à Vista (PIX c/ ~15% desc):</span>
-          <div class="model-price-val">${formatCurrency(st.min_price)}</div>
+      <div class="model-specs-list">
+        <div class="spec-row">
+          <span class="spec-name">Memória VRAM:</span>
+          <span class="spec-val font-mono">${st.vram}</span>
         </div>
-
-        <!-- Bloco 15x -->
-        <div class="model-15x-box">
-          <div class="model-15x-header">
-            <span>💳 Plano em 15x (+10% acréscimo):</span>
-            <span class="tag-15x">15x</span>
-          </div>
-          <div class="model-15x-val">${st.min_installment_15x_text} <span class="model-15x-sub">/ mês</span></div>
-          <div class="model-15x-total">Total a prazo: <strong>${formatCurrency(st.min_price_15x_total)}</strong></div>
+        <div class="spec-row">
+          <span class="spec-name">Consumo Térmico (TDP):</span>
+          <span class="spec-val font-mono">${st.tdp}</span>
         </div>
-
-        <div class="model-price-details">
-          <span>Melhor na <strong>${st.best_store}</strong></span>
-          <span>Méd: ${formatCurrency(st.avg_price)}</span>
+        <div class="spec-row">
+          <span class="spec-name">Desempenho 1440p:</span>
+          <span class="spec-val font-mono">${st.avg_fps_1440p} FPS Médio</span>
         </div>
+        <div class="spec-row">
+          <span class="spec-name">Desempenho 4K Nativo:</span>
+          <span class="spec-val font-mono">${st.avg_fps_4k} FPS Médio</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-name">Custo / FPS em 1440p:</span>
+          <span class="spec-val font-mono text-green">R$ ${st.cost_per_fps_1440p} / FPS</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-name">Custo / FPS em 4K:</span>
+          <span class="spec-val font-mono text-accent">R$ ${st.cost_per_fps_4k} / FPS</span>
+        </div>
+      </div>
 
-        <a href="${st.best_url}" target="_blank" class="btn btn-secondary" style="width:100%; margin-top:8px;">
-          Ver Oferta na ${st.best_store} ↗
+      <div class="model-card-footer">
+        <a href="${st.best_url}" target="_blank" class="btn btn-block ${isChampion ? 'btn-primary' : 'btn-secondary'}">
+          Comprar na ${st.best_store} ↗
         </a>
       </div>
     `;
+
     container.appendChild(card);
   });
 }
 
-// 5. Seção de Simulação em 15x
+// 7. Simulador de Parcelamento em 15x
 function renderSimulator15x(modelStats, rec) {
-  const container = document.getElementById('sim-15x-grid');
+  const container = document.getElementById('sim-15x-cards-grid');
   if (!container || !modelStats) return;
 
   const st5070 = modelStats['RTX 5070'];
   const st5070ti = modelStats['RTX 5070 Ti'];
   if (!st5070 || !st5070ti) return;
 
-  const diffMonth = st5070ti.min_installment_15x_val - st5070.min_installment_15x_val;
-  const diffTotal = st5070ti.min_price_15x_total - st5070.min_price_15x_total;
+  const diffCash = st5070ti.min_price - st5070.min_price;
+  const diff15x = st5070ti.min_installment_15x_val - st5070.min_installment_15x_val;
 
   container.innerHTML = `
-    <!-- Card 5070 -->
-    <div class="sim-15x-card-item">
-      <div class="sim-15x-card-top">
+    <div class="sim-15x-option-card winner-sim-card">
+      <div class="sim-card-badge">OPÇÃO MAIS ACESSÍVEL (15x)</div>
+      <div class="sim-card-header">
         <h3>RTX 5070 (12GB)</h3>
-        <span class="badge-mini-green">MAIS ACESSÍVEL</span>
+        <span class="sim-store-note">a partir de ${formatCurrency(st5070.min_price)} à vista</span>
       </div>
 
-      <div class="sim-15x-price-row">
-        <span class="sim-15x-inst-big">15x de ${formatCurrency(st5070.min_installment_15x_val)}</span>
-        <span class="sim-15x-cash-ref">ou ${formatCurrency(st5070.min_price)} no PIX à vista</span>
+      <div class="sim-monthly-big">
+        <span class="sim-currency">R$</span>
+        <span class="sim-number">${Math.floor(st5070.min_installment_15x_val)}</span>
+        <span class="sim-cents">,${(st5070.min_installment_15x_val % 1).toFixed(2).substring(2)}</span>
+        <span class="sim-per-month">/ mês em 15x</span>
       </div>
 
-      <ul class="sim-15x-details-list">
-        <li><strong>Total a prazo (15x):</strong> ${formatCurrency(st5070.min_price_15x_total)}</li>
-        <li><strong>R$ / FPS em 4K Nativo:</strong> R$ ${st5070.cost_per_fps_4k} (72 FPS)</li>
-        <li><strong>R$ / FPS em 1440p:</strong> R$ ${st5070.cost_per_fps_1440p} (115 FPS)</li>
-        <li><strong>Consumo:</strong> 250W (Fonte 650W recomendada)</li>
+      <p class="sim-math-desc">
+        Total parcelado: <strong>${formatCurrency(st5070.min_price_15x_total)}</strong> (preço a prazo +10% de acréscimo médio de 15 parcelas).
+      </p>
+
+      <ul class="sim-benefit-list">
+        <li>✔ Menor prestação mensal: apenas ~R$ ${Math.round(st5070.min_installment_15x_val)}/mês</li>
+        <li>✔ 115 FPS em 1440p Quad HD com DLSS 4</li>
+        <li>✔ 72 FPS sólidos em 4K Nativo</li>
+        <li>✔ Economia de ${formatCurrency(diffCash)} à vista vs 5070 Ti</li>
       </ul>
+
+      <a href="${st5070.best_url}" target="_blank" class="btn btn-block btn-primary">
+        Ver Melhor Oferta (15x) ↗
+      </a>
     </div>
 
-    <!-- Comparador Central de Decisão -->
-    <div class="sim-15x-bridge-card">
-      <div class="bridge-title">⚖️ SALTO DE CATEGORIA</div>
-      <div class="bridge-diff-val">+ ${formatCurrency(diffMonth)} <span style="font-size:0.9rem; font-weight:400; color:var(--text-sub);">/ mês em 15x</span></div>
-      <div class="bridge-diff-total">Diferença total de ${formatCurrency(diffTotal)}</div>
-      
-      <div class="bridge-benefits-box">
-        <div class="bridge-benefits-title">O que você ganha pagando +${formatCurrency(diffMonth)}/mês?</div>
-        <div class="bridge-benefit-item">✨ <strong>+4GB GDDR7</strong> (16GB no total)</div>
-        <div class="bridge-benefit-item">⚡ <strong>Barramento de 256-bit</strong> (896 GB/s de banda)</div>
-        <div class="bridge-benefit-item">🚀 <strong>+20 FPS em 4K Nativo</strong> (92 FPS vs 72 FPS)</div>
-        <div class="bridge-benefit-item">🛡️ <strong>Blindagem de 5+ anos</strong> contra falta de VRAM</div>
-      </div>
-    </div>
-
-    <!-- Card 5070 Ti -->
-    <div class="sim-15x-card-item highlight-ti">
-      <div class="sim-15x-card-top">
+    <div class="sim-15x-option-card">
+      <div class="sim-card-badge badge-blue">UPGRADE MÁXIMO 4K (16GB)</div>
+      <div class="sim-card-header">
         <h3>RTX 5070 Ti (16GB)</h3>
-        <span class="badge-mini-blue">LONGEVIDADE 4K</span>
+        <span class="sim-store-note">a partir de ${formatCurrency(st5070ti.min_price)} à vista</span>
       </div>
 
-      <div class="sim-15x-price-row">
-        <span class="sim-15x-inst-big text-accent">15x de ${formatCurrency(st5070ti.min_installment_15x_val)}</span>
-        <span class="sim-15x-cash-ref">ou ${formatCurrency(st5070ti.min_price)} no PIX à vista</span>
+      <div class="sim-monthly-big text-accent">
+        <span class="sim-currency">R$</span>
+        <span class="sim-number">${Math.floor(st5070ti.min_installment_15x_val)}</span>
+        <span class="sim-cents">,${(st5070ti.min_installment_15x_val % 1).toFixed(2).substring(2)}</span>
+        <span class="sim-per-month">/ mês em 15x</span>
       </div>
 
-      <ul class="sim-15x-details-list">
-        <li><strong>Total a prazo (15x):</strong> ${formatCurrency(st5070ti.min_price_15x_total)}</li>
-        <li><strong>R$ / FPS em 4K Nativo:</strong> R$ ${st5070ti.cost_per_fps_4k} (92 FPS)</li>
-        <li><strong>R$ / FPS em 1440p:</strong> R$ ${st5070ti.cost_per_fps_1440p} (145 FPS)</li>
-        <li><strong>Consumo:</strong> 300W (Fonte 750W recomendada)</li>
+      <p class="sim-math-desc">
+        Total parcelado: <strong>${formatCurrency(st5070ti.min_price_15x_total)}</strong> (+R$ ${diff15x.toFixed(2)}/mês a mais que a 5070).
+      </p>
+
+      <ul class="sim-benefit-list">
+        <li>✔ 16GB GDDR7 + Barramento 256-bit (896 GB/s)</li>
+        <li>✔ 92 FPS em 4K Nativo Ultra (+28% de performance)</li>
+        <li>✔ Imunidade total à falta de VRAM até 2030+</li>
+        <li>✔ Custa +R$ ${Math.round(diff15x)}/mês na parcela em 15x</li>
       </ul>
+
+      <a href="${st5070ti.best_url}" target="_blank" class="btn btn-block btn-secondary">
+        Ver Melhor Oferta (15x) ↗
+      </a>
     </div>
   `;
 }
 
-// 6. Gráficos Chart.js
+// 8. Gráficos Comparativos
 function renderCharts(modelStats) {
   if (!modelStats) return;
-
   const labels = ['RTX 5070', 'RTX 5070 Ti'];
-  const costFps1440p = labels.map(l => modelStats[l]?.cost_per_fps_1440p || 0);
-  const costFps4k = labels.map(l => modelStats[l]?.cost_per_fps_4k || 0);
-  const cashPrices = labels.map(l => modelStats[l]?.min_price || 0);
-  const inst15x = labels.map(l => modelStats[l]?.min_installment_15x_val || 0);
 
-  const ctx1 = document.getElementById('chart-cost-fps');
-  if (ctx1) {
+  // Gráfico 1: R$ por FPS
+  const ctxCost = document.getElementById('chart-cost-fps');
+  if (ctxCost) {
     if (chartCostFps) chartCostFps.destroy();
-    chartCostFps = new Chart(ctx1, {
+    chartCostFps = new Chart(ctxCost, {
       type: 'bar',
       data: {
         labels: labels,
         datasets: [
           {
-            label: 'Custo por FPS 1440p (R$)',
-            data: costFps1440p,
-            backgroundColor: '#76B900',
+            label: 'Custo por FPS em 1440p (R$/FPS)',
+            data: [modelStats['RTX 5070'].cost_per_fps_1440p, modelStats['RTX 5070 Ti'].cost_per_fps_1440p],
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderColor: '#10B981',
+            borderWidth: 1,
             borderRadius: 6
           },
           {
-            label: 'Custo por FPS 4K Nativo (R$)',
-            data: costFps4k,
-            backgroundColor: '#38bdf8',
+            label: 'Custo por FPS em 4K Nativo (R$/FPS)',
+            data: [modelStats['RTX 5070'].cost_per_fps_4k, modelStats['RTX 5070 Ti'].cost_per_fps_4k],
+            backgroundColor: 'rgba(56, 189, 248, 0.85)',
+            borderColor: '#38bdf8',
+            borderWidth: 1,
             borderRadius: 6
           }
         ]
@@ -458,55 +653,44 @@ function renderCharts(modelStats) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: '#c9d1d9', font: { family: 'Inter', size: 12 } } },
+          legend: { labels: { color: '#c9d1d9', font: { family: 'Outfit', size: 12 } } },
           tooltip: {
             callbacks: {
-              label: (ctx) => `${ctx.dataset.label}: R$ ${ctx.raw.toFixed(2)} por frame gerado`
+              label: ctx => ` ${ctx.dataset.label}: R$ ${ctx.parsed.y.toFixed(2)} por frame`
             }
           }
         },
         scales: {
-          x: { ticks: { color: '#8b949e' }, grid: { display: false } },
+          x: { ticks: { color: '#8b949e', font: { family: 'Outfit', weight: '600' } } },
           y: {
-            ticks: {
-              color: '#8b949e',
-              callback: (v) => `R$ ${v}`
-            },
-            grid: { color: 'rgba(255,255,255,0.06)' }
+            ticks: { color: '#8b949e', callback: v => `R$ ${v}` },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' }
           }
         }
       }
     });
   }
 
-  const ctx2 = document.getElementById('chart-perf-price');
-  if (ctx2) {
+  // Gráfico 2: Desempenho vs Preço
+  const ctxPerf = document.getElementById('chart-perf-price');
+  if (ctxPerf) {
     if (chartPerfPrice) chartPerfPrice.destroy();
-    chartPerfPrice = new Chart(ctx2, {
+    chartPerfPrice = new Chart(ctxPerf, {
       type: 'bar',
       data: {
         labels: labels,
         datasets: [
           {
-            type: 'bar',
-            label: 'Preço à Vista PIX (R$)',
-            data: cashPrices,
-            backgroundColor: 'rgba(168, 85, 247, 0.4)',
-            borderColor: '#a855f7',
-            borderWidth: 1.5,
-            yAxisID: 'yCash',
+            label: 'FPS Médio 1440p',
+            data: [modelStats['RTX 5070'].avg_fps_1440p, modelStats['RTX 5070 Ti'].avg_fps_1440p],
+            backgroundColor: 'rgba(16, 185, 129, 0.7)',
             borderRadius: 6
           },
           {
-            type: 'line',
-            label: 'Prestação Mensal 15x (R$)',
-            data: inst15x,
-            borderColor: '#eab308',
-            backgroundColor: '#eab308',
-            yAxisID: 'yInst',
-            pointRadius: 6,
-            pointBackgroundColor: '#eab308',
-            borderWidth: 2.5
+            label: 'FPS Médio 4K Nativo',
+            data: [modelStats['RTX 5070'].avg_fps_4k, modelStats['RTX 5070 Ti'].avg_fps_4k],
+            backgroundColor: 'rgba(56, 189, 248, 0.7)',
+            borderRadius: 6
           }
         ]
       },
@@ -514,32 +698,18 @@ function renderCharts(modelStats) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: '#c9d1d9', font: { family: 'Inter', size: 12 } } },
+          legend: { labels: { color: '#c9d1d9', font: { family: 'Outfit', size: 12 } } },
           tooltip: {
             callbacks: {
-              label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}`
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} FPS`
             }
           }
         },
         scales: {
-          x: { ticks: { color: '#8b949e' }, grid: { display: false } },
-          yCash: {
-            type: 'linear',
-            position: 'left',
-            ticks: {
-              color: '#a855f7',
-              callback: (v) => `R$ ${v/1000}k`
-            },
-            grid: { color: 'rgba(255,255,255,0.06)' }
-          },
-          yInst: {
-            type: 'linear',
-            position: 'right',
-            ticks: {
-              color: '#eab308',
-              callback: (v) => `R$ ${v}`
-            },
-            grid: { display: false }
+          x: { ticks: { color: '#8b949e', font: { family: 'Outfit', weight: '600' } } },
+          y: {
+            ticks: { color: '#8b949e', callback: v => `${v} FPS` },
+            grid: { color: 'rgba(255, 255, 255, 0.05)' }
           }
         }
       }
@@ -547,7 +717,7 @@ function renderCharts(modelStats) {
   }
 }
 
-// 7. Simulador de Orçamento
+// 9. Simulador de Orçamento
 function updateBudgetSimulation() {
   const slider = document.getElementById('budget-slider');
   const display = document.getElementById('budget-value-display');
@@ -558,10 +728,10 @@ function updateBudgetSimulation() {
   display.textContent = formatCurrency(budget);
 
   const stats = globalData.model_stats;
-  const p5070 = stats['RTX 5070']?.min_price || 4899.99;
-  const p5070ti = stats['RTX 5070 Ti']?.min_price || 8199.99;
-  const inst5070 = stats['RTX 5070']?.min_installment_15x_val || 422.74;
-  const inst5070ti = stats['RTX 5070 Ti']?.min_installment_15x_val || 707.45;
+  const p5070 = stats['RTX 5070']?.min_price || 4859.99;
+  const p5070ti = stats['RTX 5070 Ti']?.min_price || 7899.99;
+  const inst5070 = stats['RTX 5070']?.min_installment_15x_val || 419.29;
+  const inst5070ti = stats['RTX 5070 Ti']?.min_installment_15x_val || 681.45;
 
   let recommendedModel = '';
   let tip = '';
@@ -575,16 +745,16 @@ function updateBudgetSimulation() {
     instEquivalent = `Ou parcele em 15x de ${formatCurrency(inst5070ti)}/mês`;
     tip = `Excelente escolha! A 5070 Ti entrega 16GB de VRAM ideal para 4K Nativo e Path Tracing. Sobram ${formatCurrency(leftover)} no bolso para o restante do setup.`;
   } else if (budget >= p5070) {
-    recommendedModel = 'NVIDIA GeForce RTX 5070 (12GB)';
+    recommendedModel = 'NVIDIA GeForce RTX 5070 (12GB Triplo Fan)';
     leftover = budget - p5070;
     neededForNext = p5070ti - budget;
     instEquivalent = `Ou parcele em 15x de ${formatCurrency(inst5070)}/mês`;
-    tip = `Campeã de Custo x Benefício! Roda 4K Nativo a 72 FPS e 1440p Ultra com folga. Sobram ${formatCurrency(leftover)} no bolso (ou complete com ${formatCurrency(neededForNext)} para os 16GB da 5070 Ti).`;
+    tip = `Campeã de Custo x Benefício! A Gainward Python III Triplo Fan roda 4K Nativo a 72 FPS e 1440p Ultra com folga. Sobram ${formatCurrency(leftover)} no bolso.`;
   } else {
     recommendedModel = 'Orçamento Abaixo do Valor à Vista';
     neededForNext = p5070 - budget;
     instEquivalent = `Você pode parcelar a 5070 em 15x de ${formatCurrency(inst5070)}/mês!`;
-    tip = `A placa mais em conta da nova geração (RTX 5070) custa ${formatCurrency(p5070)} à vista. Se preferir parcelar em 15x com +10% de acréscimo, a prestação fica em apenas ${formatCurrency(inst5070)}/mês.`;
+    tip = `A placa mais em conta com 3 fans (Gainward Python III) custa ${formatCurrency(p5070)} à vista. Se preferir parcelar em 15x com +10% de acréscimo, a prestação fica em apenas ${formatCurrency(inst5070)}/mês.`;
   }
 
   resultBox.innerHTML = `
@@ -603,7 +773,7 @@ function updateBudgetSimulation() {
   `;
 }
 
-// 8. Tabela Geral de Ofertas
+// 10. Tabela Geral de Ofertas com Filtros de Promoção e Fans
 function renderOffersTable() {
   if (!globalData || !globalData.offers) return;
 
@@ -611,6 +781,7 @@ function renderOffersTable() {
   const countLabel = document.getElementById('offers-count-label');
   const filterModel = document.getElementById('filter-model').value;
   const filterStore = document.getElementById('filter-store').value;
+  const filterPromo = document.getElementById('filter-promo')?.value || 'ALL';
   const filterPayment = document.getElementById('filter-payment').value;
   const filterSort = document.getElementById('filter-sort').value;
 
@@ -622,6 +793,12 @@ function renderOffersTable() {
 
   if (filterStore !== 'ALL') {
     offers = offers.filter(o => o.store_key === filterStore);
+  }
+
+  if (filterPromo === 'promo_only') {
+    offers = offers.filter(o => o.is_limited_promo);
+  } else if (filterPromo === 'triple_only') {
+    offers = offers.filter(o => (o.cooling_type || '').includes('Triplo') || o.title.includes('3X') || o.title.includes('Python III') || o.title.includes('Infinity 3'));
   }
 
   offers.sort((a, b) => {
@@ -661,6 +838,10 @@ function renderOffersTable() {
     const inst15xVal = o.installment_15x_val || Math.round((o.price_card * 1.10) / 15 * 100) / 100;
     const price15xTotal = o.price_15x_total || Math.round(o.price_card * 1.10 * 100) / 100;
 
+    const isTripleFan = (o.cooling_type || '').includes('Triplo') || o.title.includes('3X') || o.title.includes('Python III') || o.title.includes('Infinity 3');
+    const fanTag = isTripleFan ? '<span class="tag-cooling-inline triple">❄️ 3 Fans</span>' : '<span class="tag-cooling-inline dual">🌬️ 2 Fans</span>';
+    const promoTag = o.is_limited_promo ? `<span class="tag-promo-inline pulse-glow">${o.promo_badge || '⚡ Promoção'}</span>` : '';
+
     tr.innerHTML = `
       <td>
         <span class="store-tag ${storeClass}">${o.store_logo || o.store}</span>
@@ -672,6 +853,12 @@ function renderOffersTable() {
       <td class="gpu-title-cell">
         <span class="gpu-name-bold">${o.brand}</span>
         <span class="gpu-subinfo">${o.title}</span>
+      </td>
+      <td>
+        <div class="cooling-promo-cell">
+          ${fanTag}
+          ${promoTag}
+        </div>
       </td>
       <td class="text-right">
         <span class="price-cash-highlight">${formatCurrency(o.price_cash)}</span>
@@ -707,7 +894,7 @@ function renderOffersTable() {
   });
 }
 
-// 9. Seção Tecnológica DLSS 5 (Novembro/2026)
+// 11. Seção Tecnológica DLSS 5 (Novembro/2026)
 function renderDLSS5Section(rec) {
   if (!rec || !rec.dlss5_analysis) return;
 
@@ -748,7 +935,7 @@ function renderDLSS5Section(rec) {
   }
 }
 
-// 10. Parecer Técnico
+// 12. Parecer Técnico
 function renderVerdict(rec) {
   if (!rec) return;
 
@@ -760,44 +947,53 @@ function renderVerdict(rec) {
 
   container.innerHTML = '';
 
-  rec.detailed_points.forEach(item => {
+  rec.detailed_points.forEach(pt => {
     const card = document.createElement('div');
-    card.className = 'verdict-item-card';
+    card.className = 'verdict-point-card';
 
-    const prosHtml = item.pros.map(p => `<li>${p}</li>`).join('');
-    const consHtml = item.cons.map(c => `<li>${c}</li>`).join('');
+    let prosList = pt.pros.map(p => `<li><span class="pro-icon">✔</span> ${p}</li>`).join('');
+    let consList = pt.cons.map(c => `<li><span class="con-icon">✖</span> ${c}</li>`).join('');
 
     card.innerHTML = `
-      <div class="verdict-item-header">
-        <span class="verdict-rank-cat">${item.category}</span>
-        <span class="verdict-badge-pill" style="background:${item.badge_color};">${item.badge}</span>
+      <div class="verdict-point-header">
+        <span class="verdict-category-badge" style="background:${pt.badge_color};">${pt.badge}</span>
+        <h3 class="verdict-model-title">${pt.model}</h3>
+        <div class="verdict-price-tag">${pt.price_ref}</div>
+        <div class="verdict-15x-tag">${pt.price_15x}</div>
       </div>
 
-      <h3 class="verdict-item-title">${item.model}</h3>
-      <div class="verdict-item-price">${item.price_ref}</div>
-      <div class="verdict-item-15x" style="font-family:var(--font-mono); font-size:0.85rem; color:#eab308; margin-bottom:8px; font-weight:700;">
-        💳 ${item.price_15x || ''}
-      </div>
-      <div class="verdict-item-fps" style="font-size:0.82rem; color:var(--text-sub); margin-bottom:14px;">
-        🎮 1440p: <strong>${item.fps_1440p}</strong> (${item.cost_fps_1440p}) | 🖥️ 4K Nativo: <strong>${item.fps_4k}</strong> (${item.cost_fps_4k})
-      </div>
-      <p class="verdict-item-text">${item.why_choose}</p>
+      <div class="verdict-point-body">
+        <div class="verdict-metrics-row">
+          <div class="verdict-metric-item">
+            <span class="v-label">FPS 1440p Ultra:</span>
+            <span class="v-val font-mono">${pt.fps_1440p}</span>
+          </div>
+          <div class="verdict-metric-item">
+            <span class="v-label">FPS 4K Nativo:</span>
+            <span class="v-val font-mono">${pt.fps_4k}</span>
+          </div>
+        </div>
 
-      <div class="pros-cons-box">
-        <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px; font-weight:700;">Pontos Fortes:</div>
-        <ul class="pros-list" style="margin-bottom:12px;">${prosHtml}</ul>
-        
-        <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px; font-weight:700;">Atenção & Limitações:</div>
-        <ul class="cons-list">${consHtml}</ul>
+        <p class="verdict-why-text">${pt.why_choose}</p>
+
+        <div class="pros-cons-grid">
+          <div class="pros-box">
+            <h4>Pontos Fortes:</h4>
+            <ul>${prosList}</ul>
+          </div>
+          <div class="cons-box">
+            <h4>Considerações:</h4>
+            <ul>${consList}</ul>
+          </div>
+        </div>
       </div>
     `;
+
     container.appendChild(card);
   });
 }
 
 function formatCurrency(val) {
   if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
-  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
-
-

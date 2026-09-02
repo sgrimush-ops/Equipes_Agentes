@@ -31,12 +31,29 @@ def init_db():
             gpu_model TEXT NOT NULL,
             brand TEXT NOT NULL,
             title TEXT NOT NULL,
+            cooling_type TEXT,
             price_cash REAL NOT NULL,
             price_card REAL NOT NULL,
             url TEXT,
+            is_limited_promo INTEGER DEFAULT 0,
+            promo_badge TEXT,
             in_stock INTEGER DEFAULT 1
         )
     ''')
+    
+    # Adicionar colunas se tabela ja existia
+    try:
+        cursor.execute("ALTER TABLE daily_snapshots ADD COLUMN cooling_type TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_snapshots ADD COLUMN is_limited_promo INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_snapshots ADD COLUMN promo_badge TEXT")
+    except Exception:
+        pass
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS daily_aggregates (
@@ -87,8 +104,8 @@ def save_daily_snapshot(offers: List[Dict[str, Any]], target_date: Optional[str]
     for o in valid_offers:
         cursor.execute('''
             INSERT INTO daily_snapshots (
-                date, timestamp, store, store_key, gpu_model, brand, title, price_cash, price_card, url, in_stock
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                date, timestamp, store, store_key, gpu_model, brand, title, cooling_type, price_cash, price_card, url, is_limited_promo, promo_badge, in_stock
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             date_str,
             timestamp_str,
@@ -97,9 +114,12 @@ def save_daily_snapshot(offers: List[Dict[str, Any]], target_date: Optional[str]
             o.get('gpu_model', ''),
             o.get('brand', ''),
             o.get('title', ''),
+            o.get('cooling_type', 'Dual / Triplo Fan'),
             float(o.get('price_cash', 0)),
             float(o.get('price_card', 0)),
             o.get('url', ''),
+            1 if o.get('is_limited_promo') else 0,
+            o.get('promo_badge', ''),
             1 if o.get('in_stock', True) else 0
         ))
 

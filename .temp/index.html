@@ -173,6 +173,57 @@
       </div>
     </section>
 
+    <!-- NOVA SEÇÃO: TOP 3 MELHORES OPÇÕES POR LOJA -->
+    <section class="top-store-section" id="top-store-section">
+      <div class="section-title-bar top-store-header-flex">
+        <div>
+          <div class="badge-pill-store">🏆 PODIUM OFICIAL POR LOJA</div>
+          <h2>As 3 Melhores Opções de Cada Site</h2>
+          <p>Classificação rigorosa por Menor Preço, Refrigeração (Triplo Fan) e Custo x Benefício em cada parceiro</p>
+        </div>
+
+        <!-- Seletor de Modelo para o Top 3 -->
+        <div class="top-store-controls">
+          <div class="store-tabs-nav" id="store-tabs-nav">
+            <button class="btn-store-tab active" onclick="switchStoreTab('all')">🏬 Todas as 3 Lojas</button>
+            <button class="btn-store-tab tab-pichau" onclick="switchStoreTab('pichau')">🔴 Pichau</button>
+            <button class="btn-store-tab tab-terabyte" onclick="switchStoreTab('terabyte')">🟢 TerabyteShop</button>
+            <button class="btn-store-tab tab-kabum" onclick="switchStoreTab('kabum')">🟠 KaBuM!</button>
+          </div>
+
+          <div class="model-toggle-pill">
+            <button class="btn-model-toggle active" id="btn-top-5070" onclick="switchTopModel('RTX 5070')">RTX 5070 (12GB)</button>
+            <button class="btn-model-toggle" id="btn-top-5070ti" onclick="switchTopModel('RTX 5070 Ti')">RTX 5070 Ti (16GB)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Container das 3 Lojas -->
+      <div class="top-store-container" id="top-store-container">
+        <!-- Inserido dinamicamente via JS -->
+      </div>
+    </section>
+
+    <!-- NOVA SEÇÃO: RADAR DE PROMOÇÕES POR TEMPO LIMITADO -->
+    <section class="limited-promos-section" id="limited-promos-section">
+      <div class="limited-promos-card">
+        <div class="limited-promos-header">
+          <div class="pulse-indicator">
+            <span class="pulse-dot"></span>
+            <span class="pulse-text">⚡ RADAR DE OFERTAS POR TEMPO LIMITADO & RELÂMPAGO</span>
+          </div>
+          <span class="promo-count-badge" id="promo-count-badge">Carregando promoções...</span>
+        </div>
+        <p class="limited-promos-subtitle">
+          Monitoramento em tempo real de lotes com desconto agressivo, Ofertas Ninja, queimas de estoque e preços especiais com prazo ou quantidade restrita:
+        </p>
+
+        <div class="promos-cards-grid" id="promos-cards-grid">
+          <!-- Inserido dinamicamente via JS -->
+        </div>
+      </div>
+    </section>
+
     <!-- SEÇÃO DEDICADA: SIMULADOR DE PARCELAMENTO EM 15X -->
     <section class="simulator-15x-section" id="simulator-15x-section">
       <div class="sim-15x-card">
@@ -295,6 +346,15 @@
           </div>
 
           <div class="filter-group">
+            <label>Promoção / Fans:</label>
+            <select id="filter-promo" onchange="renderOffersTable()">
+              <option value="ALL">Todas as Ofertas</option>
+              <option value="promo_only">⚡ Apenas Promoções / Ofertas Limitadas</option>
+              <option value="triple_only">❄️ Apenas Triplo Fan (3 Fans)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
             <label>Pagamento:</label>
             <select id="filter-payment" onchange="renderOffersTable()">
               <option value="cash">À Vista (PIX / Boleto)</option>
@@ -325,6 +385,7 @@
               <th>Loja</th>
               <th>Modelo & Specs</th>
               <th>Placa / Fabricante</th>
+              <th>Refrigeração & Destaque</th>
               <th class="text-right">Preço à Vista (PIX)</th>
               <th class="text-right">Prestação 15x</th>
               <th class="text-center">R$ / FPS (1440p)</th>
@@ -390,7 +451,7 @@
           <div class="store-guide-grid">
             <div class="store-guide-item pichau-border">
               <h4>🔴 Pichau</h4>
-              <p>Melhor precificação à vista no PIX para os modelos de entrada (ex: Galax RTX 5070). Se você vai pagar à vista, é frequentemente a mais barata.</p>
+              <p>Melhor precificação à vista no PIX para modelos de alto desempenho (ex: Gainward RTX 5070 Python III Triplo Fan). Excelente custo-benefício e opções de 3 ventoinhas ao menor preço.</p>
             </div>
             <div class="store-guide-item terabyte-border">
               <h4>🟢 TerabyteShop</h4>

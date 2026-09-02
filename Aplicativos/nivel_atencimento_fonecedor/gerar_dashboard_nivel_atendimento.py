@@ -19,6 +19,7 @@ def formatar_numero(valor, decimais=2):
 def gerar_dashboard():
     base_dir = Path(r"C:\Users\usr\Downloads\Equipes_Agentes\Aplicativos")
     input_file = base_dir / "import_querys" / "ped_pendente_fornecedor.txt"
+    parquet_file = base_dir / "import_querys" / "query.parquet"
     output_dir = base_dir / "nivel_atencimento_fonecedor"
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -38,7 +39,7 @@ def gerar_dashboard():
 
     print(f"Total de registros carregados: {len(df):,}")
 
-    # Tratamento e Saneamento das Colunas
+    # Tratamento e Saneamento das Colunas Principais do Pedido
     cols_num = ['QTD_EMBALAGEM', 'QUANTIDADE_PEDIDA', 'QUANTIDADE_ATENDIDA', 'PERC_ATENDIMENTO']
     for col in cols_num:
         if col in df.columns:
@@ -68,6 +69,53 @@ def gerar_dashboard():
     df['CODIGO_PRODUTO'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(0).astype(int)
     df['DESCRICAO'] = df['DESCRICAO'].fillna('').astype(str).str.strip()
 
+    # Enriquecimento com Estoque Atual da Loja e Venda de 90 Dias (query.parquet)
+    if parquet_file.exists():
+        print(f"Lendo base de estoque e vendas: {parquet_file}...")
+        df_pq = pd.read_parquet(
+            parquet_file,
+            columns=['CODIGO_EMPRESA', 'CODIGO_PRODUTO', 'QUANTIDADE_DISPONIVEL', 'QTD_VENDIDA_PERIODO']
+        )
+        df_pq['CODIGO_EMPRESA'] = pd.to_numeric(df_pq['CODIGO_EMPRESA'], errors='coerce').fillna(0).astype(int)
+        df_pq['CODIGO_PRODUTO'] = pd.to_numeric(df_pq['CODIGO_PRODUTO'], errors='coerce').fillna(0).astype(int)
+
+        for col in ['QUANTIDADE_DISPONIVEL', 'QTD_VENDIDA_PERIODO']:
+            df_pq[col] = df_pq[col].astype(str).str.replace(',', '.', regex=False)
+            df_pq[col] = pd.to_numeric(df_pq[col], errors='coerce').fillna(0.0)
+
+        df = df.merge(
+            df_pq[['CODIGO_EMPRESA', 'CODIGO_PRODUTO', 'QUANTIDADE_DISPONIVEL', 'QTD_VENDIDA_PERIODO']],
+            left_on=['LOJA_DESTINO', 'CODIGO_PRODUTO'],
+            right_on=['CODIGO_EMPRESA', 'CODIGO_PRODUTO'],
+            how='left'
+        )
+        df['QUANTIDADE_DISPONIVEL'] = df['QUANTIDADE_DISPONIVEL'].fillna(0.0)
+        df['QTD_VENDIDA_PERIODO'] = df['QTD_VENDIDA_PERIODO'].fillna(0.0)
+    else:
+        print(f"Aviso: Arquivo Parquet não encontrado em {parquet_file}")
+        df['QUANTIDADE_DISPONIVEL'] = 0.0
+        df['QTD_VENDIDA_PERIODO'] = 0.0
+
+    df['ESTOQUE_ATUAL'] = df['QUANTIDADE_DISPONIVEL']
+    df['VENDA_90_DIAS'] = df['QTD_VENDIDA_PERIODO']
+    df['VENDA_MEDIA_DIA'] = (df['VENDA_90_DIAS'] / 90.0).round(2)
+
+    # Cálculo da Permanência de Estoque em Dias
+    # Se venda > 0 e estoque > 0 -> estoque / (venda_90d / 90) = (estoque * 90) / venda_90d
+    # Se venda == 0 e estoque > 0 -> 999.0 (Sem giro/venda nos 90 dias)
+    # Se estoque <= 0 -> 0.0 (Ruptura/Zerado)
+    condicoes_est = [
+        (df['VENDA_90_DIAS'] > 0) & (df['ESTOQUE_ATUAL'] > 0),
+        (df['VENDA_90_DIAS'] <= 0) & (df['ESTOQUE_ATUAL'] > 0),
+        (df['ESTOQUE_ATUAL'] <= 0)
+    ]
+    escolhas_est = [
+        ((df['ESTOQUE_ATUAL'] * 90.0) / df['VENDA_90_DIAS']).round(1),
+        999.0,
+        0.0
+    ]
+    df['DIAS_ESTOQUE'] = np.select(condicoes_est, escolhas_est, default=0.0)
+
     # Identificar período global
     datas_dt = pd.to_datetime(df['DATA_EMISSAO'], format='%d/%m/%Y', errors='coerce').dropna()
     min_data_iso = datas_dt.min().strftime('%Y-%m-%d') if not datas_dt.empty else ""
@@ -82,21 +130,24 @@ def gerar_dashboard():
     dados_tabela = []
     for row in df.itertuples(index=False):
         dados_tabela.append([
-            row.COMPRADOR,
-            row.FORNECEDOR,
-            str(row.NUMERO_PEDIDO),
-            int(row.LOJA_DESTINO),
-            str(row.DATA_EMISSAO) if pd.notna(row.DATA_EMISSAO) else "",
-            str(row.DATA_PREV_ENTREGA) if pd.notna(row.DATA_PREV_ENTREGA) else "",
-            str(row.DATA_LIMITE_ENTREGA) if pd.notna(row.DATA_LIMITE_ENTREGA) else "",
-            int(row.CODIGO_PRODUTO),
-            row.DESCRICAO,
-            float(row.QTD_EMBALAGEM),
-            float(row.QUANTIDADE_PEDIDA),
-            float(row.QUANTIDADE_ATENDIDA),
-            float(row.PERC_ATENDIMENTO),
-            row.STATUS_ENTREGA_NORM,
-            row.STATUS_PEDIDO_NORM
+            row.COMPRADOR,                                                       # 0
+            row.FORNECEDOR,                                                      # 1
+            str(row.NUMERO_PEDIDO),                                              # 2
+            int(row.LOJA_DESTINO),                                               # 3
+            str(row.DATA_EMISSAO) if pd.notna(row.DATA_EMISSAO) else "",        # 4
+            str(row.DATA_PREV_ENTREGA) if pd.notna(row.DATA_PREV_ENTREGA) else "", # 5
+            str(row.DATA_LIMITE_ENTREGA) if pd.notna(row.DATA_LIMITE_ENTREGA) else "", # 6
+            int(row.CODIGO_PRODUTO),                                             # 7
+            row.DESCRICAO,                                                       # 8
+            float(row.QTD_EMBALAGEM),                                            # 9
+            float(row.ESTOQUE_ATUAL),                                            # 10 (Estoque Loja)
+            float(row.VENDA_MEDIA_DIA),                                          # 11 (Venda Média / Dia)
+            float(row.DIAS_ESTOQUE),                                             # 12 (Dias de Estoque)
+            float(row.QUANTIDADE_PEDIDA),                                        # 13
+            float(row.QUANTIDADE_ATENDIDA),                                      # 14
+            float(row.PERC_ATENDIMENTO),                                         # 15
+            row.STATUS_ENTREGA_NORM,                                             # 16
+            row.STATUS_PEDIDO_NORM                                               # 17
         ])
 
     json_dados_tabela = json.dumps(dados_tabela, ensure_ascii=False)
@@ -118,11 +169,20 @@ def gerar_dashboard():
     for f in fornecedores:
         options_fornecedores += f'<option value="{f}">\n'
 
-    # Exportar Excel estruturado
+    # Exportar Excel estruturado com as novas métricas
     try:
-        print("Exportando resumo em Excel...")
+        print("Exportando base enriquecida em Excel...")
+        cols_export = [
+            'COMPRADOR', 'FORNECEDOR', 'NUMERO_PEDIDO', 'LOJA_DESTINO',
+            'DATA_EMISSAO', 'DATA_PREV_ENTREGA', 'DATA_LIMITE_ENTREGA',
+            'CODIGO_PRODUTO', 'DESCRICAO', 'QTD_EMBALAGEM',
+            'ESTOQUE_ATUAL', 'VENDA_90_DIAS', 'VENDA_MEDIA_DIA', 'DIAS_ESTOQUE',
+            'QUANTIDADE_PEDIDA', 'QUANTIDADE_ATENDIDA', 'PERC_ATENDIMENTO',
+            'STATUS_ENTREGA', 'STATUS_PEDIDO'
+        ]
+        cols_export_existentes = [c for c in cols_export if c in df.columns]
         with pd.ExcelWriter(excel_output, engine='openpyxl') as writer:
-            df.head(10000).to_excel(writer, sheet_name='Amostra_Pedidos', index=False)
+            df[cols_export_existentes].head(20000).to_excel(writer, sheet_name='Nivel_Atendimento', index=False)
         print(f"Arquivo Excel gerado: {excel_output}")
     except Exception as e:
         print(f"Aviso Excel: {e}")
@@ -441,15 +501,21 @@ def gerar_dashboard():
             text-transform: uppercase;
             font-size: 0.68rem;
             letter-spacing: 0.5px;
-            padding: 10px 12px;
+            padding: 10px 10px;
             border-bottom: 2px solid var(--card-border);
             position: sticky;
             top: 0;
             z-index: 10;
         }}
 
+        .th-estoque-destaque {{
+            background-color: #172554 !important;
+            color: #93c5fd !important;
+            border-bottom: 2px solid #3b82f6 !important;
+        }}
+
         .custom-table td {{
-            padding: 8px 12px;
+            padding: 7px 10px;
             border-bottom: 1px solid #243247;
             vertical-align: middle;
         }}
@@ -747,12 +813,15 @@ def gerar_dashboard():
                             <th onclick="ordenarPor(6)" style="cursor: pointer; text-align: center;">Limite <i class="fa-solid fa-sort small text-muted"></i></th>
                             <th onclick="ordenarPor(7)" style="cursor: pointer; text-align: center;">Cód. Prod <i class="fa-solid fa-sort small text-muted"></i></th>
                             <th onclick="ordenarPor(8)" style="cursor: pointer;">Descrição do Produto <i class="fa-solid fa-sort small text-muted"></i></th>
-                            <th style="text-align: center;">Emb</th>
-                            <th onclick="ordenarPor(10)" style="cursor: pointer; text-align: right;">Qtd Ped (Cx) <i class="fa-solid fa-sort small text-muted"></i></th>
-                            <th onclick="ordenarPor(11)" style="cursor: pointer; text-align: right;">Qtd Atend (Cx) <i class="fa-solid fa-sort small text-muted"></i></th>
-                            <th onclick="ordenarPor(12)" style="cursor: pointer; text-align: center;">% Atend <i class="fa-solid fa-sort small text-muted"></i></th>
-                            <th onclick="ordenarPor(13)" style="cursor: pointer; text-align: center;">Status Entrega <i class="fa-solid fa-sort small text-muted"></i></th>
-                            <th style="text-align: center;">Status Ped</th>
+                            <th onclick="ordenarPor(9)" style="cursor: pointer; text-align: center;">Emb <i class="fa-solid fa-sort small text-muted"></i></th>
+                            <th onclick="ordenarPor(10)" class="th-estoque-destaque" style="cursor: pointer; text-align: right;" title="Estoque Físico Atual do Produto na Loja">Estoque Loja <i class="fa-solid fa-sort small text-info"></i></th>
+                            <th onclick="ordenarPor(11)" class="th-estoque-destaque" style="cursor: pointer; text-align: right;" title="Venda Média Diária (Base 90 Dias)">Vda Méd/Dia <i class="fa-solid fa-sort small text-info"></i></th>
+                            <th onclick="ordenarPor(12)" class="th-estoque-destaque" style="cursor: pointer; text-align: center;" title="Dias de Estoque / Permanência na Loja com base na Venda Média">Dias Est. <i class="fa-solid fa-sort small text-info"></i></th>
+                            <th onclick="ordenarPor(13)" style="cursor: pointer; text-align: right;">Qtd Ped (Cx) <i class="fa-solid fa-sort small text-muted"></i></th>
+                            <th onclick="ordenarPor(14)" style="cursor: pointer; text-align: right;">Qtd Atend (Cx) <i class="fa-solid fa-sort small text-muted"></i></th>
+                            <th onclick="ordenarPor(15)" style="cursor: pointer; text-align: center;">% Atend <i class="fa-solid fa-sort small text-muted"></i></th>
+                            <th onclick="ordenarPor(16)" style="cursor: pointer; text-align: center;">Status Entrega <i class="fa-solid fa-sort small text-muted"></i></th>
+                            <th onclick="ordenarPor(17)" style="cursor: pointer; text-align: center;">Status Ped <i class="fa-solid fa-sort small text-muted"></i></th>
                         </tr>
                     </thead>
                     <tbody id="tabela-pedidos-body">
@@ -868,11 +937,14 @@ def gerar_dashboard():
             for (let i = 0; i < datasetBase.length; i++) {{
                 const d = datasetBase[i];
                 const forn = d[1];
-                const status = d[13];
                 const codProd = d[7];
                 const descProd = d[8];
-                const qtdPed = d[10];
-                const qtdAtend = d[11];
+                const estAtual = d[10];
+                const vdaMedDia = d[11];
+                const diasEst = d[12];
+                const qtdPed = d[13];
+                const qtdAtend = d[14];
+                const status = d[16];
 
                 if (!fornMap[forn]) {{
                     fornMap[forn] = {{
@@ -986,7 +1058,7 @@ def gerar_dashboard():
 
                         <div class="mt-1 pt-1 border-top border-secondary border-opacity-25">
                             <div class="text-secondary small fw-semibold mb-1" style="font-size: 0.7rem;">
-                                <i class="fa-solid fa-boxes-stacked text-danger me-1"></i> Produtos que mais falham na entrega (Clique para abrir na tabela):
+                                <i class="fa-solid fa-boxes-stacked text-danger me-1"></i> Itens Críticos do Fornecedor (Clique para detalhar):
                             </div>
                             ${{prodsHtml || '<div class="text-muted small" style="font-size: 0.7rem;">Sem falhas registradas no período.</div>'}}
                         </div>
@@ -1020,7 +1092,7 @@ def gerar_dashboard():
 
             // Filtragem base (comprador, loja, fornecedor, produto, datas)
             let base = masterData.filter(d => {{
-                // d[0] = Comprador, d[1] = Fornecedor, d[3] = Loja, d[4] = Data Emissão, d[7] = Cod Prod, d[8] = Descricao, d[13] = Status Entrega
+                // d[0] = Comprador, d[1] = Fornecedor, d[3] = Loja, d[4] = Data Emissão, d[7] = Cod Prod, d[8] = Descricao, d[16] = Status Entrega
                 if (comprador !== "TODOS" && d[0] !== comprador) return false;
                 if (loja !== "TODAS" && d[3] !== parseInt(loja)) return false;
                 
@@ -1059,7 +1131,7 @@ def gerar_dashboard():
             if (statusSelecionado === 'TODOS') {{
                 dadosFiltrados = base;
             }} else {{
-                dadosFiltrados = base.filter(d => d[13] === statusSelecionado);
+                dadosFiltrados = base.filter(d => d[16] === statusSelecionado);
             }}
 
             // Atualizar KPIs
@@ -1076,7 +1148,7 @@ def gerar_dashboard():
             let cTot = 0, cAtraso = 0, cNaoAtend = 0, cAguard = 0;
 
             for (let i = 0; i < dataset.length; i++) {{
-                const st = dataset[i][13];
+                const st = dataset[i][16];
                 if (st === 'TOT_ATEND') cTot++;
                 else if (st === 'ATRASO') cAtraso++;
                 else if (st === 'NÃO_.ATENDIDO') cNaoAtend++;
@@ -1120,7 +1192,7 @@ def gerar_dashboard():
 
             for (let i = 0; i < totalLinhas; i++) {{
                 setPedidos.add(dataset[i][2]);
-                const st = dataset[i][13];
+                const st = dataset[i][16];
                 if (st === 'TOT_ATEND') cTot++;
                 else if (st === 'ATRASO') cAtraso++;
                 else if (st === 'NÃO_.ATENDIDO') cNaoAtend++;
@@ -1210,7 +1282,7 @@ def gerar_dashboard():
             tbody.innerHTML = "";
 
             if (dadosPagina.length === 0) {{
-                tbody.innerHTML = `<tr><td colspan="15" class="text-center py-4 text-secondary" style="font-size: 0.8rem;">Nenhum registro encontrado para os filtros selecionados.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="18" class="text-center py-4 text-secondary" style="font-size: 0.8rem;">Nenhum registro encontrado para os filtros selecionados.</td></tr>`;
                 document.getElementById("info-registros-filtrados").innerText = "Mostrando 0 de 0 registros";
                 document.getElementById("texto-paginacao").innerText = "Página 0 de 0";
                 return;
@@ -1219,46 +1291,77 @@ def gerar_dashboard():
             let htmlBuffer = "";
             for (let i = 0; i < dadosPagina.length; i++) {{
                 const r = dadosPagina[i];
-                // r = [COMPRADOR, FORNECEDOR, NUMERO_PEDIDO, LOJA, DTA_EMISSAO, DTA_PREV, DTA_LIMITE, COD_PROD, DESCRICAO, EMB, QTD_PED, QTD_ATEND, PERC_ATEND, STATUS_ENTREGA, STATUS_PED]
+                // r = [COMPRADOR(0), FORNECEDOR(1), PEDIDO(2), LOJA(3), DTA_EMISSAO(4), DTA_PREV(5), DTA_LIMITE(6), COD_PROD(7), DESCRICAO(8), EMB(9), ESTOQUE_ATUAL(10), VENDA_MEDIA_DIA(11), DIAS_ESTOQUE(12), QTD_PED(13), QTD_ATEND(14), PERC_ATEND(15), STATUS_ENTREGA(16), STATUS_PED(17)]
 
                 let badgeStatus = "";
-                if (r[13] === 'TOT_ATEND') {{
+                if (r[16] === 'TOT_ATEND') {{
                     badgeStatus = '<span class="status-badge badge-tot-atend">TOT_ATEND</span>';
-                }} else if (r[13] === 'ATRASO') {{
+                }} else if (r[16] === 'ATRASO') {{
                     badgeStatus = '<span class="status-badge badge-atraso">ATRASO</span>';
-                }} else if (r[13] === 'NÃO_.ATENDIDO') {{
+                }} else if (r[16] === 'NÃO_.ATENDIDO') {{
                     badgeStatus = '<span class="status-badge badge-nao-atend">NÃO_.ATENDIDO</span>';
                 }} else {{
                     badgeStatus = '<span class="status-badge badge-aguardando">AGUARDANDO</span>';
                 }}
 
                 let badgePerc = "";
-                if (r[12] >= 100) {{
-                    badgePerc = `<span class="perc-badge perc-100">${{r[12].toFixed(0)}}%</span>`;
-                }} else if (r[12] > 0) {{
-                    badgePerc = `<span class="perc-badge perc-partial">${{r[12].toFixed(1)}}%</span>`;
+                if (r[15] >= 100) {{
+                    badgePerc = `<span class="perc-badge perc-100">${{r[15].toFixed(0)}}%</span>`;
+                }} else if (r[15] > 0) {{
+                    badgePerc = `<span class="perc-badge perc-partial">${{r[15].toFixed(1)}}%</span>`;
                 }} else {{
                     badgePerc = `<span class="perc-badge perc-zero">0%</span>`;
+                }}
+
+                // Formatação Estoque Loja
+                const estVal = r[10];
+                let estDisplay = "";
+                if (estVal <= 0) {{
+                    estDisplay = `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 fw-bold" style="font-size: 0.72rem;">0 un</span>`;
+                }} else {{
+                    estDisplay = `<span class="fw-bold text-info" style="font-size: 0.76rem;">${{estVal.toLocaleString('pt-BR')}} un</span>`;
+                }}
+
+                // Formatação Venda Média Diária
+                const vdaVal = r[11];
+                let vdaDisplay = `<span class="text-secondary small" style="font-size: 0.74rem;">${{vdaVal > 0 ? vdaVal.toFixed(2).replace('.', ',') + '/d' : '0/d'}}</span>`;
+
+                // Formatação Dias de Estoque
+                const diasVal = r[12];
+                let diasDisplay = "";
+                if (estVal <= 0 || diasVal <= 0) {{
+                    diasDisplay = `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;" title="Sem estoque físico na loja (Ruptura)">0 d</span>`;
+                }} else if (diasVal >= 999) {{
+                    diasDisplay = `<span class="badge bg-secondary bg-opacity-50 text-white-50" style="font-size: 0.68rem;" title="Sem vendas no histórico de 90 dias">S/ Venda</span>`;
+                }} else if (diasVal <= 7) {{
+                    diasDisplay = `<span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 fw-bold" style="font-size: 0.7rem;" title="Estoque crítico (<= 7 dias de cobertura)">${{diasVal.toFixed(0)}} d</span>`;
+                }} else if (diasVal <= 45) {{
+                    diasDisplay = `<span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25" style="font-size: 0.7rem;" title="Estoque saudável (8 a 45 dias)">${{diasVal.toFixed(0)}} d</span>`;
+                }} else {{
+                    diasDisplay = `<span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25" style="font-size: 0.7rem;" title="Cobertura alta (> 45 dias)">${{diasVal.toFixed(0)}} d</span>`;
                 }}
 
                 htmlBuffer += `
                     <tr>
                         <td class="fw-semibold text-info" style="font-size: 0.76rem;">${{r[0]}}</td>
-                        <td class="text-truncate" style="max-width: 240px; font-size: 0.76rem;" title="${{r[1]}}">${{r[1]}}</td>
+                        <td class="text-truncate" style="max-width: 220px; font-size: 0.76rem;" title="${{r[1]}}">${{r[1]}}</td>
                         <td style="text-align: center;" class="fw-bold text-white">${{r[2]}}</td>
                         <td style="text-align: center;"><span class="badge bg-secondary bg-opacity-25 text-light" style="font-size: 0.7rem;">L${{r[3]}}</span></td>
                         <td style="text-align: center;" class="text-secondary small">${{r[4]}}</td>
                         <td style="text-align: center;" class="text-warning small">${{r[5]}}</td>
                         <td style="text-align: center;" class="text-danger small">${{r[6]}}</td>
                         <td style="text-align: center;" class="fw-semibold text-white-50">${{r[7]}}</td>
-                        <td class="text-truncate text-light fw-medium" style="max-width: 270px; font-size: 0.76rem;" title="${{r[8]}}">${{r[8]}}</td>
+                        <td class="text-truncate text-light fw-medium" style="max-width: 240px; font-size: 0.76rem;" title="${{r[8]}}">${{r[8]}}</td>
                         <td style="text-align: center;" class="text-secondary">${{r[9]}}</td>
-                        <td style="text-align: right;" class="fw-bold text-white">${{r[10].toLocaleString('pt-BR')}}</td>
-                        <td style="text-align: right;" class="fw-bold ${{r[11] > 0 ? 'text-success' : 'text-secondary'}}">${{r[11].toLocaleString('pt-BR')}}</td>
+                        <td style="text-align: right;">${{estDisplay}}</td>
+                        <td style="text-align: right;">${{vdaDisplay}}</td>
+                        <td style="text-align: center;">${{diasDisplay}}</td>
+                        <td style="text-align: right;" class="fw-bold text-white">${{r[13].toLocaleString('pt-BR')}}</td>
+                        <td style="text-align: right;" class="fw-bold ${{r[14] > 0 ? 'text-success' : 'text-secondary'}}">${{r[14].toLocaleString('pt-BR')}}</td>
                         <td style="text-align: center;">${{badgePerc}}</td>
                         <td style="text-align: center;">${{badgeStatus}}</td>
                         <td style="text-align: center;">
-                            <span class="badge ${{r[14] === 'ATIVO' ? 'bg-success bg-opacity-25 text-success' : 'bg-danger bg-opacity-25 text-danger'}}" style="font-size: 0.68rem;">${{r[14]}}</span>
+                            <span class="badge ${{r[17] === 'ATIVO' ? 'bg-success bg-opacity-25 text-success' : 'bg-danger bg-opacity-25 text-danger'}}" style="font-size: 0.68rem;">${{r[17]}}</span>
                         </td>
                     </tr>
                 `;
@@ -1283,10 +1386,10 @@ def gerar_dashboard():
                 return;
             }}
 
-            let csv = "COMPRADOR;FORNECEDOR;NUMERO_PEDIDO;LOJA_DESTINO;DATA_EMISSAO;DATA_PREV_ENTREGA;DATA_LIMITE_ENTREGA;CODIGO_PRODUTO;DESCRICAO;QTD_EMBALAGEM;QUANTIDADE_PEDIDA;QUANTIDADE_ATENDIDA;PERC_ATENDIMENTO;STATUS_ENTREGA;STATUS_PEDIDO\\n";
+            let csv = "COMPRADOR;FORNECEDOR;NUMERO_PEDIDO;LOJA_DESTINO;DATA_EMISSAO;DATA_PREV_ENTREGA;DATA_LIMITE_ENTREGA;CODIGO_PRODUTO;DESCRICAO;QTD_EMBALAGEM;ESTOQUE_LOJA;VENDA_MEDIA_DIA;DIAS_ESTOQUE;QUANTIDADE_PEDIDA;QUANTIDADE_ATENDIDA;PERC_ATENDIMENTO;STATUS_ENTREGA;STATUS_PEDIDO\\n";
             
             dadosFiltrados.forEach(r => {{
-                csv += `"${{r[0]}}";"${{r[1]}}";"${{r[2]}}";${{r[3]}};"${{r[4]}}";"${{r[5]}}";"${{r[6]}}";${{r[7]}};"${{r[8].replace(/"/g, '""')}}";${{r[9]}};${{r[10]}};${{r[11]}};${{r[12]}};"${{r[13]}}";"${{r[14]}}"\\n`;
+                csv += `"${{r[0]}}";"${{r[1]}}";"${{r[2]}}";${{r[3]}};"${{r[4]}}";"${{r[5]}}";"${{r[6]}}";${{r[7]}};"${{r[8].replace(/"/g, '""')}}";${{r[9]}};${{r[10]}};${{r[11]}};${{r[12]}};${{r[13]}};${{r[14]}};${{r[15]}};"${{r[16]}}";"${{r[17]}}"\\n`;
             }});
 
             const blob = new Blob(["\\ufeff" + csv], {{ type: 'text/csv;charset=utf-8;' }});

@@ -1,6 +1,7 @@
 """
 Motor Matemático e Analítico de Custo x Benefício para GPUs NVIDIA RTX 5000 (RTX 5070 e RTX 5070 Ti)
-Calcula métricas de R$/FPS, Índice de Desempenho Relativo, Score de Eficiência e Parecer Técnico da Escolha.
+Calcula métricas de R$/FPS, Índice de Desempenho Relativo, Score de Eficiência,
+Top 3 Melhores Opções de Cada Loja e Rastreamento de Promoções por Tempo Limitado.
 """
 
 from typing import List, Dict, Any
@@ -30,10 +31,76 @@ GPU_SPECS = {
     }
 }
 
+def compute_top_options_by_store(offers: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Extrai e classifica pelo menos as 3 melhores opções de cada site (Pichau, Terabyte, KaBuM)."""
+    stores = [
+        {'key': 'pichau', 'name': 'Pichau', 'logo': '🔴 Pichau', 'theme_color': '#e11d48'},
+        {'key': 'terabyte', 'name': 'TerabyteShop', 'logo': '🟢 TerabyteShop', 'theme_color': '#10b981'},
+        {'key': 'kabum', 'name': 'KaBuM!', 'logo': '🟠 KaBuM!', 'theme_color': '#f97316'}
+    ]
+    
+    models = ['RTX 5070', 'RTX 5070 Ti']
+    rankings_by_store = {}
+
+    for st in stores:
+        store_key = st['key']
+        rankings_by_store[store_key] = {
+            'store_name': st['name'],
+            'store_logo': st['logo'],
+            'theme_color': st['theme_color'],
+            'by_model': {}
+        }
+        
+        for m in models:
+            # Filtra ofertas da loja e do modelo
+            store_model_offers = [o for o in offers if o.get('store_key') == store_key and o.get('gpu_model') == m]
+            
+            # Ordenação prioritária: Menor preço à vista, bonificando levemente Triplo Fan
+            def rank_sort_key(item):
+                price = item.get('price_cash', 99999)
+                is_triple = "Triplo" in item.get('cooling_type', '') or "3X" in item.get('title', '')
+                # Desconto virtual de R$ 50 na ordenação para valorizar Triplo Fan com preço próximo
+                adjusted_price = price - 50 if is_triple else price
+                return (adjusted_price, -item.get('cost_benefit_score', 0))
+
+            store_model_offers.sort(key=rank_sort_key)
+            
+            top_3 = []
+            seen_titles = set()
+            for idx, item in enumerate(store_model_offers):
+                short_key = f"{item['brand']}_{int(item['price_cash'])}"
+                if short_key not in seen_titles:
+                    seen_titles.add(short_key)
+                    item_copy = dict(item)
+                    rank_pos = len(top_3) + 1
+                    medals = {1: '🥇 1º Lugar', 2: '🥈 2º Lugar', 3: '🥉 3º Lugar'}
+                    item_copy['rank_position'] = rank_pos
+                    item_copy['rank_label'] = medals.get(rank_pos, f'#{rank_pos}')
+                    
+                    if rank_pos == 1:
+                        if "Triplo" in item_copy.get('cooling_type', ''):
+                            item_copy['rank_highlight'] = 'Melhor Custo x Benefício (Triplo Fan)'
+                        else:
+                            item_copy['rank_highlight'] = 'Menor Preço da Loja'
+                    elif rank_pos == 2:
+                        item_copy['rank_highlight'] = 'Melhor Refrigeração / Silêncio' if "Triplo" in item_copy.get('cooling_type', '') else 'Excelente Opção Alternativa'
+                    elif rank_pos == 3:
+                        item_copy['rank_highlight'] = 'Opção de Alta Qualidade / Edição Especial'
+                    else:
+                        item_copy['rank_highlight'] = 'Opção Recomendada'
+
+                    top_3.append(item_copy)
+                    if len(top_3) >= 3:
+                        break
+                        
+            rankings_by_store[store_key]['by_model'][m] = top_3
+
+    return rankings_by_store
+
 def enrich_and_score_offers(offers: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Calcula todos os indicadores de custo-benefício e gera o parecer técnico."""
+    """Calcula todos os indicadores de custo-benefício, Top 3 por loja e promoções por tempo limitado."""
     if not offers:
-        return {'offers': [], 'summary': {}, 'recommendation': {}}
+        return {'offers': [], 'summary': {}, 'recommendation': {}, 'top_by_store': {}, 'limited_promos': []}
 
     enriched_offers = []
     
@@ -51,16 +118,17 @@ def enrich_and_score_offers(offers: List[Dict[str, Any]]) -> Dict[str, Any]:
         cost_per_fps_4k = price_cash / specs['avg_fps_4k']
         
         # Cálculo de parcelamento em 15x (acréscimo médio de 10% sobre o preço a prazo para 15 parcelas)
-        # O preço anunciado à vista no PIX possui ~15% de desconto sobre o valor de tabela
         price_15x_total = round(price_card * 1.10, 2)
         installment_15x_val = round(price_15x_total / 15, 2)
         
         # Score Custo-Benefício (0 a 100)
         raw_eff = (48.0 / (cost_per_perf_point if cost_per_perf_point > 0 else 50.0)) * 75.0
         vram_bonus = 8.0 if specs['vram_gb'] >= 16 else 0.0
-        tdp_bonus = 5.0 if int(specs['tdp'].replace('W', '')) <= 250 else 0.0
+        cooling_bonus = 3.0 if "Triplo" in o.get('cooling_type', '') else 0.0
+        tdp_bonus = 4.0 if int(specs['tdp'].replace('W', '')) <= 250 else 0.0
+        promo_bonus = 2.0 if o.get('is_limited_promo') else 0.0
         
-        cb_score = min(99.9, max(10.0, raw_eff + vram_bonus + tdp_bonus))
+        cb_score = min(99.9, max(10.0, raw_eff + vram_bonus + cooling_bonus + tdp_bonus + promo_bonus))
         
         item_copy = dict(o)
         item_copy.update({
@@ -96,6 +164,13 @@ def enrich_and_score_offers(offers: List[Dict[str, Any]]) -> Dict[str, Any]:
     winner = enriched_offers[0] if enriched_offers else {}
     recommendation = generate_verdict_analysis(best_offers_by_model, enriched_offers)
     
+    # Top 3 por Loja
+    top_by_store = compute_top_options_by_store(enriched_offers)
+    
+    # Ofertas em Promoção por Tempo Limitado
+    limited_promos = [x for x in enriched_offers if x.get('is_limited_promo')]
+    limited_promos.sort(key=lambda x: x['price_cash'])
+
     # Resumo consolidado por modelo
     model_stats = {}
     for model, spec in GPU_SPECS.items():
@@ -133,6 +208,8 @@ def enrich_and_score_offers(offers: List[Dict[str, Any]]) -> Dict[str, Any]:
         'offers': enriched_offers,
         'model_stats': model_stats,
         'winner': winner,
+        'top_by_store': top_by_store,
+        'limited_promos': limited_promos,
         'recommendation': recommendation
     }
 
@@ -142,8 +219,8 @@ def generate_verdict_analysis(best_by_model: Dict[str, Any], all_offers: List[Di
     r5070 = best_by_model.get('RTX 5070', {})
     r5070ti = best_by_model.get('RTX 5070 Ti', {})
 
-    p5070_cash = r5070.get('price_cash', 4899.99)
-    p5070ti_cash = r5070ti.get('price_cash', 8199.99)
+    p5070_cash = r5070.get('price_cash', 4859.99)
+    p5070ti_cash = r5070ti.get('price_cash', 7899.99)
 
     inst_15x_5070 = r5070.get('installment_15x_val', round((p5070_cash * 1.176 * 1.10) / 15, 2))
     inst_15x_5070ti = r5070ti.get('installment_15x_val', round((p5070ti_cash * 1.176 * 1.10) / 15, 2))
@@ -160,18 +237,18 @@ def generate_verdict_analysis(best_by_model: Dict[str, Any], all_offers: List[Di
     diff_pct_price_ti = ((p5070ti_cash - p5070_cash) / p5070_cash) * 100
     diff_inst_15x = inst_15x_5070ti - inst_15x_5070
 
-    verdict_title = "Veredito: RTX 5070 lidera em C/B Geral, mas RTX 5070 Ti se impõe em 4K Nativo"
+    verdict_title = "Veredito: RTX 5070 Triplo Fan lidera em C/B Geral, mas RTX 5070 Ti domina 4K Nativo"
     
     verdict_summary = (
-        f"A **RTX 5070** (a partir de R$ {p5070_cash:,.2f} à vista no PIX ou 15x de R$ {inst_15x_5070:,.2f}) entrega o menor custo por quadro: "
-        f"apenas **R$ {cost_fps_1440p_5070:.2f}/FPS em 1440p** e **R$ {cost_fps_4k_5070:.2f}/FPS em 4K Nativo** (72 FPS médios). "
+        f"A **RTX 5070** (com destaque para a **Gainward Python III Triplo Fan** por R$ {p5070_cash:,.2f} à vista no PIX ou 15x de R$ {inst_15x_5070:,.2f}) "
+        f"entrega o menor custo por quadro: apenas **R$ {cost_fps_1440p_5070:.2f}/FPS em 1440p** e **R$ {cost_fps_4k_5070:.2f}/FPS em 4K Nativo** (72 FPS médios). "
         f"Já a **RTX 5070 Ti** (R$ {p5070ti_cash:,.2f} à vista ou 15x de R$ {inst_15x_5070ti:,.2f}) custa +R$ {diff_5070_5070ti:,.2f} (+R$ {diff_inst_15x:,.2f}/mês em 15x), "
         f"mas entrega **92 FPS em 4K Nativo** (+28% de fluidez) com **16GB GDDR7** no barramento largo de 256-bit (896 GB/s), garantindo total blindagem contra falta de VRAM."
     )
 
     detailed_points = [
         {
-            'category': '🥇 Campeã Custo x Benefício Geral & 1440p',
+            'category': '🥇 Campeã Custo x Benefício Geral & 1440p (Triplo Fan)',
             'model': 'NVIDIA GeForce RTX 5070 (12GB GDDR7)',
             'price_ref': f"R$ {p5070_cash:,.2f} à vista no PIX ({r5070.get('store', 'Pichau')})",
             'price_15x': f"15x de R$ {inst_15x_5070:,.2f} (Total R$ {total_15x_5070:,.2f} c/ +10% acréscimo)",
@@ -182,24 +259,24 @@ def generate_verdict_analysis(best_by_model: Dict[str, Any], all_offers: List[Di
             'badge': 'MENOR R$ POR FPS',
             'badge_color': '#10B981',
             'why_choose': (
-                "É a placa com o menor custo por frame tanto em 1440p (R$ 42,61/FPS) quanto em 4K Nativo (R$ 68,06/FPS). "
-                "Em 4K Nativo, ela alcança média de 72 FPS nos jogos AAA contemporâneos, ultrapassando 100+ FPS quando ativado o DLSS 4. "
-                "No parcelamento em 15x, sua mensalidade fica extremamente acessível (~R$ 422/mês), consumindo apenas 250W."
+                "É a placa com o menor custo por frame tanto em 1440p quanto em 4K Nativo. "
+                "Com opções Triplo Fan (como Gainward Python III e Palit Infinity 3) na faixa de R$ 4.759 a R$ 4.859, "
+                "ela alia temperatura ultra fria (~60°C) com silêncio e performance de sobra para mais de 100 FPS com DLSS 4."
             ),
             'pros': [
-                'Menor preço de entrada: R$ 4.899 à vista ou 15x de ~R$ 422,74',
-                'Menor custo por FPS em 4K Nativo (R$ 68,06/FPS) e 1440p (R$ 42,61/FPS)',
-                'Excelente eficiência energética (250W - fonte de 650W é suficiente)',
-                'DLSS 4 Multi-Frame Generation eleva o 4K para 110+ FPS com facilidade'
+                'Menor preço de entrada: R$ 4.699 a R$ 4.859 à vista (ou 15x de ~R$ 410 a R$ 419)',
+                'Opções Triplo Fan (3 ventoinhas) no mesmo valor de modelos de entrada',
+                'Menor custo por FPS em 4K Nativo e 1440p Quad HD',
+                'Consumo eficiente de 250W (fonte de 650W é suficiente)'
             ],
             'cons': [
-                '12GB de VRAM em barramento 192-bit pode limitar mods de textura 8K no futuro em 4K nativo extremo'
+                '12GB de VRAM pode exigir DLSS Balanceado em títulos futuros com Ray Tracing Extremo em 4K'
             ]
         },
         {
             'category': '🥈 Campeã Absoluta para 4K Nativo & Longevidade (16GB)',
             'model': 'NVIDIA GeForce RTX 5070 Ti (16GB GDDR7)',
-            'price_ref': f"R$ {p5070ti_cash:,.2f} à vista no PIX ({r5070ti.get('store', 'Pichau / Terabyte')})",
+            'price_ref': f"R$ {p5070ti_cash:,.2f} à vista no PIX ({r5070ti.get('store', 'KaBuM! / Pichau / Terabyte')})",
             'price_15x': f"15x de R$ {inst_15x_5070ti:,.2f} (Total R$ {total_15x_5070ti:,.2f} c/ +10% acréscimo)",
             'fps_1440p': '145 FPS Médio Ultra',
             'fps_4k': '92 FPS Médio 4K Nativo (+28% FPS)',
@@ -210,29 +287,27 @@ def generate_verdict_analysis(best_by_model: Dict[str, Any], all_offers: List[Di
             'why_choose': (
                 "A RTX 5070 Ti é a placa definitiva para quem joga em 4K Nativo sem depender de upscaling agressivo. "
                 "Ela crava 92 FPS médios em 4K Ultra e seus 16GB GDDR7 em barramento largo de 256-bit (896 GB/s de largura de banda) "
-                "garantem que nenhum jogo atual ou futuro sofra de engasgos (stuttering) por excesso de geometria e Ray Tracing/Path Tracing. "
-                "Em 15 parcelas de ~R$ 707/mês, ela entrega o pacote mais completo e duradouro para os próximos 5+ anos."
+                "garantem imunidade total contra engasgos por falta de memória nos jogos dos próximos 5+ anos."
             ),
             'pros': [
-                '16GB VRAM GDDR7 + Barramento 256-bit: Imunidade a gargalos de memória em 4K',
+                '16GB VRAM GDDR7 + Barramento 256-bit: Blindagem total em 4K',
                 '92 FPS sólidos em 4K Nativo Ultra (+20 FPS / +28% sobre a RTX 5070)',
                 'Largura de banda massiva de 896 GB/s contra 672 GB/s da 5070',
                 'Poder brutal para IA Local (LLMs de 14B/32B parâmetros) e Criação de Conteúdo'
             ],
             'cons': [
-                'Mensalidade em 15x é ~R$ 285 mais alta (R$ 707 vs R$ 422 da 5070)',
+                'Preço superior (~R$ 7.899 a R$ 8.399 à vista)',
                 'TDP de 300W recomenda fonte de 750W ou superior'
             ]
         }
     ]
 
     store_comparison = {
-        'best_overall_store': 'Pichau & TerabyteShop',
-        'notes': 'A Pichau e a TerabyteShop lideram com os melhores preços à vista via PIX (desconto de ~15%), enquanto o KaBuM! possui ampla variedade de fabricantes (ASUS, MSI, Gigabyte) e excelente opção de parcelamento.'
+        'best_overall_store': 'Pichau & TerabyteShop & KaBuM!',
+        'notes': 'A Pichau lidera nos modelos Triplo Fan como a Gainward Python III (R$ 4.859) e Palit Infinity 3 (R$ 4.759). A TerabyteShop oferece excelentes ofertas relâmpago, e o KaBuM! conta com promoções Ninja/Ofertas KaBuM com 15% a 20% OFF e melhor parcelamento.'
     }
 
     dlss5_analysis = {
-
         'release_date': 'Novembro de 2026',
         'tech_name': 'NVIDIA DLSS 5 (Neural Texture Photorealism Engine)',
         'description': (
@@ -285,5 +360,3 @@ def generate_verdict_analysis(best_by_model: Dict[str, Any], all_offers: List[Di
         'diff_inst_15x': diff_inst_15x,
         'diff_pct_price_ti': round(diff_pct_price_ti, 1)
     }
-
-
