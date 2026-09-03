@@ -34,13 +34,20 @@ class MixCalibrationWindow(tk.Toplevel):
         for s in self.store_list:
             self.expected_keys.append(f"loja_{s}")
             
+        # Novas chaves para tratamento de Seleção Inversa / Pulmão
+        self.expected_keys.extend([
+            "aba_forma_abastecimento_mix",
+            "linha_pulmao_mix",
+            "linha_selecao_inversa_mix"
+        ])
+            
         self.buttons = {}
         self.labels = {}
         
         tk.Label(self, text="Mapeamento de Botões (Mix Ativo)", font=("Segoe UI", 12, "bold")).pack(pady=10)
-        tk.Label(self, text="1. Botão 'Empresa'\n2. Mapeamento das 26 Lojas visíveis.", wraplength=400).pack(pady=5)
+        tk.Label(self, text="1. Botão 'Empresa'\n2. Mapeamento das 26 Lojas visíveis.\n3. Automação de Seleção Inversa e Pulmão.", wraplength=400).pack(pady=5)
         
-        # Frame rolável para caber os 27 botões
+        # Frame rolável para caber todos os botões
         container = tk.Frame(self)
         container.pack(fill="both", expand=True, padx=10, pady=5)
         
@@ -75,6 +82,13 @@ class MixCalibrationWindow(tk.Toplevel):
             elif st == "902": display_name = "Coordenada: Remopar (902)"
             
             self.create_calibration_row(display_name, f"loja_{st}")
+
+        tk.Frame(self.scrollable_frame, height=2, bg="#1E88E5").pack(fill="x", pady=10) # Separador azul
+        tk.Label(self.scrollable_frame, text="Automação: Seleção Inversa / Pulmão", font=("Segoe UI", 10, "bold"), fg="#1E88E5").pack(pady=5)
+        
+        self.create_calibration_row("Aba: Forma de Abastecimento", "aba_forma_abastecimento_mix")
+        self.create_calibration_row("Linha: Pulmão (Espécie Endereço)", "linha_pulmao_mix")
+        self.create_calibration_row("Linha: Seleção Inversa (Destino)", "linha_selecao_inversa_mix")
 
         # Botão de Salvar Global
         self.btn_save = tk.Button(self, text="Salvar Calibração e Fechar", command=self.save_coords, bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"))

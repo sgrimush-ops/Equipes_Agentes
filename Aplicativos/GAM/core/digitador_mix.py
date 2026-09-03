@@ -20,12 +20,361 @@ class MixProcessor:
         self.coords = self.load_coordinates()
         self.familia_cleaner = FamiliaDescriptionCleaner()
         self._mouse = PynMouse()  # Cliques via pynput para paridade DPI (Regra 65)
+        self._ocr_engine = None
         self.store_list = [
             "001", "002", "003", "004", "005", "006", "007", "008", 
             "009", "010", "011", "012", "013", "014", "015", "016", 
             "017", "018", "020", "021", "022", "023", "050", "900", 
             "901", "902"
         ]
+
+    def _get_ocr(self):
+        if self._ocr_engine is None:
+            try:
+                import rapidocr_onnxruntime
+                self._ocr_engine = rapidocr_onnxruntime.RapidOCR()
+            except Exception as e:
+                print(f"[MixProcessor] RapidOCR não disponível: {e}")
+        return self._ocr_engine
+
+    def _detectar_popup_atencao(self):
+        """
+        Verifica se surgiu popup de Atenção / Seleção Inversa / Consinco na tela.
+        Retorna (True/False, tipo_deteccao).
+        """
+        # 1. Checagem de título de janela modal ativa (Delphi / Consinco)
+        try:
+            import win32gui
+            hwnd = win32gui.GetForegroundWindow()
+            title = win32gui.GetWindowText(hwnd).strip()
+            if title in ["Atenção", "Atencao", "Aviso", "Mensagem"] or \
+               title.startswith("Atenção") or title.startswith("Atencao"):
+                return True, f"janela_modal ({title})"
+        except Exception:
+            pass
+
+        # 2. Checagem visual com RapidOCR
+        try:
+            ocr = self._get_ocr()
+            if ocr:
+                screenshot = pyautogui.screenshot()
+                screenshot_np = np.array(screenshot)
+                res, _ = ocr(screenshot_np)
+                if res:
+                    textos = " ".join([item[1].upper() for item in res])
+                    if ("SELECAO INVERSA" in textos and "PULMAO" in textos) or \
+                       ("NORMA DE SELECAO" in textos) or \
+                       ("NAO PODE SER DIFERENTE" in textos) or \
+                       ("ATENCAO" in textos and "NORMA" in textos):
+                        return True, "ocr_texto_popup"
+        except Exception as e:
+            print(f"[MixProcessor] Erro na verificação OCR do popup: {e}")
+
+        # 3. Fallback de Template Matching com limiar rigoroso
+        try:
+            screenshot = pyautogui.screenshot()
+            screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+            for tmpl_path in ['captura_tela/popup_consinco.png', 'captura_tela/aviso.png', 'captura_tela/aviso_icone.png']:
+                if os.path.exists(tmpl_path):
+                    tmpl = cv2.imread(tmpl_path)
+                    if tmpl is not None:
+                        res = cv2.matchTemplate(screenshot_bgr, tmpl, cv2.TM_CCOEFF_NORMED)
+                        _, max_val, _, _ = cv2.minMaxLoc(res)
+                        if max_val >= 0.85:
+                            return True, f"template_{tmpl_path}"
+        except Exception:
+            pass
+
+        return False, None
+
+    def _salvar_print_debug(self, nome_arquivo, draw_point=None, info_texto=""):
+        """
+        Salva uma captura de tela para gravação e diagnóstico visual do processo.
+        Se draw_point=(x, y) for passado, desenha um alvo visual em vermelho no ponto exato.
+        """
+        try:
+            grava_dir = 'captura_tela/gravacao'
+            os.makedirs(grava_dir, exist_ok=True)
+            shot = pyautogui.screenshot()
+            img_bgr = cv2.cvtColor(np.array(shot), cv2.COLOR_RGB2BGR)
+            if draw_point:
+                px, py = int(draw_point[0]), int(draw_point[1])
+                cv2.circle(img_bgr, (px, py), 14, (0, 0, 255), 2)
+                cv2.circle(img_bgr, (px, py), 3, (0, 0, 255), -1)
+                cv2.line(img_bgr, (px - 20, py), (px + 20, py), (0, 0, 255), 1)
+                cv2.line(img_bgr, (px, py - 20), (px, py + 20), (0, 0, 255), 1)
+            
+            caminho_img = os.path.join(grava_dir, f"{nome_arquivo}.png")
+            cv2.imwrite(caminho_img, img_bgr)
+            
+            # Grava no log texto
+            log_path = os.path.join(grava_dir, "log_execucao.txt")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%H:%M:%S')}] {nome_arquivo}: {info_texto} (Ponto: {draw_point})\n")
+        except Exception as e:
+            print(f"[MixProcessor] Aviso ao salvar print de debug: {e}")
+
+    def tratar_popup_selecao_inversa_e_abastecimento(self, update_callback=None, stop_event=None):
+        """
+        Trata o popup de Seleção Inversa com gravação passo a passo de todas as ações.
+        """
+        self._salvar_print_debug("01_popup_detectado", info_texto="Popup de Seleção Inversa disparado")
+
+        if update_callback:
+            update_callback({'status': 'Popup Seleção Inversa detectado! Executando correção automática...'})
+
+        # 1. Pressiona ALT+O para fechar o 1º popup
+        time.sleep(0.2)
+        pyautogui.hotkey('alt', 'o')
+        time.sleep(0.7)
+
+        # 2. Verifica se o 2º popup de Atenção ainda está na tela
+        tem_2o_pop, tipo_2o = self._detectar_popup_atencao()
+        if tem_2o_pop:
+            print(f"[MixProcessor] 2º popup detectado ({tipo_2o}). Fechando com ALT+O...")
+            self._salvar_print_debug("02_segundo_popup_atencao", info_texto=f"2º popup detectado: {tipo_2o}")
+            pyautogui.hotkey('alt', 'o')
+            time.sleep(0.5)
+
+        self._salvar_print_debug("02_apos_fechar_popups", info_texto="Popups fechados, prestes a clicar na aba")
+
+        # 3. Clicar na aba Forma de Abastecimento / Logística
+        coord_aba = self.coords.get('aba_forma_abastecimento_mix') or \
+                    self.coords.get('aba_forma_abastecimento') or \
+                    self.coords.get('aba_logis_abast_abastecimento')
+        if coord_aba:
+            if update_callback:
+                update_callback({'status': 'Acessando aba Forma de Abastecimento...'})
+            self._salvar_print_debug("03_clique_aba_abastecimento", draw_point=coord_aba, info_texto=f"Clicando na aba em {coord_aba}")
+            self._click(coord_aba)
+            time.sleep(1.5)
+        else:
+            # Tenta encontrar a aba Forma de Abastecimento via OCR
+            try:
+                screenshot = pyautogui.screenshot()
+                screenshot_np = np.array(screenshot)
+                ocr = self._get_ocr()
+                if ocr:
+                    res, _ = ocr(screenshot_np)
+                    if res:
+                        for box, text, _ in res:
+                            txt_upper = text.upper()
+                            if ("FORMA" in txt_upper and "ABAST" in txt_upper) or "LOGIS" in txt_upper:
+                                cx = int((box[0][0] + box[2][0]) / 2)
+                                cy = int((box[0][1] + box[2][1]) / 2)
+                                self._salvar_print_debug("03_clique_aba_ocr", draw_point=[cx, cy], info_texto=f"Aba encontrada via OCR: '{text}'")
+                                self._click([cx, cy])
+                                time.sleep(1.5)
+                                break
+            except Exception as e:
+                print(f"[MixProcessor] Tentativa de clique na aba via OCR: {e}")
+
+        # 4. Analisar grid "Espécie de Endereço" e ler dinamicamente a embalagem do produto (ex: CX 120, DP 60) e dimensões
+        if update_callback:
+            update_callback({'status': 'Lendo configuração de Pulmão/Apanha e preenchendo Seleção Inversa...'})
+
+        dados_pulmao = {'embalagem': None, 'lastro': '100', 'altura': '50', 'est_min': '0,000'}
+        coord_selecao_inversa = self.coords.get('linha_selecao_inversa_mix')
+        coord_pulmao = self.coords.get('linha_pulmao_mix')
+
+        # Realiza varredura no grid para capturar com precisão a embalagem ativa do produto
+        try:
+            import re
+            img_grid = pyautogui.screenshot()
+            img_np = np.array(img_grid)
+            ocr = self._get_ocr()
+            if ocr:
+                res_grid, _ = ocr(img_np)
+                if res_grid:
+                    for it in res_grid:
+                        txt = it[1].strip()
+                        cy = (it[0][0][1] + it[0][2][1]) / 2.0
+                        cx = (it[0][0][0] + it[0][2][0]) / 2.0
+                        
+                        # Faixa vertical do grid de Espécie de Endereço (y entre 670 e 750)
+                        if 670 <= cy <= 750:
+                            # Detecta Embalagem (CX 120, DP 60, CX 24, UN 1, etc.)
+                            m_emb = re.search(r'(CX|DP|UN|FD|PCT|PC|CJ|KG|LT)\s*\.?\s*\d+', txt.upper())
+                            if m_emb:
+                                if dados_pulmao['embalagem'] is None or cy > 700:
+                                    dados_pulmao['embalagem'] = m_emb.group(0).replace('.', '').strip()
+                            
+                            # Detecta Lastro na coluna de Lastro (X entre 480 e 540)
+                            if 480 <= cx <= 540 and txt.isdigit() and len(txt) <= 3:
+                                dados_pulmao['lastro'] = txt
+                                
+                            # Detecta Altura na coluna de Altura (X entre 545 e 590)
+                            if 545 <= cx <= 590 and txt.isdigit() and len(txt) <= 3:
+                                dados_pulmao['altura'] = txt
+        except Exception as e:
+            print(f"[MixProcessor] Leitura do grid de abastecimento: {e}")
+
+        # Se nenhuma embalagem específica foi lida, fallback padrão
+        if not dados_pulmao.get('embalagem'):
+            dados_pulmao['embalagem'] = 'CX 120'
+
+        # Usa estritamente a coordenada salva calibrada pelo usuário
+        coord_alvo = coord_selecao_inversa or coord_pulmao
+
+        emb = dados_pulmao.get('embalagem')
+        raw_lastro = dados_pulmao.get('lastro', '100')
+        lastro = raw_lastro if (raw_lastro.isdigit() and len(raw_lastro) <= 3) else '100'
+        raw_altura = dados_pulmao.get('altura', '50')
+        altura = raw_altura if (raw_altura.isdigit() and len(raw_altura) <= 3) else '50'
+        est_min = '0,000'
+
+        self._salvar_print_debug("04_leitura_pulmao_concluida", draw_point=coord_pulmao, info_texto=f"Dados lidos: Embalagem={emb} | Lastro={lastro} | Altura={altura} | EstMin={est_min}")
+
+        print(f"[MixProcessor] 1º Clique: Selecionando célula de SELEÇÃO INVERSA em {coord_alvo}...")
+        self._salvar_print_debug("05_prestes_clicar_embalagem_inversa", draw_point=coord_alvo, info_texto=f"1º Clique: Alvo {coord_alvo}")
+        self._click(coord_alvo)
+        time.sleep(0.3)
+
+        print(f"[MixProcessor] 2º Clique: Abrindo opções de Embalagem em {coord_alvo}...")
+        self._click(coord_alvo)
+        time.sleep(0.3)
+        self._salvar_print_debug("05_apos_clique_embalagem_inversa", draw_point=coord_alvo, info_texto="2º Clique efetuado para abrir dropdown")
+
+        print(f"[MixProcessor] Replicando Pulmão para Seleção Inversa: Embalagem={emb} | Lastro={lastro} | Altura={altura} | EstMin={est_min}")
+
+        # 1º Campo: Seleciona Embalagem navegando com Down no combobox e dá Tab
+        self._selecionar_embalagem_combobox(coord_alvo, emb)
+        pyautogui.press('tab')
+        time.sleep(0.2)
+        self._salvar_print_debug("06_apos_tab_embalagem", info_texto="Embalagem selecionada, foco em Lastro")
+
+        # 2º Campo (após Tab): Limpa valor residual sugerido pelo Consinco e digita Lastro
+        pyautogui.press('backspace', presses=4)
+        pyautogui.press('delete', presses=4)
+        time.sleep(0.05)
+        pyautogui.write(str(lastro), interval=0.04)
+        time.sleep(0.2)
+        self._salvar_print_debug("07_apos_digitar_lastro", info_texto=f"Lastro digitado: {lastro}")
+        pyautogui.press('tab')
+        time.sleep(0.15)
+
+        # 3º Campo (após Tab): Limpa e digita Altura
+        pyautogui.press('backspace', presses=4)
+        pyautogui.press('delete', presses=4)
+        time.sleep(0.05)
+        pyautogui.write(str(altura), interval=0.04)
+        time.sleep(0.2)
+        self._salvar_print_debug("08_apos_digitar_altura", info_texto=f"Altura digitada: {altura}")
+        pyautogui.press('tab')
+        time.sleep(0.15)
+
+        # 4º Campo (após Tab): Limpa e digita Quantidade Mínima (0,000)
+        pyautogui.press('backspace', presses=6)
+        pyautogui.press('delete', presses=6)
+        time.sleep(0.05)
+        pyautogui.write(str(est_min), interval=0.04)
+        time.sleep(0.2)
+        self._salvar_print_debug("09_apos_digitar_estmin", info_texto=f"Est. Mínimo digitado: {est_min}")
+        pyautogui.press('tab')
+        time.sleep(0.3)
+
+        # 6. Salva a operação com F4
+        if update_callback:
+            update_callback({'status': 'Salvando alterações da Forma de Abastecimento (F4)...'})
+        self._salvar_print_debug("10_prestes_salvar_f4", info_texto="Prestes a teclar F4 para salvar")
+        pyautogui.press('f4')
+        time.sleep(1.5)
+        self._salvar_print_debug("10_apos_salvar_f4", info_texto="F4 enviado")
+
+        # 7. Retorna para a aba principal de mix (Empresa) para seguir para o próximo produto
+        pos_empresa = self.coords.get('empresa_mix')
+        if pos_empresa:
+            self._salvar_print_debug("11_retornando_empresa", draw_point=pos_empresa, info_texto="Clicando em Empresa")
+            self._click(pos_empresa)
+            time.sleep(0.6)
+
+        if update_callback:
+            update_callback({'status': 'Seleção Inversa corrigida e salva! Avançando para o próximo produto...'})
+
+        return True
+
+    def _selecionar_embalagem_combobox(self, coord_cell, target_emb):
+        """
+        Seleciona dinamicamente a embalagem correta (ex: DP 60, CX 12, CX 24, UN 1) no combobox do grid:
+        1. Abre o dropdown com Alt+Down
+        2. Obrigatoriamente envia Down (para ativar o evento de seleção do Delphi)
+        3. Se a embalagem desejada for a primeira, envia Up para retornar a ela já ativada.
+        4. Se for outra opção, continua navegando com Down até o OCR coincidir com target_emb.
+        5. NÃO tecla Enter, permitindo que o Tab subsequente avance direto para o Lastro.
+        """
+        def norm_txt(t):
+            return "".join(c for c in str(t).upper() if c.isalnum())
+
+        norm_target = norm_txt(target_emb)
+        print(f"[MixProcessor] Buscando dinamicamente embalagem '{target_emb}' (norm: '{norm_target}') no combobox...")
+
+        cx, cy = coord_cell[0], coord_cell[1]
+        x1 = max(0, cx - 60)
+        y1 = max(0, cy - 20)
+        w = 180
+        h = 180
+
+        ocr = self._get_ocr()
+
+        # Abre o dropdown via atalho do Windows/Delphi
+        pyautogui.hotkey('alt', 'down')
+        time.sleep(0.2)
+
+        def verificar_item_selecionado():
+            try:
+                crop = pyautogui.screenshot(region=(x1, y1, w, h))
+                crop_np = np.array(crop)
+                crop_bgr = cv2.cvtColor(crop_np, cv2.COLOR_RGB2BGR)
+                hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+                blue_mask = cv2.inRange(hsv, np.array([90, 90, 90]), np.array([135, 255, 255]))
+
+                if ocr:
+                    res, _ = ocr(crop_np)
+                    if res:
+                        for box, text, _ in res:
+                            bx1, by1 = int(box[0][0]), int(box[0][1])
+                            bx2, by2 = int(box[2][0]), int(box[2][1])
+                            box_crop = blue_mask[max(0, by1):min(crop_bgr.shape[0], by2), max(0, bx1):min(crop_bgr.shape[1], bx2)]
+                            mean_blue = np.mean(box_crop) if box_crop.size > 0 else 0
+                            
+                            t_norm = norm_txt(text)
+                            # Se for o item com fundo azul de seleção ativa
+                            if mean_blue > 25:
+                                is_match = (t_norm == norm_target or norm_target in t_norm or t_norm in norm_target)
+                                return text, is_match
+            except Exception as e:
+                print(f"[MixProcessor] Erro na verificação OCR do combobox: {e}")
+            return None, False
+
+        # Obrigatoriamente aciona o evento de seleção com Down
+        pyautogui.press('down')
+        time.sleep(0.15)
+        txt_sel, is_match = verificar_item_selecionado()
+        self._salvar_print_debug("05_combobox_down_1", info_texto=f"Down 1: selecionado='{txt_sel}', match={is_match}")
+        if is_match:
+            print(f"[MixProcessor] Embalagem '{txt_sel}' confirmada no 1º Down!")
+            return
+
+        # Se não bateu no primeiro Down, verifica se a opção correta era a primeira (no topo) com Up
+        pyautogui.press('up')
+        time.sleep(0.15)
+        txt_sel, is_match = verificar_item_selecionado()
+        self._salvar_print_debug("05_combobox_up_topo", info_texto=f"Up topo: selecionado='{txt_sel}', match={is_match}")
+        if is_match:
+            print(f"[MixProcessor] Embalagem '{txt_sel}' confirmada no topo da lista após Up!")
+            return
+
+        # Se não era a primeira, percorre as demais opções para baixo
+        for tentativa in range(10):
+            pyautogui.press('down')
+            time.sleep(0.15)
+            txt_sel, is_match = verificar_item_selecionado()
+            self._salvar_print_debug(f"05_combobox_down_{tentativa+2}", info_texto=f"Down {tentativa+2}: selecionado='{txt_sel}', match={is_match}")
+            if is_match:
+                print(f"[MixProcessor] Embalagem '{txt_sel}' encontrada após {tentativa+2} passos para baixo!")
+                return
+
+        time.sleep(0.1)
 
     def _click(self, coord):
         """Clique preciso via pynput (anti-DPI offset). Coordenadas devem vir de pynput.Listener."""
@@ -418,94 +767,15 @@ class MixProcessor:
                 # Salvar Produto
                 pyautogui.press('f4')
                 time.sleep(0.8)
-                # ...existing code...
                 
-                # Detecção visual do popup antes e depois do ALT+S (Otimizado para detecção em tela cheia)
-                try:
-                    popup_template = cv2.imread('captura_tela/popup_consinco.png')
-                    if popup_template is not None:
-                        # Captura em tela cheia para evitar bugs de resolução/coordenadas fixas
-                        screenshot_popup = pyautogui.screenshot()
-                        screenshot_popup_bgr = cv2.cvtColor(np.array(screenshot_popup), cv2.COLOR_RGB2BGR)
-                        res_popup = cv2.matchTemplate(screenshot_popup_bgr, popup_template, cv2.TM_CCOEFF_NORMED)
-                        _, max_val_popup, _, _ = cv2.minMaxLoc(res_popup)
-                        print(f"[DEBUG] Similaridade popup Consinco: {max_val_popup:.2f}")
-                        if max_val_popup >= 0.75:
-                            teve_popup = True
-                            print("[MixProcessor] Popup Consinco detectado! Enviando ALT+S...")
-                            pyautogui.hotkey('alt', 's')
-                            time.sleep(1.0)
-                            # Após ALT+S, verifica se o popup sumiu (tela cheia)
-                            screenshot_popup2 = pyautogui.screenshot()
-                            screenshot_popup2_bgr = cv2.cvtColor(np.array(screenshot_popup2), cv2.COLOR_RGB2BGR)
-                            res_popup2 = cv2.matchTemplate(screenshot_popup2_bgr, popup_template, cv2.TM_CCOEFF_NORMED)
-                            _, max_val_popup2, _, _ = cv2.minMaxLoc(res_popup2)
-                            print(f"[DEBUG] Similaridade popup Consinco após ALT+S: {max_val_popup2:.2f}")
-                            if max_val_popup2 >= 0.75:
-                                print("[MixProcessor] Popup Consinco NÃO sumiu após ALT+S! Parando execução imediatamente.")
-                                if update_callback:
-                                    update_callback({'error': "Popup Consinco não sumiu após ALT+S. Execução interrompida para evitar travamento!"})
-                                if stop_event:
-                                    stop_event.set()
-                                print("[Gemini] Execução abortada por popup persistente!")
-                                popup_interrompeu = True
-                                break
-                            
-                            # Após ALT+S, valida se voltou para tela de digitação do código (tela cheia)
-                            screenshot = pyautogui.screenshot()
-                            screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-                            template = cv2.imread('captura_tela/campo_codigo.png')
-                            if template is not None:
-                                res = cv2.matchTemplate(screenshot_bgr, template, cv2.TM_CCOEFF_NORMED)
-                                _, max_val, _, _ = cv2.minMaxLoc(res)
-                                print(f"[DEBUG] Similaridade campo 'Codigo' após ALT+S: {max_val:.2f}")
-                                if max_val < 0.75:
-                                    print("[MixProcessor] Campo 'Codigo' NÃO encontrado após ALT+S! Parando execução imediatamente.")
-                                    if update_callback:
-                                        update_callback({'error': "Campo 'Codigo' não encontrado após ALT+S. Execução interrompida para evitar travamento!"})
-                                    if stop_event:
-                                        stop_event.set()
-                                    print("[Gemini] Execução abortada: campo 'Codigo' não voltou!")
-                                    popup_interrompeu = True
-                                    break
-                            else:
-                                print("[MixProcessor] Template campo_codigo.png não encontrado para validação visual!")
-                            
-                            print("[Gemini] Popup tratado com sucesso, continuando execução...")
-                    else:
-                        print("[MixProcessor] Template popup_consinco.png não encontrado para detecção de popup!")
-                except Exception as e:
-                    print(f"Aviso: Falha na detecção/tratamento de popup Consinco: {e}")
-                
-                # --- TRAVA DE SEGURANÇA BASEADA EM DIFERENÇA DE IMAGEM ---
-                # Agimos APENAS se houve o Popup, que é o gatilho da nova tela indesejada
-                try:
-                    if teve_popup and tela_valida_gray is not None:
-                        tela_apos = pyautogui.screenshot(region=(0, 0, sw, int(sh * 0.65)))
-                        tela_apos_gray = cv2.cvtColor(np.array(tela_apos), cv2.COLOR_RGB2GRAY)
-                        
-                        # Calculo de Diferença Estrutural
-                        diff = cv2.absdiff(tela_valida_gray, tela_apos_gray)
-                        mudanca_visual = np.mean(diff)
-                        
-                        # Limiar calibrado: Mudanças no Consinco (fundo e grid para Abas brutas) causam > 8 de variância 
-                        if mudanca_visual > 8.0:
-                            msg_trava = f"🚨 TRAVA VISUAL DE SEGURANÇA: As abas e a estrutura da tela mudaram fortemente (Delta={mudanca_visual:.1f}). Operação ABORTADA para evitar danos!"
-                            if update_callback: update_callback({'error': msg_trava})
-                            else: print(msg_trava)
-                            
-                            # Aciona parada de emergência
-                            if stop_event: stop_event.set()
-                            break # Encerra o laço de produtos principal
-                except Exception as e:
-                    print("Aviso: Falha na trava visual:", e)
-                
-                time.sleep(0.5)
-
-                # Se popup interrompeu, para o loop principal imediatamente
-                if popup_interrompeu:
-                    print("[Gemini] Loop principal abortado por popup!")
-                    break
+                # Detecção e Tratamento Automatizado do Popup de Seleção Inversa / Atenção Consinco
+                tem_popup, tipo_popup = self._detectar_popup_atencao()
+                if tem_popup:
+                    print(f"[MixProcessor] Popup detectado ({tipo_popup})! Executando tratamento de Seleção Inversa e Forma de Abastecimento...")
+                    self.tratar_popup_selecao_inversa_e_abastecimento(update_callback=update_callback, stop_event=stop_event)
+                    time.sleep(0.8)
+                else:
+                    time.sleep(0.4)
 
             pyautogui.press('f2')
             if update_callback: update_callback({'status': 'Concluído', 'finished': True})

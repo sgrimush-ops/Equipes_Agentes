@@ -108,3 +108,32 @@ As tabelas do Consinco exibem um número fixo de linhas visíveis por vez no gri
    Para validação em tempo real ao lado da janela do Consinco, a GUI sobreposta (`-topmost`) deve manter largura otimizada (`~640px`) e exibir um painel dinâmico somando centavo por centavo os itens validados:
    `💰 VALOR SOMADO MARCADO: R$ X.XXX,XX`
    Isso permite que o operador compare instantaneamente a soma do robô com o campo `Vlr Pagar/Rec.` e `Total Pagar/Rec.` do ERP Consinco.
+
+---
+
+## 5. Automação de Células com ComboBox e Grids Delphi (Manutenção de Mix / Logística)
+
+Ao automatizar grids com componentes de edição embutidos (`TDBGrid` / `TComboBox` no Consinco):
+
+1. **Ciclo de Ativação Obrigatório de Setas (`Down` -> `Up`) no ComboBox:**
+   - No componente `TComboBox` do Delphi, se a lista for aberta mas nenhuma tecla de seta for pressionada, o componente não dispara o evento `OnChange`/seleção de índice. Ao teclar `Tab`, o campo permanece nulo/vazio (gerando erro de *"A Embalagem deve ser informada"*).
+   - **Padrão Obrigatório de Seleção:**
+     - Abrir o dropdown com `Alt + Down`.
+     - Enviar `Down` obrigatoriamente para registrar a alteração de índice.
+     - Se a embalagem correta for a primeira da lista (ex: `DP 60`), enviar `Up` para retornar ao topo com a opção já ativada.
+     - Se for outra opção (ex: `CX 24` em vez de `CX 12`), continuar descendo com `Down` até o OCR validar o texto ativo em azul (`blue_mask > 25`).
+2. **Proibição de Teclar `Enter` no Grid:**
+   - Nunca tecle `Enter` para confirmar o ComboBox no grid do Consinco, pois o `Enter` pode fechar a edição ou pular de linha.
+   - Pressione diretamente **`Tab`**, que no Consinco confirma o ComboBox e avança imediatamente o cursor para a coluna seguinte (**Lastro**).
+3. **Limpeza Prévia de Valores Residuais / Sugeridos (Prevenção de `60100`):**
+   - Ao teclar `Tab` saindo da Embalagem, o Consinco frequentemente preenche o campo de Lastro com o multiplicador da embalagem (ex: `60`).
+   - Digitar diretamente faz o robô concatenar o valor (`60100` em vez de `100`).
+   - **Solução Obrigatória:** Antes de digitar em cada célula numérica (`Lastro`, `Altura`, `Estoque Mínimo`), enviar `Backspace` (x4) e `Delete` (x4) para limpar qualquer texto residual antes de executar o `pyautogui.write()`.
+4. **Fechamento Condicional de Popups Modais (`Alt + O`):**
+   - No disparo de popups ao salvar (ex: Seleção Inversa pendente), fechar o 1º popup com `Alt + O` e usar `win32gui.GetWindowText(GetForegroundWindow())` para verificar se existe o 2º popup antes de enviar novo comando, evitando `Alt + O` excedente.
+5. **Gravação e Auditoria Visual Passo a Passo:**
+   - Instrumentar métodos críticos com salvamento de screenshots destacando o ponto de clique com alvo vermelho (`cv2.circle`) e arquivo de log cronológico para rastreamento de falhas de foco e grid.
+6. **Varredura Dinâmica do Grid (Apanha vs Pulmão) para Identificação de Embalagem:**
+   - Em grids logísticos do Consinco (*Espécie de Endereço*), a embalagem oficial do produto frequentemente está expressa na linha `APANHA` (ex: `CX 120`) e visualmente omitida ou herdada na linha `PULMAO`.
+   - **Proibição de Valores Padrão Hardcoded:** Nunca assuma embalagens padrão (ex: `DP 60`). Realize uma varredura OCR completa na área do grid (`y: 670 a 750`) com regex `(CX|DP|UN|FD|PCT|PC|CJ|KG|LT)\s*\.?\s*\d+` abrangendo tanto Apanha quanto Pulmão. Isso assegura que o robô busque a embalagem real do produto no ComboBox (ex: `CX 120` em vez de falhar e selecionar `UN 1` por timeout).
+
