@@ -532,6 +532,7 @@ kbd {
     padding: 0.75rem 1rem;
     transition: max-height 0.3s ease, opacity 0.3s ease;
     overflow: hidden;
+    max-height: 500px;
 }
 
 .varf7-container.collapsed {
@@ -546,7 +547,9 @@ kbd {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .varf7-title {
@@ -554,13 +557,57 @@ kbd {
     color: #93c5fd;
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
+}
+
+.varf7-badge-total {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 12px;
 }
 
 .varf7-actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.varf7-tabs {
+    display: flex;
+    gap: 0.3rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.varf7-tab {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: var(--font-main);
+}
+
+.varf7-tab:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.varf7-tab.active {
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .btn-link {
@@ -572,35 +619,106 @@ kbd {
     text-decoration: underline;
 }
 
+.btn-link:hover {
+    color: #93c5fd;
+}
+
+.varf7-save-badge {
+    font-size: 0.7rem;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 2px 7px;
+    border-radius: 10px;
+    transition: opacity 0.3s ease;
+    font-weight: 500;
+}
+
 .btn-close {
     background: transparent;
     border: none;
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.9rem;
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
-.varf7-grid {
+.btn-close:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.varf7-groups-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 380px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.varf7-group-card {
+    background: rgba(20, 29, 44, 0.6);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.varf7-group-card:hover {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(20, 29, 44, 0.85);
+}
+
+.varf7-group-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.3px;
+}
+
+.varf7-subgrid-4 {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.6rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+}
+
+@media (max-width: 1100px) {
+    .varf7-subgrid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .varf7-subgrid-4 {
+        grid-template-columns: 1fr;
+    }
 }
 
 .varf7-item label {
-    display: block;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 0.72rem;
-    color: var(--text-muted);
+    color: #94a3b8;
     margin-bottom: 3px;
     font-family: var(--font-mono);
 }
 
 .var-badge {
-    background: rgba(59, 130, 246, 0.15);
-    color: #93c5fd;
-    padding: 1px 4px;
+    padding: 1px 5px;
     border-radius: 3px;
-    font-size: 0.65rem;
+    font-size: 0.62rem;
+    font-weight: 500;
 }
+
+.badge-emp { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+.badge-dt { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+.badge-nr { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+.badge-ls { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
+.badge-lt { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
 
 .varf7-item select, .varf7-item input {
     width: 100%;
@@ -608,9 +726,16 @@ kbd {
     border: 1px solid var(--border-color);
     color: var(--text-main);
     padding: 5px 8px;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     border-radius: var(--radius-sm);
     outline: none;
+    font-family: var(--font-mono);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.varf7-item select:focus, .varf7-item input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
 }
 
 /* Editor Section */

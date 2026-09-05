@@ -38,6 +38,12 @@ IMPORT_QUERYS_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "import_querys"
 
 # Mapeamento de arquivos para Tabelas Canônicas Oficiais do Consinco
 MAPA_TABELAS_OFICIAIS = {
+    "mlfv_basenfe": "MLFV_BASENFE",
+    "mflv_basedfitem": "MFLV_BASEDFITEM",
+    "mlf_notafiscal": "MLF_NOTAFISCAL",
+    "mlf_nfitem": "MLF_NFITEM",
+    "max_codgeraloper": "MAX_CODGERALOPER",
+    "cgos": "MAX_CODGERALOPER",
     "map_produto": "MAP_PRODUTO",
     "map_familia": "MAP_FAMILIA",
     "map_categoria": "MAP_CATEGORIA",
@@ -47,6 +53,8 @@ MAPA_TABELAS_OFICIAIS = {
     "max_empresa": "MAX_EMPRESA",
     "max_comprador": "MAX_COMPRADOR",
     "ge_pessoa": "GE_PESSOA",
+    "ge_redepessoa": "GE_REDEPESSOA",
+    "ge_rede": "GE_REDE",
     "mrl_produtoempresa": "MRL_PRODUTOEMPRESA",
     "mrl_prodempseg": "MRL_PRODEMPSEG",
     "mrl_pontoextra": "MRL_PONTOEXTRA",
@@ -152,11 +160,14 @@ def sanitizar_valor(val):
         except:
             return s
 
-    # Número inteiro
+    # Número inteiro (até 15 dígitos para evitar overflow em chaves de 44 dígitos)
     if re.match(r'^-?\d+$', s):
-        try:
-            return int(s)
-        except:
+        if len(s) <= 15:
+            try:
+                return int(s)
+            except:
+                return s
+        else:
             return s
 
     # Número float com ponto

@@ -186,13 +186,34 @@ class SqlAutocompleteManager {
 
         const binds = [
             { text: ':NROEMPRESA', desc: 'Variável Var-F7: Número da Filial Selecionada' },
-            { text: ':NR1', desc: 'Variável Var-F7: Código do Fornecedor ou Produto' },
-            { text: ':LS1', desc: 'Variável Var-F7: Lista de Seleção (Comprador/Segmento)' },
-            { text: ':DT1', desc: 'Variável Var-F7: Data Inicial do Filtro' },
-            { text: ':DT2', desc: 'Variável Var-F7: Data Final do Filtro' },
-            { text: ':LT1', desc: 'Variável Var-F7: Lista de Texto (Ex: BEBIDAS)' },
-            { text: ':LT2', desc: 'Variável Var-F7: Lista de Texto Secundária' },
-            { text: ':LT3', desc: 'Variável Var-F7: Lista de Multi-Valores com INSTR' }
+            { text: '#C_NROEMPRESA#', desc: 'Macro Var-F7: Lista de Lojas da Rede' },
+            // Datas
+            { text: ':DT1', desc: 'Variável Var-F7: Data 1 (Data Inicial)' },
+            { text: ':DT2', desc: 'Variável Var-F7: Data 2 (Data Final)' },
+            { text: ':DT3', desc: 'Variável Var-F7: Data 3 (Data Auxiliar)' },
+            { text: ':DT4', desc: 'Variável Var-F7: Data 4 (Data Auxiliar)' },
+            // Numéricos
+            { text: ':NR1', desc: 'Variável Var-F7: Numérico 1 (Produto / Fornecedor)' },
+            { text: ':NR2', desc: 'Variável Var-F7: Numérico 2 (Família / CGO)' },
+            { text: ':NR3', desc: 'Variável Var-F7: Numérico 3 (NF / Pedido)' },
+            { text: ':NR4', desc: 'Variável Var-F7: Numérico 4 (Quantidade / Valor)' },
+            // Listas de Seleção
+            { text: ':LS1', desc: 'Variável Var-F7: Seleção 1 (Rede / Comprador)' },
+            { text: ':LS2', desc: 'Variável Var-F7: Seleção 2 (Segmento / Regime)' },
+            { text: ':LS3', desc: 'Variável Var-F7: Seleção 3 (Departamento / Status)' },
+            { text: ':LS4', desc: 'Variável Var-F7: Seleção 4 (Tipo Operação)' },
+            // Listas de Texto
+            { text: ':LT1', desc: 'Variável Var-F7: Texto 1 (CGOs / Multi-Valores)' },
+            { text: ':LT2', desc: 'Variável Var-F7: Texto 2 (Fornecedor / Texto)' },
+            { text: ':LT3', desc: 'Variável Var-F7: Texto 3 (CDs Emissão NF)' },
+            { text: ':LT4', desc: 'Variável Var-F7: Texto 4 (Lojas Pesquisa Compra)' },
+            // Macros Hash
+            { text: '#LT1', desc: 'Macro Var-F7: Lista de Texto 1 em cláusula IN' },
+            { text: '#LT2', desc: 'Macro Var-F7: Lista de Texto 2 em cláusula IN' },
+            { text: '#LT3', desc: 'Macro Var-F7: Lista de Texto 3 em cláusula IN' },
+            { text: '#LT4', desc: 'Macro Var-F7: Lista de Texto 4 em cláusula IN' },
+            { text: '#LS1', desc: 'Macro Var-F7: Lista de Seleção 1' },
+            { text: '#NR1', desc: 'Macro Var-F7: Numérico 1' }
         ];
 
         const snippets = [

@@ -34,13 +34,25 @@ def oracle_nvl(val, default_val):
 def oracle_to_char(val, fmt=None):
     if val is None:
         return None
-    if fmt and 'FM999' in fmt.upper():
-        try:
-            num = float(val)
-            return f"R$ {num:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-        except:
-            return str(val)
-    return str(val)
+    val_str = str(val).strip()
+    if fmt:
+        fmt_upper = fmt.upper()
+        if 'FM999' in fmt_upper or '999G999' in fmt_upper:
+            try:
+                num = float(val)
+                # Formato brasileiro com milhar . e decimal ,
+                return f"{num:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            except:
+                return val_str
+        elif 'DD/MM/YYYY' in fmt_upper:
+            for f in ('%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y %H:%M:%S'):
+                try:
+                    dt = datetime.strptime(val_str[:19], f)
+                    return dt.strftime('%d/%m/%Y')
+                except:
+                    continue
+            return val_str[:10]
+    return val_str
 
 def oracle_to_number(val):
     if val is None or val == '':
@@ -216,17 +228,24 @@ def preprocess_oracle_sql(sql, binds=None):
     # 0. Transpilar MERGE INTO do Oracle para instruções compatíveis com SQLite
     clean_sql = transpile_oracle_merge(clean_sql)
     
-    # 1. Substituir Macros Hash (#C_NROEMPRESA#, #LS1#, etc)
+    # 1. Substituir Macros Hash (#C_NROEMPRESA#, #LS1#, #LT1, etc)
     for k, v in binds.items():
-        macro_key = f"#{k}#"
-        if macro_key in clean_sql:
-            clean_sql = clean_sql.replace(macro_key, str(v))
+        val_macro = str(v).strip()
+        if val_macro == '':
+            if k.upper().startswith('LT'):
+                val_macro = 'NULL'
+            elif k.upper().startswith('NR'):
+                val_macro = '0'
+            else:
+                val_macro = "''"
+        clean_sql = re.sub(rf'#{re.escape(k)}#?', val_macro, clean_sql, flags=re.IGNORECASE)
             
     # Macros padrões se não fornecidas
-    clean_sql = re.sub(r'#C_NROEMPRESA#', '1,2,3,4,5,6,7,8,11,12,13,14,15,17,18', clean_sql, flags=re.IGNORECASE)
-    clean_sql = re.sub(r'#LT\d+#', "''", clean_sql, flags=re.IGNORECASE)
-    clean_sql = re.sub(r'#LS\d+#', "'0 - TODOS'", clean_sql, flags=re.IGNORECASE)
-    clean_sql = re.sub(r'#NR\d+#', '0', clean_sql, flags=re.IGNORECASE)
+    clean_sql = re.sub(r'#C_NROEMPRESA#?', '1,2,3,4,5,6,7,8,11,12,13,14,15,16,17,18,50', clean_sql, flags=re.IGNORECASE)
+    clean_sql = re.sub(r'#LT\d+#?', 'NULL', clean_sql, flags=re.IGNORECASE)
+    clean_sql = re.sub(r'#LS\d+#?', "''", clean_sql, flags=re.IGNORECASE)
+    clean_sql = re.sub(r'#NR\d+#?', '0', clean_sql, flags=re.IGNORECASE)
+    clean_sql = re.sub(r'#DT\d+#?', "''", clean_sql, flags=re.IGNORECASE)
 
     # 2. Remover hints Oracle: /*+ MATERIALIZE */, /*+ INDEX(...) */
     clean_sql = re.sub(r'/\*\+\s*MATERIALIZE\s*\*/', '', clean_sql, flags=re.IGNORECASE)
@@ -241,22 +260,22 @@ def preprocess_oracle_sql(sql, binds=None):
     # 5. Normalizar SYSDATE sem parênteses para SYSDATE()
     clean_sql = re.sub(r'\bSYSDATE\b(?!\s*\()', 'SYSDATE()', clean_sql, flags=re.IGNORECASE)
 
-    # 6. Injetar Binds (:NROEMPRESA, :NR1, :LS1, :LT1, :DT1)
+    # 5.1 Transpilar aritmética de datas Oracle para SQLite (TRUNC(:DT) + N / TRUNC(:DT) - N)
+    clean_sql = re.sub(r"TRUNC\s*\(\s*(:\w+)\s*\)\s*\+\s*(\d+)", r"DATE(\1, '+\2 day')", clean_sql, flags=re.IGNORECASE)
+    clean_sql = re.sub(r"TRUNC\s*\(\s*(:\w+)\s*\)\s*-\s*(\d+)", r"DATE(\1, '-\2 day')", clean_sql, flags=re.IGNORECASE)
+
+    # 6. Injetar Binds (:NROEMPRESA, :NR1..4, :LS1..4, :LT1..4, :DT1..4)
     param_matches = re.findall(r':([A-Za-z0-9_]+)', clean_sql)
     for p in param_matches:
         val = binds.get(p, binds.get(p.upper(), None))
-        if val is None:
-            # Fallback inteligente para bind não preenchido
-            if p.upper().startswith('NR') or 'EMPRESA' in p.upper() or 'COD' in p.upper() or 'PONTO' in p.upper():
+        p_upper = p.upper()
+        if val is None or val == '':
+            if p_upper.startswith('NR') or 'EMPRESA' in p_upper or 'COD' in p_upper or 'PONTO' in p_upper:
                 val = 0
-            elif p.upper().startswith('DT'):
-                val = '2026-08-21'
-            elif p.upper().startswith('LS'):
-                val = '0 - TODOS'
             else:
                 val = ''
         
-        # Se for string, escapa para SQL
+        # Se for numérico, injeta número; senão, escapa string
         if isinstance(val, (int, float)):
             val_sql = str(val)
         else:
@@ -274,9 +293,10 @@ def analyze_consinco_rules(raw_sql):
     alerts = []
     sql_upper = raw_sql.upper()
     
-    # Regra 1: Comentários no código SQL
-    has_line_comment = bool(re.search(r'--[^\r\n]*', raw_sql))
-    has_block_comment = bool(re.search(r'/\*(?!\+).*?\*/', raw_sql, flags=re.DOTALL))
+    # Regra 1: Comentários no código SQL (ignorar strings literais como '--')
+    sql_without_strings = re.sub(r"'(''|[^'])*'", "''", raw_sql)
+    has_line_comment = bool(re.search(r'--[^\r\n]*', sql_without_strings))
+    has_block_comment = bool(re.search(r'/\*(?!\+).*?\*/', sql_without_strings, flags=re.DOTALL))
     if has_line_comment or has_block_comment:
         alerts.append({
             'type': 'danger',

@@ -334,31 +334,158 @@ WHERE B.NROEMPRESA = :NROEMPRESA
         if (e.key === 'Enter') searchDictionary();
     });
 
-    // 6. Var - F7 Drawer
+    // 6. Var - F7 Drawer com Auto-Salvamento e Persistência
     const varf7Drawer = document.getElementById('varf7-drawer');
+    const varf7SaveStatus = document.getElementById('varf7-save-status');
+
     document.getElementById('btn-toggle-varf7').addEventListener('click', () => {
         varf7Drawer.classList.toggle('collapsed');
     });
     document.getElementById('btn-close-varf7').addEventListener('click', () => {
         varf7Drawer.classList.add('collapsed');
     });
-    document.getElementById('btn-reset-varf7').addEventListener('click', () => {
-        document.getElementById('bind-NROEMPRESA').value = '1';
-        document.getElementById('bind-NR1').value = '';
-        document.getElementById('bind-LS1').value = '0 - TODOS';
-        document.getElementById('bind-DT1').value = '2026-08-01';
-        document.getElementById('bind-DT2').value = '2026-08-21';
-        document.getElementById('bind-LT1').value = '';
+
+    const VARF7_STORAGE_KEY = 'zona_sql_varf7_data_v2';
+    const VARF7_FIELD_IDS = [
+        'bind-NROEMPRESA',
+        'bind-DT1', 'bind-DT2', 'bind-DT3', 'bind-DT4',
+        'bind-NR1', 'bind-NR2', 'bind-NR3', 'bind-NR4',
+        'bind-LS1', 'bind-LS2', 'bind-LS3', 'bind-LS4',
+        'bind-LT1', 'bind-LT2', 'bind-LT3', 'bind-LT4'
+    ];
+
+    function notifySaveStatus() {
+        if (!varf7SaveStatus) return;
+        varf7SaveStatus.textContent = '💾 Salvo no Navegador';
+        varf7SaveStatus.style.opacity = '1';
+        setTimeout(() => {
+            if (varf7SaveStatus) varf7SaveStatus.textContent = '💾 Auto-salvamento Ativo';
+        }, 1200);
+    }
+
+    function saveBindsToStorage() {
+        const data = {};
+        VARF7_FIELD_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                data[id] = el.value;
+            }
+        });
+        try {
+            localStorage.setItem(VARF7_STORAGE_KEY, JSON.stringify(data));
+            notifySaveStatus();
+        } catch (e) {
+            console.warn('Erro ao salvar variáveis no localStorage:', e);
+        }
+    }
+
+    function loadBindsFromStorage() {
+        try {
+            const raw = localStorage.getItem(VARF7_STORAGE_KEY);
+            if (raw) {
+                const data = JSON.parse(raw);
+                VARF7_FIELD_IDS.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && data[id] !== undefined) {
+                        el.value = data[id];
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('Erro ao carregar variáveis do localStorage:', e);
+        }
+    }
+
+    // Inicializar carregamento das variáveis salvas
+    loadBindsFromStorage();
+
+    // Registrar auto-salvamento a cada caractere digitado ou alteração
+    VARF7_FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', saveBindsToStorage);
+            el.addEventListener('change', saveBindsToStorage);
+        }
     });
 
+    // Filtro por Abas do Var-F7 (Todas, Datas, Numéricos, Seleção, Texto)
+    const varf7Tabs = document.querySelectorAll('.varf7-tab');
+    const varf7GroupCards = document.querySelectorAll('.varf7-group-card');
+
+    varf7Tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            varf7Tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const group = tab.getAttribute('data-vargroup');
+
+            varf7GroupCards.forEach(card => {
+                const cardGroup = card.getAttribute('data-group');
+                if (group === 'all' || cardGroup === group || cardGroup === 'all') {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // Botão Limpar Campos (deixa tudo vazio e salva estado limpo)
+    const btnClearVarf7 = document.getElementById('btn-clear-varf7');
+    if (btnClearVarf7) {
+        btnClearVarf7.addEventListener('click', () => {
+            VARF7_FIELD_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (id === 'bind-NROEMPRESA') {
+                        el.value = '1';
+                    } else {
+                        el.value = '';
+                    }
+                }
+            });
+            saveBindsToStorage();
+        });
+    }
+
     function getBindsFromDrawer() {
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        };
+
+        const getIntVal = (id) => {
+            const el = document.getElementById(id);
+            if (!el || el.value.trim() === '') return 0;
+            const parsed = parseInt(el.value.trim(), 10);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
         return {
-            'NROEMPRESA': parseInt(document.getElementById('bind-NROEMPRESA').value) || 1,
-            'NR1': parseInt(document.getElementById('bind-NR1').value) || 0,
-            'LS1': document.getElementById('bind-LS1').value || '0 - TODOS',
-            'DT1': document.getElementById('bind-DT1').value || '2026-08-01',
-            'DT2': document.getElementById('bind-DT2').value || '2026-08-21',
-            'LT1': document.getElementById('bind-LT1').value || ''
+            'NROEMPRESA': getIntVal('bind-NROEMPRESA') || 1,
+            
+            // Datas (DT1 .. DT4)
+            'DT1': getVal('bind-DT1'),
+            'DT2': getVal('bind-DT2'),
+            'DT3': getVal('bind-DT3'),
+            'DT4': getVal('bind-DT4'),
+
+            // Numéricos (NR1 .. NR4)
+            'NR1': getIntVal('bind-NR1'),
+            'NR2': getIntVal('bind-NR2'),
+            'NR3': getIntVal('bind-NR3'),
+            'NR4': getIntVal('bind-NR4'),
+
+            // Listas de Seleção (LS1 .. LS4)
+            'LS1': getVal('bind-LS1'),
+            'LS2': getVal('bind-LS2'),
+            'LS3': getVal('bind-LS3'),
+            'LS4': getVal('bind-LS4'),
+
+            // Listas de Texto (LT1 .. LT4)
+            'LT1': getVal('bind-LT1'),
+            'LT2': getVal('bind-LT2'),
+            'LT3': getVal('bind-LT3'),
+            'LT4': getVal('bind-LT4')
         };
     }
 

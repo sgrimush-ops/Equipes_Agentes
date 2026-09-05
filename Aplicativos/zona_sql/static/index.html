@@ -110,60 +110,172 @@
                         <div class="varf7-title">
                             <span class="varf7-icon">⚡</span>
                             <strong>Simulador de Variáveis de Tela (Var - F7 Totvs SGI)</strong>
+                            <span class="varf7-badge-total">17 Variáveis Disponíveis</span>
                         </div>
                         <div class="varf7-actions">
-                            <button id="btn-reset-varf7" class="btn-link">Restaurar Padrões</button>
+                            <div class="varf7-tabs">
+                                <button type="button" class="varf7-tab active" data-vargroup="all">Todas (17)</button>
+                                <button type="button" class="varf7-tab" data-vargroup="dt">📅 Datas (4)</button>
+                                <button type="button" class="varf7-tab" data-vargroup="nr">🔢 Numéricos (4)</button>
+                                <button type="button" class="varf7-tab" data-vargroup="ls">📋 Seleção (4)</button>
+                                <button type="button" class="varf7-tab" data-vargroup="lt">🔤 Texto (4)</button>
+                            </div>
+                            <span id="varf7-save-status" class="varf7-save-badge">💾 Auto-salvamento Ativo</span>
+                            <button id="btn-clear-varf7" class="btn-link" title="Limpar todos os campos deixando-os vazios">Limpar Campos</button>
                             <button id="btn-close-varf7" class="btn-close">✕</button>
                         </div>
                     </div>
-                    <div class="varf7-grid">
-                        <div class="varf7-item">
-                            <label>:NROEMPRESA <span class="var-badge">Empresa</span></label>
-                            <select id="bind-NROEMPRESA">
-                                <option value="1">1 - LOJA 01 CENTRO</option>
-                                <option value="2">2 - LOJA 02 NORTE</option>
-                                <option value="3">3 - LOJA 03 SUL</option>
-                                <option value="4">4 - LOJA 04 LESTE</option>
-                                <option value="5">5 - LOJA 05 OESTE</option>
-                                <option value="6">6 - LOJA 06 PRAIA</option>
-                                <option value="7">7 - LOJA 07 SERRA</option>
-                                <option value="8">8 - LOJA 08 VALE</option>
-                                <option value="11">11 - LOJA 11 EXPRESS</option>
-                                <option value="12" selected>12 - LOJA 12 BAIRRO</option>
-                                <option value="13">13 - LOJA 13 SHOPPING</option>
-                                <option value="14">14 - LOJA 14 PARQUE</option>
-                                <option value="15">15 - LOJA 15 AVENIDA</option>
-                                <option value="16">16 - CD 16 PRINCIPAL</option>
-                                <option value="17">17 - LOJA 17 HIGIENOPOLIS</option>
-                                <option value="18">18 - LOJA 18 PETROPOLIS</option>
-                                <option value="50">50 - CD 50 SECOS</option>
-                            </select>
+
+                    <!-- Grid Completo de Variáveis (4 Variáveis x 4 Tipos Consinco + Empresa) -->
+                    <div class="varf7-groups-wrapper">
+                        <!-- Bloco Geral / Empresa -->
+                        <div class="varf7-group-card group-empresa" data-group="all">
+                            <div class="varf7-group-title">🏢 Empresa Ativa</div>
+                            <div class="varf7-group-body">
+                                <div class="varf7-item">
+                                    <label>:NROEMPRESA <span class="var-badge badge-emp">Empresa</span></label>
+                                    <select id="bind-NROEMPRESA">
+                                        <option value="1">1 - LOJA 01 CENTRO</option>
+                                        <option value="2">2 - LOJA 02 NORTE</option>
+                                        <option value="3">3 - LOJA 03 SUL</option>
+                                        <option value="4">4 - LOJA 04 LESTE</option>
+                                        <option value="5">5 - LOJA 05 OESTE</option>
+                                        <option value="6">6 - LOJA 06 PRAIA</option>
+                                        <option value="7">7 - LOJA 07 SERRA</option>
+                                        <option value="8">8 - LOJA 08 VALE</option>
+                                        <option value="11">11 - LOJA 11 EXPRESS</option>
+                                        <option value="12">12 - LOJA 12 BAIRRO</option>
+                                        <option value="13">13 - LOJA 13 SHOPPING</option>
+                                        <option value="14">14 - LOJA 14 PARQUE</option>
+                                        <option value="15">15 - LOJA 15 AVENIDA</option>
+                                        <option value="16">16 - CD 16 PRINCIPAL</option>
+                                        <option value="17">17 - LOJA 17 HIGIENOPOLIS</option>
+                                        <option value="18">18 - LOJA 18 PETROPOLIS</option>
+                                        <option value="50">50 - CD 50 SECOS</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div class="varf7-item">
-                            <label>:NR1 <span class="var-badge">Fornecedor/Código</span></label>
-                            <input type="number" id="bind-NR1" placeholder="Ex: 5894 (Ambev) ou 0">
+
+                        <!-- Bloco Datas (DT1 .. DT4) -->
+                        <div class="varf7-group-card group-dt" data-group="dt">
+                            <div class="varf7-group-title">📅 Datas (DT1 a DT4)</div>
+                            <div class="varf7-group-body varf7-subgrid-4">
+                                <div class="varf7-item">
+                                    <label>:DT1 <span class="var-badge badge-dt">Data 1</span></label>
+                                    <input type="date" id="bind-DT1" value="">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:DT2 <span class="var-badge badge-dt">Data 2</span></label>
+                                    <input type="date" id="bind-DT2" value="">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:DT3 <span class="var-badge badge-dt">Data 3</span></label>
+                                    <input type="date" id="bind-DT3" value="">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:DT4 <span class="var-badge badge-dt">Data 4</span></label>
+                                    <input type="date" id="bind-DT4" value="">
+                                </div>
+                            </div>
                         </div>
-                        <div class="varf7-item">
-                            <label>:LS1 <span class="var-badge">Lista Seleção</span></label>
-                            <select id="bind-LS1">
-                                <option value="0 - TODOS">0 - TODOS</option>
-                                <option value="1 - WETER">1 - WETER</option>
-                                <option value="2 - SANDRO">2 - SANDRO</option>
-                                <option value="3 - NICOLAS">3 - NICOLAS</option>
-                                <option value="4 - SUPPLY">4 - SUPPLY</option>
-                            </select>
+
+                        <!-- Bloco Numéricos (NR1 .. NR4) -->
+                        <div class="varf7-group-card group-nr" data-group="nr">
+                            <div class="varf7-group-title">🔢 Numéricos (NR1 a NR4)</div>
+                            <div class="varf7-group-body varf7-subgrid-4">
+                                <div class="varf7-item">
+                                    <label>:NR1 <span class="var-badge badge-nr">Numérico 1</span></label>
+                                    <input type="number" id="bind-NR1" value="" placeholder="Digite o valor...">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:NR2 <span class="var-badge badge-nr">Numérico 2</span></label>
+                                    <input type="number" id="bind-NR2" value="" placeholder="Digite o valor...">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:NR3 <span class="var-badge badge-nr">Numérico 3</span></label>
+                                    <input type="number" id="bind-NR3" value="" placeholder="Digite o valor...">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:NR4 <span class="var-badge badge-nr">Numérico 4</span></label>
+                                    <input type="number" id="bind-NR4" value="" placeholder="Digite o valor...">
+                                </div>
+                            </div>
                         </div>
-                        <div class="varf7-item">
-                            <label>:DT1 <span class="var-badge">Data Início</span></label>
-                            <input type="date" id="bind-DT1" value="2026-08-01">
+
+                        <!-- Bloco Listas de Seleção (LS1 .. LS4) -->
+                        <div class="varf7-group-card group-ls" data-group="ls">
+                            <div class="varf7-group-title">📋 Listas de Seleção (LS1 a LS4)</div>
+                            <div class="varf7-group-body varf7-subgrid-4">
+                                <div class="varf7-item">
+                                    <label>:LS1 <span class="var-badge badge-ls">Seleção 1</span></label>
+                                    <input type="text" id="bind-LS1" list="ls1-datalist" value="" placeholder="Selecione ou digite...">
+                                    <datalist id="ls1-datalist">
+                                        <option value=" TODAS AS REDES"></option>
+                                        <option value="0 - TODOS"></option>
+                                        <option value="REDE 81 - DISTRIBUICAO"></option>
+                                        <option value="REDE 201 - FORNECEDORES MERCEARIA"></option>
+                                        <option value="REDE 361 - BEBIDAS E LATICINIOS"></option>
+                                        <option value="REDE 441 - HORTIFRUTI E PERECIVEIS"></option>
+                                        <option value="REDE 500 - HIGIENE E LIMPEZA"></option>
+                                    </datalist>
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:LS2 <span class="var-badge badge-ls">Seleção 2</span></label>
+                                    <input type="text" id="bind-LS2" list="ls2-datalist" value="" placeholder="Selecione ou digite...">
+                                    <datalist id="ls2-datalist">
+                                        <option value="0 - TODOS"></option>
+                                        <option value="1 - WETER"></option>
+                                        <option value="2 - SANDRO"></option>
+                                        <option value="3 - NICOLAS"></option>
+                                        <option value="4 - SUPPLY"></option>
+                                    </datalist>
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:LS3 <span class="var-badge badge-ls">Seleção 3</span></label>
+                                    <input type="text" id="bind-LS3" list="ls3-datalist" value="" placeholder="Selecione ou digite...">
+                                    <datalist id="ls3-datalist">
+                                        <option value="TODOS"></option>
+                                        <option value="A - ATIVO"></option>
+                                        <option value="I - INATIVO"></option>
+                                        <option value="S - SIM"></option>
+                                        <option value="N - NAO"></option>
+                                    </datalist>
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:LS4 <span class="var-badge badge-ls">Seleção 4</span></label>
+                                    <input type="text" id="bind-LS4" list="ls4-datalist" value="" placeholder="Selecione ou digite...">
+                                    <datalist id="ls4-datalist">
+                                        <option value="TODOS"></option>
+                                        <option value="1 - VAREJO"></option>
+                                        <option value="2 - ATACADO"></option>
+                                        <option value="3 - E-COMMERCE"></option>
+                                    </datalist>
+                                </div>
+                            </div>
                         </div>
-                        <div class="varf7-item">
-                            <label>:DT2 <span class="var-badge">Data Fim</span></label>
-                            <input type="date" id="bind-DT2" value="2026-08-21">
-                        </div>
-                        <div class="varf7-item">
-                            <label>:LT1 <span class="var-badge">Lista Texto</span></label>
-                            <input type="text" id="bind-LT1" placeholder="Ex: BEBIDAS, MERCEARIA">
+
+                        <!-- Bloco Listas de Texto (LT1 .. LT4) -->
+                        <div class="varf7-group-card group-lt" data-group="lt">
+                            <div class="varf7-group-title">🔤 Listas de Texto / Multi-Valores (LT1 a LT4)</div>
+                            <div class="varf7-group-body varf7-subgrid-4">
+                                <div class="varf7-item">
+                                    <label>:LT1 <span class="var-badge badge-lt">Texto 1</span></label>
+                                    <input type="text" id="bind-LT1" value="" placeholder="Ex: 802, 860...">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:LT2 <span class="var-badge badge-lt">Texto 2</span></label>
+                                    <input type="text" id="bind-LT2" value="" placeholder="Ex: Fornecedor/Filtro...">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:LT3 <span class="var-badge badge-lt">Texto 3</span></label>
+                                    <input type="text" id="bind-LT3" value="" placeholder="Ex: 15, 16, 50...">
+                                </div>
+                                <div class="varf7-item">
+                                    <label>:LT4 <span class="var-badge badge-lt">Texto 4</span></label>
+                                    <input type="text" id="bind-LT4" value="" placeholder="Ex: 1, 2, 3, 4...">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
