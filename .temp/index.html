@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GPU Hunter Pro | Comparador de Preços & Custo-Benefício RTX 5070 vs 5070 Ti</title>
+  <title>GPU Hunter Pro | Monitor de Parcelamento Sem Juros RTX 5070 Ti (16GB GDDR7)</title>
   
   <!-- Fontes Google -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,22 +27,22 @@
         </div>
         <div>
           <h1 class="logo-title">GPU HUNTER <span class="accent-text">PRO</span></h1>
-          <p class="logo-subtitle">Foco em Alto Custo-Benefício • RTX 5070 & RTX 5070 Ti • KaBuM! • Pichau • Terabyte</p>
+          <p class="logo-subtitle">Foco em Parcelamento Sem Juros (10x / 12x) & Total a Prazo • NVIDIA GeForce RTX 5070 Ti (16GB GDDR7) • Pichau • Terabyte • KaBuM!</p>
         </div>
       </div>
 
       <div class="header-actions">
         <div class="status-indicator">
           <span class="pulse-dot"></span>
-          <span id="status-text">Monitorando 3 Lojas</span>
+          <span id="status-text">Monitorando Parcelamento Sem Juros (RTX 5070 Ti)</span>
         </div>
         <button id="btn-refresh" class="btn btn-primary" onclick="triggerRefresh()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
           <span>Varredura & Gravar Dia</span>
         </button>
-        <a href="/api/history/export/csv" class="btn btn-secondary" title="Exportar histórico diário para Excel/CSV">
+        <a href="/api/export/csv" class="btn btn-secondary" title="Exportar cotações sem juros para Excel/CSV">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span>Histórico (CSV)</span>
+          <span>Exportar (CSV)</span>
         </a>
       </div>
     </div>
@@ -51,11 +51,11 @@
   <!-- Conteúdo Principal -->
   <main class="container main-content">
 
-    <!-- TICKER DE OSCILAÇÃO DIÁRIA (24h / 7d) -->
+    <!-- TICKER DE OSCILAÇÃO DO PREÇO TOTAL SEM JUROS (24h / 7d) -->
     <section class="variation-ticker-section">
       <div class="section-title-bar">
-        <h2>Monitor de Oscilação Diária de Preços</h2>
-        <p>Acompanhamento diário automático com alerta de menor preço histórico (All-Time Low)</p>
+        <h2>Monitor de Oscilação do Preço Total Sem Juros - RTX 5070 Ti</h2>
+        <p>Acompanhamento do menor preço a prazo sem juros e da menor parcela mensal com alerta de menor histórico</p>
       </div>
 
       <div class="ticker-cards-grid" id="ticker-cards-grid">
@@ -63,13 +63,13 @@
       </div>
     </section>
 
-    <!-- GRÁFICO HISTÓRICO DIA A DIA -->
+    <!-- GRÁFICO HISTÓRICO DO PREÇO TOTAL A PRAZO -->
     <section class="history-chart-section">
       <div class="history-chart-card">
         <div class="history-chart-header">
           <div>
-            <h3>📉 Curva de Oscilação de Preços Dia a Dia</h3>
-            <p>Evolução dos menores preços encontrados nas lojas ao longo do tempo</p>
+            <h3>📉 Curva Diária de Preço Total Sem Juros (RTX 5070 Ti)</h3>
+            <p>Evolução dos menores valores a prazo sem juros cadastrados nas lojas</p>
           </div>
           
           <div class="history-controls">
@@ -81,9 +81,9 @@
             
             <select id="history-store-filter" onchange="loadHistoryChart()" class="filter-select-mini">
               <option value="all">Menor Preço Geral</option>
-              <option value="pichau">Pichau</option>
-              <option value="terabyte">TerabyteShop</option>
-              <option value="kabum">KaBuM!</option>
+              <option value="pichau">Pichau (12x)</option>
+              <option value="terabyte">TerabyteShop (12x)</option>
+              <option value="kabum">KaBuM! (10x)</option>
             </select>
           </div>
         </div>
@@ -94,57 +94,57 @@
       </div>
     </section>
 
-    <!-- Hero / Campeã de Custo-Benefício -->
+    <!-- Hero / Campeã de Custo-Benefício & Menor Parcela Sem Juros -->
     <section class="champion-section" id="champion-card">
       <div class="champion-glow"></div>
       <div class="champion-card-inner">
         <div class="champion-header">
           <div class="trophy-badge">
-            <span>🏆 CAMPEÃ DE CUSTO X BENEFÍCIO DO DIA</span>
+            <span>🏆 CAMPEÃ DE MENOR PARCELA SEM JUROS (RTX 5070 Ti)</span>
           </div>
-          <span class="live-pill">MENOR VALOR POR FRAME</span>
+          <span class="live-pill">MENOR IMPACTO NA RENDA MENSAL</span>
         </div>
 
         <div class="champion-grid">
           <div class="champion-info">
-            <h2 class="champion-title" id="winner-title">NVIDIA GeForce RTX 5070 (12GB GDDR7)</h2>
+            <h2 class="champion-title" id="winner-title">NVIDIA GeForce RTX 5070 Ti (16GB GDDR7)</h2>
             <p class="champion-desc" id="winner-desc">
-              Carregando melhor opção e parecer técnico...
+              Carregando melhor opção de parcelamento sem juros...
             </p>
             
             <div class="champion-metrics">
               <div class="metric-box">
-                <span class="metric-label">Melhor Preço à Vista</span>
-                <span class="metric-val text-green" id="winner-price">R$ 4.899,99</span>
-                <span class="metric-sub" id="winner-store">no PIX (Pichau)</span>
+                <span class="metric-label">Menor Parcela Mensal</span>
+                <span class="metric-val text-green" id="winner-installment">12x de R$ 862,74</span>
+                <span class="metric-sub" id="winner-store">sem juros na TerabyteShop</span>
               </div>
               <div class="metric-box">
-                <span class="metric-label">Prestação em 15x</span>
-                <span class="metric-val text-yellow" id="winner-15x">15x de R$ 422,74</span>
-                <span class="metric-sub" id="winner-15x-sub">+10% acréscimo sobre a prazo</span>
+                <span class="metric-label">Preço Total Sem Juros</span>
+                <span class="metric-val text-yellow" id="winner-total">R$ 10.352,93</span>
+                <span class="metric-sub">valor final a prazo</span>
               </div>
               <div class="metric-box">
-                <span class="metric-label">Custo / FPS (1440p)</span>
-                <span class="metric-val" id="winner-cost-fps">R$ 42,61 / FPS</span>
-                <span class="metric-sub">115 FPS Médio Ultra</span>
+                <span class="metric-label">Custo / FPS Total (1440p)</span>
+                <span class="metric-val" id="winner-cost-fps">R$ 71,40 / FPS</span>
+                <span class="metric-sub">145 FPS Médio Ultra</span>
               </div>
               <div class="metric-box">
-                <span class="metric-label">Custo / FPS (4K Nativo)</span>
-                <span class="metric-val text-accent" id="winner-cost-fps-4k">R$ 68,06 / FPS</span>
-                <span class="metric-sub">72 FPS 4K Nativo</span>
+                <span class="metric-label">Custo / FPS Total (4K)</span>
+                <span class="metric-val text-accent" id="winner-cost-fps-4k">R$ 112,53 / FPS</span>
+                <span class="metric-sub">92 FPS 4K Nativo</span>
               </div>
             </div>
 
             <div class="champion-actions">
-              <a href="#" id="winner-link" target="_blank" class="btn btn-lg btn-accent">
-                <span>Ir para a Melhor Oferta na Loja</span>
+              <a href="https://www.terabyteshop.com.br/produto/37704/placa-de-video-palit-nvidia-geforce-rtx-5070-ti-gamingpro-s-16gb-gddr7-dlss-ray-tracing-ne7507t019t2-gb2031u" id="winner-link" target="_blank" class="btn btn-lg btn-accent">
+                <span>Ir para a Palit na Terabyte (12x de R$ 862,74)</span>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               </a>
-              <a href="#simulator-15x-section" class="btn btn-lg btn-secondary">
-                <span>Ver Parcelamento 15x</span>
+              <a href="#audit-report-section" class="btn btn-lg btn-secondary">
+                <span>🛡️ Ver Laudo de Auditoria</span>
               </a>
-              <a href="#verdict-section" class="btn btn-lg btn-ghost">
-                <span>Justificativa Técnica</span>
+              <a href="#top-store-section" class="btn btn-lg btn-ghost">
+                <span>Podium por Loja</span>
               </a>
             </div>
           </div>
@@ -152,20 +152,225 @@
           <div class="champion-visual">
             <div class="gpu-badge-visual">
               <div class="chip-label">BLACKWELL ARCHITECTURE</div>
-              <div class="gpu-huge-name">RTX 5070</div>
-              <div class="chip-specs">12GB GDDR7 • 672 GB/s • 250W</div>
-              <div class="chip-sub-specs">72 FPS 4K • 115 FPS 1440p</div>
+              <div class="gpu-huge-name">RTX 5070 Ti</div>
+              <div class="chip-specs">16GB GDDR7 • 896 GB/s • 300W</div>
+              <div class="chip-sub-specs">12x Sem Juros • 92 FPS 4K Nativo</div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Comparativo dos Modelos -->
+    <!-- SEÇÃO DE AUDITORIA TÉCNICA E VERIFICAÇÃO DE ESTOQUE EM TEMPO REAL -->
+    <section class="audit-section" id="audit-report-section">
+      <div class="audit-card">
+        <div class="audit-header">
+          <div class="audit-badge-pill">🛡️ LAUDO DE AUDITORIA DE CATÁLOGO & ESTOQUE</div>
+          <h2>Auditoria Técnica de Links, Preços e Estoque Real</h2>
+          <p class="audit-subtitle">
+            Varredura rigorosa com conferência de <strong>Status HTTP 200 OK</strong>, validação matemática de parcelamento 
+            (10x vs 12x sem juros) e teste contra redirecionamentos de busca genérica.
+          </p>
+        </div>
+
+        <!-- Grid dos Destaques Auditados -->
+        <div class="audit-cards-grid">
+          <!-- Card 1: Terabyte Palit -->
+          <div class="audit-summary-card terabyte-audit-border">
+            <div class="audit-card-top">
+              <span class="store-badge-mini terabyte-bg">🟢 TerabyteShop • ID 37704</span>
+              <span class="status-badge-ok">✅ HTTP 200 OK • Em Estoque</span>
+            </div>
+            <h4 class="audit-card-title">Palit NVIDIA GeForce RTX 5070 Ti GamingPro-S 16GB</h4>
+            <div class="audit-pricing-block">
+              <div class="audit-main-price">
+                <span class="audit-label">PARCELAMENTO:</span>
+                <span class="audit-val text-green">12x de R$ 862,74 <small>sem juros</small></span>
+              </div>
+              <div class="audit-sub-price">
+                <span>Total a Prazo: <strong>R$ 10.352,93</strong></span>
+                <span class="badge-saving">⭐ Menor Parcela Mensal do Brasil</span>
+              </div>
+            </div>
+            <p class="audit-note">
+              <strong>Veredito:</strong> Menor impacto no fluxo de caixa mensal. Economiza <strong>R$ 313,73 a cada mês</strong> em relação ao mesmo modelo na KaBuM!
+            </p>
+            <a href="https://www.terabyteshop.com.br/produto/37704/placa-de-video-palit-nvidia-geforce-rtx-5070-ti-gamingpro-s-16gb-gddr7-dlss-ray-tracing-ne7507t019t2-gb2031u" target="_blank" class="btn btn-sm btn-terabyte">
+              <span>Abrir na Terabyte (ID 37704)</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+
+          <!-- Card 2: KaBuM Gainward -->
+          <div class="audit-summary-card kabum-audit-border">
+            <div class="audit-card-top">
+              <span class="store-badge-mini kabum-bg">🟠 KaBuM! • ID 996236</span>
+              <span class="status-badge-ok">✅ HTTP 200 OK • Em Estoque</span>
+            </div>
+            <h4 class="audit-card-title">Gainward GeForce RTX 5070 Ti Phoenix-S 16GB</h4>
+            <div class="audit-pricing-block">
+              <div class="audit-main-price">
+                <span class="audit-label">PARCELAMENTO:</span>
+                <span class="audit-val text-green">10x de R$ 1.000,00 <small>sem juros</small></span>
+              </div>
+              <div class="audit-sub-price">
+                <span>Total a Prazo: <strong>R$ 9.999,99</strong></span>
+                <span class="badge-saving">⭐ Menor Preço Total Sem Juros</span>
+              </div>
+            </div>
+            <p class="audit-note">
+              <strong>Veredito:</strong> Menor custo global final entre todas as opções auditadas. Quitação em 10 meses sem nenhum centavo de acréscimo.
+            </p>
+            <a href="https://www.kabum.com.br/produto/996236/placa-de-video-gainward-rtx-5070-ti-phoenix-16gb-gddr7" target="_blank" class="btn btn-sm btn-kabum">
+              <span>Abrir na KaBuM! (ID 996236)</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+
+          <!-- Card 3: KaBuM ASUS Prime -->
+          <div class="audit-summary-card kabum-audit-border">
+            <div class="audit-card-top">
+              <span class="store-badge-mini kabum-bg">🟠 KaBuM! • ID 882086</span>
+              <span class="status-badge-ok">✅ HTTP 200 OK • Em Estoque</span>
+            </div>
+            <h4 class="audit-card-title">ASUS Prime GeForce RTX 5070 Ti OC 16GB</h4>
+            <div class="audit-pricing-block">
+              <div class="audit-main-price">
+                <span class="audit-label">PARCELAMENTO:</span>
+                <span class="audit-val text-green">10x de R$ 1.099,99 <small>sem juros</small></span>
+              </div>
+              <div class="audit-sub-price">
+                <span>Total a Prazo: <strong>R$ 10.999,90</strong></span>
+                <span class="badge-construction">🛡️ Dual Ball Bearing Industrial</span>
+              </div>
+            </div>
+            <p class="audit-note">
+              <strong>Veredito:</strong> Construção de altíssima durabilidade mecânica com rolamento duplo de esferas e 3 ventoinhas Axial-Tech.
+            </p>
+            <a href="https://www.kabum.com.br/produto/882086/placa-de-video-asus-geforce-rtx-5070-ti-prime-oc-16gb-gddr7-256bits-prime-rtx5070ti-o16g" target="_blank" class="btn btn-sm btn-kabum">
+              <span>Abrir na KaBuM! (ID 882086)</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+
+          <!-- Card 4: Pichau Status -->
+          <div class="audit-summary-card pichau-audit-border">
+            <div class="audit-card-top">
+              <span class="store-badge-mini pichau-bg">🔴 Pichau</span>
+              <span class="status-badge-empty">📦 0 Unidades • Lote Esgotado</span>
+            </div>
+            <h4 class="audit-card-title">Pichau Informática (RTX 5070 Ti)</h4>
+            <div class="audit-pricing-block">
+              <div class="audit-main-price">
+                <span class="audit-label">STATUS ATUAL:</span>
+                <span class="audit-val text-yellow">Aguardando Reposição</span>
+              </div>
+              <div class="audit-sub-price">
+                <span>Condição da Loja: <strong>12x Sem Juros</strong></span>
+                <span class="badge-neutral">Monitoramento Ativo 24h</span>
+              </div>
+            </div>
+            <p class="audit-note">
+              <strong>Diagnóstico Técnico:</strong> A loja esgotou o 1º lote e redireciona temporariamente para a busca até a liberação de novas unidades pelo distribuidor.
+            </p>
+            <a href="https://www.pichau.com.br/hardware/placa-de-video?fabricante_gpu=5561" target="_blank" class="btn btn-sm btn-pichau">
+              <span>Acompanhar Catálogo Pichau</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- Quadro de Auditoria Comparativa Direta -->
+        <div class="audit-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>Loja & Catálogo</th>
+                <th>Modelo Auditado</th>
+                <th>Status HTTP & Estoque</th>
+                <th class="text-right">Parcelamento Sem Juros</th>
+                <th class="text-right">Total a Prazo</th>
+                <th class="text-center">Impacto no Bolso</th>
+                <th class="text-center">Link de Compra Direta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="highlight-row-terabyte">
+                <td><span class="store-badge-mini terabyte-bg">🟢 TerabyteShop</span></td>
+                <td><strong>Palit GamingPro-S 16GB</strong> <span class="id-tag">ID: 37704</span></td>
+                <td><span class="status-pill-green">✅ 200 OK • Em Estoque</span></td>
+                <td class="text-right"><strong>12x de R$ 862,74</strong> <span class="text-muted">sem juros</span></td>
+                <td class="text-right">R$ 10.352,93</td>
+                <td class="text-center"><span class="badge-saving-pill">🥇 Menor Parcela Mensal (-R$ 313,73/mês)</span></td>
+                <td class="text-center">
+                  <a href="https://www.terabyteshop.com.br/produto/37704/placa-de-video-palit-nvidia-geforce-rtx-5070-ti-gamingpro-s-16gb-gddr7-dlss-ray-tracing-ne7507t019t2-gb2031u" target="_blank" class="btn-table-action">
+                    Acessar Produto ↗
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="store-badge-mini kabum-bg">🟠 KaBuM!</span></td>
+                <td><strong>Gainward Phoenix-S 16GB</strong> <span class="id-tag">ID: 996236</span></td>
+                <td><span class="status-pill-green">✅ 200 OK • Em Estoque</span></td>
+                <td class="text-right"><strong>10x de R$ 1.000,00</strong> <span class="text-muted">sem juros</span></td>
+                <td class="text-right"><strong>R$ 9.999,99</strong></td>
+                <td class="text-center"><span class="badge-total-pill">🥈 Menor Preço Total a Prazo</span></td>
+                <td class="text-center">
+                  <a href="https://www.kabum.com.br/produto/996236/placa-de-video-gainward-rtx-5070-ti-phoenix-16gb-gddr7" target="_blank" class="btn-table-action">
+                    Acessar Produto ↗
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="store-badge-mini kabum-bg">🟠 KaBuM!</span></td>
+                <td><strong>ASUS Prime OC 16GB</strong> <span class="id-tag">ID: 882086</span></td>
+                <td><span class="status-pill-green">✅ 200 OK • Em Estoque</span></td>
+                <td class="text-right"><strong>10x de R$ 1.099,99</strong> <span class="text-muted">sem juros</span></td>
+                <td class="text-right">R$ 10.999,90</td>
+                <td class="text-center"><span class="badge-spec-pill">🛡️ Rolamento Duplo Industrial</span></td>
+                <td class="text-center">
+                  <a href="https://www.kabum.com.br/produto/882086/placa-de-video-asus-geforce-rtx-5070-ti-prime-oc-16gb-gddr7-256bits-prime-rtx5070ti-o16g" target="_blank" class="btn-table-action">
+                    Acessar Produto ↗
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="store-badge-mini kabum-bg">🟠 KaBuM!</span></td>
+                <td><strong>Palit GamingPro-S 16GB</strong> <span class="id-tag">ID: 988703</span></td>
+                <td><span class="status-pill-green">✅ 200 OK • Em Estoque</span></td>
+                <td class="text-right"><strong>10x de R$ 1.176,47</strong> <span class="text-muted">sem juros</span></td>
+                <td class="text-right">R$ 11.764,69</td>
+                <td class="text-center"><span class="badge-neutral-pill">Armadura Die-Cast Reforçada</span></td>
+                <td class="text-center">
+                  <a href="https://www.kabum.com.br/produto/988703/placa-de-video-palit-geforce-rtx-5070-ti-16gb-gamingpro-s-gddr7-256bits-ne7507t019t2-gb2031u" target="_blank" class="btn-table-action">
+                    Acessar Produto ↗
+                  </a>
+                </td>
+              </tr>
+              <tr class="empty-stock-row">
+                <td><span class="store-badge-mini pichau-bg">🔴 Pichau</span></td>
+                <td><strong>Catálogo Geral RTX 5070 Ti</strong></td>
+                <td><span class="status-pill-yellow">📦 Lotes Esgotados</span></td>
+                <td class="text-right">12x Sem Juros</td>
+                <td class="text-right">Aguardando</td>
+                <td class="text-center"><span class="badge-neutral-pill">Varredura Contínua Ativa</span></td>
+                <td class="text-center">
+                  <a href="https://www.pichau.com.br/hardware/placa-de-video?fabricante_gpu=5561" target="_blank" class="btn-table-action btn-table-ghost">
+                    Monitorar ↗
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visão Geral de Especificações -->
     <section class="models-overview-section">
       <div class="section-title-bar">
-        <h2>Comparativo Direto: RTX 5070 vs RTX 5070 Ti</h2>
-        <p>Preços à vista no PIX, prestações em 15x, rendimento em 1440p e 4K Nativo</p>
+        <h2>Especificações e Condição Sem Juros: NVIDIA GeForce RTX 5070 Ti</h2>
+        <p>Preço total a prazo sem juros, parcelas em 10x ou 12x, rendimento em 1440p e 4K Nativo Ultra</p>
       </div>
 
       <div class="models-grid" id="models-grid">
@@ -173,27 +378,21 @@
       </div>
     </section>
 
-    <!-- NOVA SEÇÃO: TOP 3 MELHORES OPÇÕES POR LOJA -->
+    <!-- SEÇÃO: TOP 3 MELHORES OPÇÕES POR LOJA (PARCELAMENTO SEM JUROS) -->
     <section class="top-store-section" id="top-store-section">
       <div class="section-title-bar top-store-header-flex">
         <div>
-          <div class="badge-pill-store">🏆 PODIUM OFICIAL POR LOJA</div>
-          <h2>As 3 Melhores Opções de Cada Site</h2>
-          <p>Classificação rigorosa por Menor Preço, Refrigeração (Triplo Fan) e Custo x Benefício em cada parceiro</p>
+          <div class="badge-pill-store">🏆 PODIUM OFICIAL POR LOJA (SEM JUROS)</div>
+          <h2>As 3 Melhores Opções Sem Juros em Cada Loja</h2>
+          <p>Classificação por Menor Parcela Sem Juros (12x vs 10x), Refrigeração Triplo Fan e Custo x Benefício</p>
         </div>
 
-        <!-- Seletor de Modelo para o Top 3 -->
         <div class="top-store-controls">
           <div class="store-tabs-nav" id="store-tabs-nav">
             <button class="btn-store-tab active" onclick="switchStoreTab('all')">🏬 Todas as 3 Lojas</button>
-            <button class="btn-store-tab tab-pichau" onclick="switchStoreTab('pichau')">🔴 Pichau</button>
-            <button class="btn-store-tab tab-terabyte" onclick="switchStoreTab('terabyte')">🟢 TerabyteShop</button>
-            <button class="btn-store-tab tab-kabum" onclick="switchStoreTab('kabum')">🟠 KaBuM!</button>
-          </div>
-
-          <div class="model-toggle-pill">
-            <button class="btn-model-toggle active" id="btn-top-5070" onclick="switchTopModel('RTX 5070')">RTX 5070 (12GB)</button>
-            <button class="btn-model-toggle" id="btn-top-5070ti" onclick="switchTopModel('RTX 5070 Ti')">RTX 5070 Ti (16GB)</button>
+            <button class="btn-store-tab tab-pichau" onclick="switchStoreTab('pichau')">🔴 Pichau (12x)</button>
+            <button class="btn-store-tab tab-terabyte" onclick="switchStoreTab('terabyte')">🟢 TerabyteShop (12x)</button>
+            <button class="btn-store-tab tab-kabum" onclick="switchStoreTab('kabum')">🟠 KaBuM! (10x)</button>
           </div>
         </div>
       </div>
@@ -204,50 +403,29 @@
       </div>
     </section>
 
-    <!-- NOVA SEÇÃO: RADAR DE PROMOÇÕES POR TEMPO LIMITADO -->
-    <section class="limited-promos-section" id="limited-promos-section">
-      <div class="limited-promos-card">
-        <div class="limited-promos-header">
-          <div class="pulse-indicator">
-            <span class="pulse-dot"></span>
-            <span class="pulse-text">⚡ RADAR DE OFERTAS POR TEMPO LIMITADO & RELÂMPAGO</span>
-          </div>
-          <span class="promo-count-badge" id="promo-count-badge">Carregando promoções...</span>
-        </div>
-        <p class="limited-promos-subtitle">
-          Monitoramento em tempo real de lotes com desconto agressivo, Ofertas Ninja, queimas de estoque e preços especiais com prazo ou quantidade restrita:
-        </p>
-
-        <div class="promos-cards-grid" id="promos-cards-grid">
-          <!-- Inserido dinamicamente via JS -->
-        </div>
-      </div>
-    </section>
-
-    <!-- SEÇÃO DEDICADA: SIMULADOR DE PARCELAMENTO EM 15X -->
-    <section class="simulator-15x-section" id="simulator-15x-section">
+    <!-- SEÇÃO DEDICADA: ANÁLISE FINANCEIRA & PARCELAMENTO SEM JUROS (10x vs 12x) -->
+    <section class="simulator-15x-section" id="simulator-interest-free-section">
       <div class="sim-15x-card">
         <div class="sim-15x-header">
-          <div class="badge-pill-finance">💳 ANÁLISE FINANCEIRA & PARCELAMENTO ESTENDIDO</div>
-          <h2>Simulação de Parcelamento em 15x (+10% de Acréscimo Médio)</h2>
+          <div class="badge-pill-finance">💳 ANÁLISE FINANCEIRA & FLUXO DE CAIXA MENSAL</div>
+          <h2>Comparativo de Parcelamento Sem Juros: 12x vs 10x no Cartão</h2>
           <p class="sim-15x-subtitle">
-            O preço anunciado nas lojas (PIX) já inclui o desconto à vista de <strong>15%</strong>. 
-            Ao optar pelo parcelamento em <strong>15 vezes</strong>, aplicamos o acréscimo médio de <strong>10%</strong> 
-            sobre o valor a prazo para calcular a prestação real mensal.
+            Análise comparativa focada exclusivamente no <strong>Parcelamento Sem Juros (10x vs 12x)</strong> e no 
+            <strong>Preço Total do Produto a Prazo</strong>. Veja a diferença prática entre 10 e 12 parcelas sem juros:
           </p>
         </div>
 
-        <div class="sim-15x-grid" id="sim-15x-grid">
+        <div class="sim-15x-grid" id="sim-interest-free-grid">
           <!-- Preenchido dinamicamente via JS -->
         </div>
 
         <div class="sim-15x-takeaway">
           <div class="takeaway-icon">💡</div>
           <div class="takeaway-text">
-            <strong>Dica de Decisão Financeira:</strong>
-            Para saltar da <strong>RTX 5070 (12GB)</strong> para a <strong>RTX 5070 Ti (16GB)</strong> no plano de 15x, 
-            a diferença na prestação é de aproximadamente <strong>+R$ 284,71 por mês</strong>. Essa diferença garante +28% de FPS em 4K nativo 
-            e os 16GB de VRAM essenciais para longevidade sem engasgos de textura nos próximos anos.
+            <strong>Impacto Real no Orçamento Familiar:</strong>
+            Comprar a <strong>Palit GamingPro-S em 12x sem juros na TerabyteShop (R$ 862,74/mês)</strong> 
+            economiza <strong>R$ 313,73 a cada mês</strong> em relação ao mesmo modelo parcelado em <strong>10x na KaBuM! (R$ 1.176,47/mês)</strong>. 
+            E em relação à placa mais barata da KaBuM (Gainward Phoenix a R$ 1.000,00/mês), a Terabyte entrega <strong>R$ 137,26 de folga mensal</strong> no seu bolso.
           </div>
         </div>
       </div>
@@ -256,14 +434,14 @@
     <!-- Gráficos de Inteligência de Preço e FPS -->
     <section class="charts-section">
       <div class="section-title-bar">
-        <h2>Análise Gráfica de Rendimento e Custo por Frame</h2>
-        <p>Comparativo direto de custo por quadro em 1440p vs 4K Nativo e comparação de Preço vs Prestação 15x</p>
+        <h2>Análise Gráfica: Preço Total Sem Juros vs Parcela Mensal</h2>
+        <p>Comparativo de custo por FPS e esforço financeiro mensal entre as opções disponíveis</p>
       </div>
 
       <div class="charts-grid">
         <div class="chart-card">
           <div class="chart-card-header">
-            <h3>💸 Custo por FPS (1440p vs 4K Nativo)</h3>
+            <h3>💸 Custo Total por FPS (1440p vs 4K Nativo)</h3>
             <span class="badge-mini">Menor é melhor</span>
           </div>
           <div class="chart-container">
@@ -273,8 +451,8 @@
 
         <div class="chart-card">
           <div class="chart-card-header">
-            <h3>💳 Preço à Vista vs Prestação Mensal 15x</h3>
-            <span class="badge-mini">Comparativo de Esforço Financeiro</span>
+            <h3>💳 Preço Total Sem Juros vs Parcela Mensal (R$/mês)</h3>
+            <span class="badge-mini">Comparativo de Impacto Mensal</span>
           </div>
           <div class="chart-container">
             <canvas id="chart-perf-price"></canvas>
@@ -283,29 +461,29 @@
       </div>
     </section>
 
-    <!-- Simulador de Orçamento Interativo -->
+    <!-- Simulador de Orçamento por Parcela Mensal -->
     <section class="budget-simulator-section">
       <div class="simulator-card">
         <div class="simulator-header">
           <div class="sim-icon">🎯</div>
           <div>
-            <h3>Simulador de Bolso: Qual GPU comprar com o meu Orçamento?</h3>
-            <p>Ajuste o valor à vista ou veja a prestação equivalente em 15x</p>
+            <h3>Simulador de Capacidade Mensal: Quanto cabe no seu bolso por mês?</h3>
+            <p>Ajuste o valor que você pode pagar mensalmente no cartão sem juros e confira a viabilidade da RTX 5070 Ti</p>
           </div>
         </div>
 
         <div class="simulator-controls">
           <div class="slider-group">
             <div class="slider-labels">
-              <span>Seu Orçamento Disponível (à vista):</span>
-              <span class="budget-display" id="budget-value-display">R$ 6.500,00</span>
+              <span>Sua Capacidade de Parcela Mensal:</span>
+              <span class="budget-display" id="budget-value-display">R$ 800,00 / mês</span>
             </div>
-            <input type="range" id="budget-slider" min="4500" max="12000" step="200" value="6500" oninput="updateBudgetSimulation()">
+            <input type="range" id="budget-slider" min="500" max="1500" step="25" value="800" oninput="updateBudgetSimulation()">
             <div class="slider-ticks">
-              <span>R$ 4.500</span>
-              <span>R$ 6.500</span>
-              <span>R$ 8.500</span>
-              <span>R$ 11.000+</span>
+              <span>R$ 500/mês</span>
+              <span>R$ 750/mês</span>
+              <span>R$ 1.000/mês</span>
+              <span>R$ 1.500/mês</span>
             </div>
           </div>
 
@@ -316,22 +494,28 @@
       </div>
     </section>
 
-    <!-- Tabela Dinâmica de Todas as Ofertas -->
+    <!-- Tabela Dinâmica de Todas as Ofertas Sem Juros -->
     <section class="offers-section" id="offers-table-section">
       <div class="section-title-bar table-header-flex">
         <div>
-          <h2>Tabela Geral de Cotações do Dia</h2>
-          <p id="offers-count-label">Carregando ofertas...</p>
+          <h2>Tabela Geral de Cotações da RTX 5070 Ti (Parcelamento Sem Juros)</h2>
+          <p id="offers-count-label">Carregando ofertas sem juros...</p>
         </div>
 
         <!-- Filtros Rápidos -->
         <div class="table-filters">
           <div class="filter-group">
-            <label>Modelo:</label>
-            <select id="filter-model" onchange="renderOffersTable()">
-              <option value="ALL">Todas as Placas</option>
-              <option value="RTX 5070">Apenas RTX 5070 (12GB)</option>
-              <option value="RTX 5070 Ti">Apenas RTX 5070 Ti (16GB)</option>
+            <label>Fabricante:</label>
+            <select id="filter-brand" onchange="renderOffersTable()">
+              <option value="ALL">Todas as Marcas</option>
+              <option value="Zotac">Zotac</option>
+              <option value="MSI">MSI</option>
+              <option value="Palit">Palit</option>
+              <option value="ASUS">ASUS</option>
+              <option value="Gainward">Gainward</option>
+              <option value="Inno3d">INNO3D</option>
+              <option value="Gigabyte">Gigabyte</option>
+              <option value="Galax">Galax</option>
             </select>
           </div>
 
@@ -339,39 +523,30 @@
             <label>Loja:</label>
             <select id="filter-store" onchange="renderOffersTable()">
               <option value="ALL">Todas as Lojas</option>
-              <option value="kabum">KaBuM!</option>
-              <option value="pichau">Pichau</option>
-              <option value="terabyte">TerabyteShop</option>
+              <option value="pichau">Pichau (12x)</option>
+              <option value="terabyte">TerabyteShop (12x)</option>
+              <option value="kabum">KaBuM! (10x)</option>
             </select>
           </div>
 
           <div class="filter-group">
-            <label>Promoção / Fans:</label>
-            <select id="filter-promo" onchange="renderOffersTable()">
-              <option value="ALL">Todas as Ofertas</option>
-              <option value="promo_only">⚡ Apenas Promoções / Ofertas Limitadas</option>
+            <label>Parcelamento:</label>
+            <select id="filter-installments" onchange="renderOffersTable()">
+              <option value="ALL">Todas as Condições</option>
+              <option value="12x">Apenas 12x Sem Juros (Pichau / Terabyte)</option>
+              <option value="10x">Apenas 10x Sem Juros (KaBuM!)</option>
               <option value="triple_only">❄️ Apenas Triplo Fan (3 Fans)</option>
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label>Pagamento:</label>
-            <select id="filter-payment" onchange="renderOffersTable()">
-              <option value="cash">À Vista (PIX / Boleto)</option>
-              <option value="card_15x">Parcelado 15x (+10% juros)</option>
-              <option value="card">Cartão Padrão (10x/12x)</option>
             </select>
           </div>
 
           <div class="filter-group">
             <label>Ordenar Por:</label>
             <select id="filter-sort" onchange="renderOffersTable()">
-              <option value="score">Melhor Custo-Benefício</option>
-              <option value="price_asc">Menor Preço à Vista (PIX)</option>
-              <option value="installment_15x">Menor Parcela em 15x</option>
-              <option value="fps_cost_4k">Menor R$ por FPS (4K Nativo)</option>
-              <option value="fps_cost_1440p">Menor R$ por FPS (1440p)</option>
-              <option value="price_desc">Maior Preço</option>
+              <option value="installment_asc">Menor Parcela Mensal Sem Juros (R$/mês)</option>
+              <option value="price_card_asc">Menor Preço Total Sem Juros (R$)</option>
+              <option value="score">Melhor Custo-Benefício Sem Juros</option>
+              <option value="fps_cost_4k">Menor Custo Total por FPS (4K)</option>
+              <option value="fps_cost_1440p">Menor Custo Total por FPS (1440p)</option>
             </select>
           </div>
         </div>
@@ -386,10 +561,11 @@
               <th>Modelo & Specs</th>
               <th>Placa / Fabricante</th>
               <th>Refrigeração & Destaque</th>
-              <th class="text-right">Preço à Vista (PIX)</th>
-              <th class="text-right">Prestação 15x</th>
-              <th class="text-center">R$ / FPS (1440p)</th>
-              <th class="text-center">R$ / FPS (4K Nativo)</th>
+              <th class="text-right">Preço Total Sem Juros</th>
+              <th class="text-right">Condição Sem Juros</th>
+              <th class="text-right">Parcela Mensal</th>
+              <th class="text-center">R$ / FPS Total (1440p)</th>
+              <th class="text-center">R$ / FPS Total (4K)</th>
               <th class="text-center">Score C/B</th>
               <th class="text-center">Ação</th>
             </tr>
@@ -421,7 +597,7 @@
         </div>
 
         <div class="dlss5-summary-box">
-          <div class="dlss5-takeaways-title">🧠 Conclusão Técnica sobre o Impacto do DLSS 5 na Escolha:</div>
+          <div class="dlss5-takeaways-title">🧠 Conclusão Técnica sobre a Longevidade da RTX 5070 Ti (16GB GDDR7):</div>
           <ul class="dlss5-takeaways-list" id="dlss5-takeaways-list">
             <!-- Inserido dinamicamente via JS -->
           </ul>
@@ -433,10 +609,10 @@
     <section class="verdict-section" id="verdict-section">
       <div class="verdict-card">
         <div class="verdict-header">
-          <div class="badge-verdict">DIAGNÓSTICO TÉCNICO & COMPARATIVO 4K</div>
-          <h2 id="verdict-main-title">Por Que a RTX 5070 é a Melhor Escolha em C/B e Quando Vale a 5070 Ti em 4K?</h2>
+          <div class="badge-verdict">DIAGNÓSTICO FINANCEIRO & TÉCNICO</div>
+          <h2 id="verdict-main-title">Veredito Financeiro: Por Que a Pichau em 12x Sem Juros é a Opção Mais Inteligente</h2>
           <p id="verdict-main-summary" class="verdict-intro">
-            Carregando análise técnica detalhada...
+            Carregando análise técnica e comparativo de fluxo de caixa...
           </p>
         </div>
 
@@ -444,36 +620,34 @@
           <!-- Inserido dinamicamente -->
         </div>
 
-
         <!-- Guia de Lojas -->
         <div class="store-guide-box">
-          <h3>🏬 Estratégia de Compra nas 3 Lojas Avaliadas</h3>
+          <h3>🏬 Estratégia de Compra Sem Juros nas 3 Lojas Avaliadas</h3>
           <div class="store-guide-grid">
-            <div class="store-guide-item pichau-border">
-              <h4>🔴 Pichau</h4>
-              <p>Melhor precificação à vista no PIX para modelos de alto desempenho (ex: Gainward RTX 5070 Python III Triplo Fan). Excelente custo-benefício e opções de 3 ventoinhas ao menor preço.</p>
-            </div>
             <div class="store-guide-item terabyte-border">
-              <h4>🟢 TerabyteShop</h4>
-              <p>Excelentes ofertas com marcas parceiras (Palit e PNY), especialmente na RTX 5070 Ti, além de promoções relâmpago de frete e parcelamento facilitado.</p>
+              <h4>🟢 TerabyteShop (12x Sem Juros)</h4>
+              <p><strong>Campeã em Parcela Mensal:</strong> Palit GamingPro-S 16GB por <strong>12x de R$ 862,74 sem juros</strong> (Total R$ 10.352,93). Menor prestação mensal do Brasil e estoque verificado.</p>
             </div>
             <div class="store-guide-item kabum-border">
-              <h4>🟠 KaBuM!</h4>
-              <p>Maior variedade de modelos (ASUS, MSI, Gigabyte) e excelente opção se você pretende <strong>parcelar no cartão sem sobrepreço abusivo</strong>.</p>
+              <h4>🟠 KaBuM! (10x Sem Juros)</h4>
+              <p><strong>Campeã em Preço Total:</strong> Gainward Phoenix-S por <strong>10x de R$ 1.000,00 sem juros</strong> (Total R$ 9.999,99). Menor custo final e quitação mais rápida em 10 meses.</p>
+            </div>
+            <div class="store-guide-item pichau-border">
+              <h4>🔴 Pichau (12x Sem Juros)</h4>
+              <p><strong>Lotes Esgotados:</strong> Sem estoque ativo no momento. O robô monitora a reposição e notificará a abertura do novo lote.</p>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-
   </main>
 
   <!-- Footer -->
   <footer class="app-footer">
     <div class="container footer-container">
-      <p>GPU Hunter Pro • Monitor Diário com Banco SQLite • Foco em Custo-Benefício (RTX 5070 & RTX 5070 Ti)</p>
-      <p class="footer-sub">KaBuM! • Pichau • TerabyteShop | Histórico Diário Persistido Automaticamente</p>
+      <p>GPU Hunter Pro • Monitor Diário com Banco SQLite • Foco Exclusivo em Parcelamento Sem Juros na NVIDIA GeForce RTX 5070 Ti (16GB GDDR7)</p>
+      <p class="footer-sub">Pichau (12x S/ Juros) • TerabyteShop (12x S/ Juros) • KaBuM! (10x S/ Juros) | Histórico Diário Persistido Automaticamente</p>
     </div>
   </footer>
 

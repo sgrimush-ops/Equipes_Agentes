@@ -1,5 +1,5 @@
 """
-Servidor Web e API REST para a Ferramenta de Cotação de GPUs RTX 5000 (RTX 5070 e RTX 5070 Ti)
+Servidor Web e API REST para a Ferramenta de Cotação de GPU NVIDIA GeForce RTX 5070 Ti (16GB GDDR7)
 Inclui Histórico Diário de Preços, Monitor de Oscilação e Banco SQLite.
 """
 
@@ -34,7 +34,7 @@ def update_cache(live: bool = True):
     global CACHE_DATA, IS_UPDATING
     IS_UPDATING = True
     try:
-        print(f"[Server] Atualizando dados (live={live})...")
+        print(f"[Server] Atualizando dados da RTX 5070 Ti (live={live})...")
         offers = collect_all_offers(live_scrape=live)
         result = enrich_and_score_offers(offers)
         
@@ -44,7 +44,7 @@ def update_cache(live: bool = True):
         result['variation_stats'] = get_price_variation_stats()
         
         CACHE_DATA = result
-        print(f"[Server] Cache atualizado com sucesso! {len(offers)} ofertas.")
+        print(f"[Server] Cache atualizado com sucesso! {len(offers)} ofertas de RTX 5070 Ti.")
     except Exception as e:
         print(f"[Server Error] Falha ao atualizar cache: {e}")
     finally:
@@ -78,10 +78,10 @@ class GPUHunterRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == '/api/history':
             days = int(query.get('days', ['30'])[0])
-            model = query.get('model', ['ALL'])[0]
+            model = query.get('model', ['RTX 5070 Ti'])[0]
             store = query.get('store', ['all'])[0]
             
-            timeline = get_daily_timeline(days=days, gpu_model=model if model != 'ALL' else None, store_key=store)
+            timeline = get_daily_timeline(days=days, gpu_model=model, store_key=store)
             variations = get_price_variation_stats()
 
             self.send_response(200)
@@ -92,7 +92,7 @@ class GPUHunterRequestHandler(http.server.SimpleHTTPRequestHandler):
             response = {
                 'status': 'success',
                 'days': days,
-                'model': model,
+                'model': 'RTX 5070 Ti',
                 'store': store,
                 'timeline': timeline,
                 'variations': variations
@@ -120,34 +120,33 @@ class GPUHunterRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif path == '/api/export/csv':
             self.send_response(200)
             self.send_header('Content-Type', 'text/csv; charset=utf-8')
-            self.send_header('Content-Disposition', 'attachment; filename="cotacao_rtx5070_5070ti.csv"')
+            self.send_header('Content-Disposition', 'attachment; filename="cotacao_rtx5070_ti_sem_juros.csv"')
             self.end_headers()
             
-            csv_lines = ["Loja;Modelo GPU;Fabricante;Titulo;Preco A Vista PIX (R$);Preco Cartao 10x/12x (R$);Prestacao 15x (+10% acrescimo) (R$);Total 15x (R$);Custo por FPS 1440p (R$);Custo por FPS 4K Nativo (R$);Score Custo-Beneficio;Link"]
+            csv_lines = ["Loja;Modelo GPU;Fabricante;Titulo;Refrigeracao;Preco Total Sem Juros (R$);Condicao Parcelamento;Parcela Mensal Sem Juros (R$);Custo por FPS Total 1440p (R$);Custo por FPS Total 4K (R$);Score Custo-Beneficio;Link"]
             for o in CACHE_DATA.get('offers', []):
-                line = f"{o['store']};{o['gpu_model']};{o['brand']};\"{o['title']}\";{o['price_cash']};{o['price_card']};{o.get('installment_15x_val', 0)};{o.get('price_15x_total', 0)};{o.get('cost_per_fps_1440p', 0)};{o.get('cost_per_fps_4k', 0)};{o.get('cost_benefit_score', 0)};{o['url']}"
+                line = f"{o['store']};{o['gpu_model']};{o['brand']};\"{o['title']}\";\"{o.get('cooling_type', '')}\";{o['price_card']};\"{o.get('installments_text', '')}\";{o.get('installment_val', 0)};{o.get('cost_per_fps_1440p', 0)};{o.get('cost_per_fps_4k', 0)};{o.get('cost_benefit_score', 0)};{o['url']}"
                 csv_lines.append(line)
             
             self.wfile.write("\n".join(csv_lines).encode('utf-8-sig'))
             return
 
-
         elif path == '/api/history/export/csv':
             self.send_response(200)
             self.send_header('Content-Type', 'text/csv; charset=utf-8')
-            self.send_header('Content-Disposition', 'attachment; filename="historico_diario_rtx5070_5070ti.csv"')
+            self.send_header('Content-Disposition', 'attachment; filename="historico_diario_rtx5070_ti_sem_juros.csv"')
             self.end_headers()
             
             from history_db import get_connection
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT date, gpu_model, store_key, min_price_cash, avg_price_cash, max_price_cash, best_offer_title FROM daily_aggregates WHERE gpu_model IN ('RTX 5070', 'RTX 5070 Ti') ORDER BY date DESC, gpu_model ASC")
+            cursor.execute("SELECT date, gpu_model, store_key, min_price_card, min_installment_val, best_offer_title FROM daily_aggregates WHERE gpu_model = 'RTX 5070 Ti' ORDER BY date DESC")
             rows = cursor.fetchall()
             conn.close()
 
-            csv_lines = ["Data;Modelo GPU;Filtro Loja;Menor Preco (R$);Preco Medio (R$);Maior Preco (R$);Melhor Oferta Registrada"]
+            csv_lines = ["Data;Modelo GPU;Filtro Loja;Menor Preco Total Sem Juros (R$);Menor Parcela Mensal Sem Juros (R$);Melhor Oferta Registrada"]
             for r in rows:
-                csv_lines.append(f"{r['date']};{r['gpu_model']};{r['store_key']};{r['min_price_cash']};{r['avg_price_cash']};{r['max_price_cash']};\"{r['best_offer_title']}\"")
+                csv_lines.append(f"{r['date']};{r['gpu_model']};{r['store_key']};{r['min_price_card']};{r['min_installment_val']};\"{r['best_offer_title']}\"")
 
             self.wfile.write("\n".join(csv_lines).encode('utf-8-sig'))
             return
@@ -164,7 +163,7 @@ class GPUHunterRequestHandler(http.server.SimpleHTTPRequestHandler):
                 t = threading.Thread(target=update_cache, kwargs={'live': True})
                 t.daemon = True
                 t.start()
-                status_msg = "Varredura iniciada para RTX 5070 e RTX 5070 Ti."
+                status_msg = "Varredura iniciada exclusivamente para RTX 5070 Ti."
             else:
                 status_msg = "Varredura já está em andamento."
 
@@ -198,7 +197,7 @@ def run_server(open_browser: bool = True):
     print(f" [*] GPU Hunter & Cost-Benefit Analyzer Pro iniciado!")
     print(f" [>] Acesse no seu navegador: {url}")
     print(f" [*] Monitorando: KaBuM!, Pichau e TerabyteShop")
-    print(f" [*] Placas: RTX 5070 e RTX 5070 Ti")
+    print(f" [*] Placa Exclusiva: NVIDIA GeForce RTX 5070 Ti (16GB GDDR7)")
     print(f"========================================================\n")
 
     if open_browser:
@@ -214,4 +213,3 @@ def run_server(open_browser: bool = True):
 if __name__ == '__main__':
     open_browser_flag = '--no-browser' not in sys.argv
     run_server(open_browser=open_browser_flag)
-

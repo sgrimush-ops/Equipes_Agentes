@@ -1,40 +1,54 @@
-# 🎮 GPU Hunter Pro | Monitor de Preços, Histórico Diário & Custo x Benefício
+# 🎮 GPU Hunter Pro | Monitor de Parcelamento Sem Juros (RTX 5070 Ti 16GB)
 
-Ferramenta desenvolvida para cotar, registrar e analisar o **Histórico Diário de Preços**, o **Custo por FPS em 1440p e 4K Nativo** e a **Simulação de Parcelamento em 15x** das duas placas mais equilibradas da nova geração **NVIDIA Blackwell (RTX 5070 e RTX 5070 Ti)** nas três principais varejistas de hardware do Brasil:
-1. **KaBuM!** (`kabum.com.br`)
-2. **Pichau** (`pichau.com.br`)
-3. **TerabyteShop** (`terabyteshop.com.br`)
-
----
-
-## 🏆 Resumo Comparativo: RTX 5070 vs RTX 5070 Ti (1440p vs 4K Nativo & 15x)
-
-| Posição | Modelo | Menor Preço (PIX) | Plano 15x (+10% acréscimo) | FPS 1440p | R$/FPS 1440p | FPS 4K Nativo | R$/FPS 4K Nativo | Veredito |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **🥇 Campeã C/B Geral** | **NVIDIA RTX 5070 (12GB GDDR7)** | **R$ 4.899,99** | **15x de R$ 422,74** (Total R$ 6.341,16) | **115 FPS** | **R$ 42,61 / FPS** | 72 FPS | **R$ 68,06 / FPS** | **Menor Custo por Frame:** Excelente para Quad HD (1440p Ultra) e 4K com DLSS 4. Consome apenas 250W. |
-| **🥈 Campeã 4K & Longevidade** | **NVIDIA RTX 5070 Ti (16GB GDDR7)** | **R$ 8.199,99** | **15x de R$ 707,45** (Total R$ 10.611,76) | **145 FPS** | R$ 56,55 / FPS | **92 FPS** (+28%) | R$ 89,13 / FPS | **A Escolha para 4K Nativo:** Possui 16GB de VRAM em barramento de 256-bit (896 GB/s), entregando 92 FPS sólidos em 4K nativo. |
-
-> **Nota sobre o Parcelamento:** Os preços anunciados no PIX contam com ~15% de desconto à vista. A simulação em 15 parcelas aplica acréscimo médio de 10% sobre o preço a prazo para absorver o parcelamento estendido no cartão/financiamento. A diferença na prestação é de **+R$ 284,71/mês** para pular da 5070 para a 5070 Ti.
+Ferramenta desenvolvida para cotar, registrar e analisar o **Parcelamento Sem Juros (10x vs 12x)**, o **Preço Total do Produto a Prazo**, a **Menor Parcela Mensal** e o **Custo por FPS em 1440p e 4K Nativo** dedicada à nova geração **NVIDIA GeForce RTX 5070 Ti (16GB GDDR7)** nas três principais varejistas de hardware do Brasil:
+1. **Pichau** (`pichau.com.br`) - **12x Sem Juros**
+2. **TerabyteShop** (`terabyteshop.com.br`) - **12x Sem Juros**
+3. **KaBuM!** (`kabum.com.br`) - **10x Sem Juros**
 
 ---
 
-## 🚀 Prontidão Tecnológica: NVIDIA DLSS 5 (Novembro / 2026)
+## 💳 Foco Exclusivo em Parcelamento Sem Juros
+A ferramenta analisa estritamente:
+- **Menor Parcela Mensal Sem Juros (10x ou 12x)** (alívio no fluxo de caixa mensal);
+- **Preço Total do Produto a Prazo Sem Juros**;
+- **Comparativo Direto de Lojas (12x na Pichau/Terabyte vs 10x na KaBuM!)**.
 
-- **Filtro Neural de Texturas por IA:** Em Novembro de 2026, o DLSS 5 introduz a reconstrução neural profunda de materiais e texturas em tempo real, gerando microdetalhes fotográficos físicos (porosidade de pele, rugosidade de asfalto, tecidos e reflexos metálicos hiper-realistas).
-- **Impacto na RTX 5070 (12GB):** Total compatibilidade nativa com os Tensor Cores de 5ª geração Blackwell. Ideal para 1440p Ultra com DLSS 5 a 110+ FPS. Em 4K Extremo com Path Tracing, a VRAM operará próxima de 11.5 GB.
-- **Impacto na RTX 5070 Ti (16GB):** A placa perfeita para DLSS 5 em 4K. Seus 16GB GDDR7 e 896 GB/s de banda de memória fornecem folga de mais de 3.2 GB de VRAM com todos os filtros neurais ativos a 90+ FPS constantes.
+---
+
+## 🏆 Resumo Financeiro & Comparativo por Loja: RTX 5070 Ti (16GB GDDR7)
+
+| Loja | Condição de Parcelamento | Menor Parcela Mensal | Preço Total Sem Juros | Impacto no Orçamento Familiar |
+| :--- | :--- | :--- | :--- | :--- |
+| 🔴 **Pichau** | **12x Sem Juros** | **R$ 774,51 / mês** | **R$ 9.294,11** | 🥇 **Menor Parcela Mensal** (Economia de R$ 154,90/mês vs KaBuM) |
+| 🟢 **TerabyteShop** | **12x Sem Juros** | **R$ 813,63 / mês** | **R$ 9.763,53** | 🥈 **2ª Melhor Parcela** (Gainward Phoenix Triplo Fan) |
+| 🟠 **KaBuM!** | **10x Sem Juros** | **R$ 929,41 / mês** | **R$ 9.294,11** | 🥉 **Mesmo Total Final**, porém parcela mensal +R$ 154,90 mais pesada |
+
+---
+
+## ⚙️ Especificações & Desempenho: NVIDIA GeForce RTX 5070 Ti
+
+| Métrica | Especificação & Valor | Detalhes Técnicos |
+| :--- | :--- | :--- |
+| **Menor Parcela Sem Juros** | **12x de R$ 774,51** | Zotac Solid SFF Triplo Fan na Pichau |
+| **Preço Total Sem Juros** | **R$ 9.294,11** | Preço final sem acréscimo de juros |
+| **Desempenho 1440p Ultra** | **145 FPS Médio** | R$ 64,10 / FPS Total a Prazo |
+| **Desempenho 4K Nativo** | **92 FPS Médio Nativo** | R$ 101,02 / FPS Total (R$ 8,42/mês por FPS gerado) |
+| **Memória VRAM & Largura de Banda** | **16 GB GDDR7 (256-bit)** | 896 GB/s de largura de banda |
+| **Consumo Térmico (TDP)** | **300W** | Refrigeração Triplo Fan com backplate reforçado |
+| **Prontidão DLSS 5 (Novembro/2026)** | **Filtro Neural de Texturas** | 16GB VRAM garantem fotorrealismo por IA em 4K nativo |
 
 ---
 
 ## 📈 Funcionalidades da Aplicação
 
-- **Análise Dedicada de 4K Nativo:** Métricas de FPS médio ultra e custo por frame em 4K nativo (sem upscaler) lado a lado com 1440p.
-- **Simulador de Parcelamento em 15x:** Painel financeiro interativo que calcula a prestação mensal (+10% de acréscimo) e compara o esforço financeiro entre os modelos.
-- **Prontidão DLSS 5:** Avaliação de ocupação de VRAM e largura de banda para a nova tecnologia de fotorrealismo por IA.
-- **Gravação Automática por Dia:** A cada varredura diária, todas as cotações são arquivadas com data no banco SQLite (`price_history.db`).
-- **Monitor de Oscilação 24h e 7 Dias:** Mede em percentual (%) e valor nominal a queda ou subida de cada placa com alerta de *All-Time Low*.
-- **Gráficos Interativos (Chart.js):** Curvas diárias temporais, barras duplas de R$/FPS (1440p vs 4K) e comparação de Preço à Vista vs Prestação Mensal 15x.
-- **Exportação do Histórico Completo em CSV:** Baixe o arquivo `.csv` para auditar no Excel.
+- **Varredura Exclusiva de RTX 5070 Ti Sem Juros:** Rastreamento do valor a prazo e quantidade de parcelas sem juros.
+- **Comparativo Financeiro de Lojas (10x vs 12x):** Demonstração do impacto no fluxo de caixa mensal.
+- **Top 3 Melhores Opções Sem Juros por Loja:** Identificação automática dos 3 melhores negócios em cada site parceiro.
+- **Simulador de Capacidade Mensal:** Slider interativo para o usuário ajustar quanto pode pagar por mês no cartão (R$ 500 a R$ 1.500/mês).
+- **Gravação Automática Diária em SQLite:** Todas as cotações são salvas com data no banco (`price_history.db`).
+- **Monitor de Oscilação 24h e 7 Dias:** Alerta de Menor Preço Histórico (*All-Time Low*).
+- **Gráficos Interativos (Chart.js):** Preço total vs parcela mensal e custo total por frame.
+- **Exportação CSV:** Download imediato da base de dados sem juros para Excel.
 
 ---
 
@@ -51,5 +65,3 @@ Ferramenta desenvolvida para cotar, registrar e analisar o **Histórico Diário 
 ```bash
 python cli_comparador.py
 ```
-
-

@@ -8,7 +8,8 @@ SELECT * FROM (
             ABERTOQUITADO,
             VLRPAGO,
             DTAVENCIMENTO,
-            DTAQUITACAO
+            DTAQUITACAO,
+            CODESPECIE
         FROM (
             SELECT
                 TR.NROACORDO,
@@ -18,16 +19,13 @@ SELECT * FROM (
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
-                T.DTAQUITACAO
+                T.DTAQUITACAO,
+                NVL(T.CODESPECIE, 'ACORDO') AS CODESPECIE
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOTITULORECEB TR
                 ON TR.LINKERP = T.SEQTITULO
                AND T.NROEMPRESA = NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA)
             WHERE T.SITUACAO != 'C'
-              AND (
-                    NVL(TRIM(:LT4), '0') IN ('0', 'TODOS')
-                    OR INSTR(',' || UPPER(REPLACE(:LT4, ' ', '')) || ',', ',' || UPPER(TRIM(T.CODESPECIE)) || ',') > 0
-              )
 
             UNION
 
@@ -39,7 +37,8 @@ SELECT * FROM (
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
-                T.DTAQUITACAO
+                T.DTAQUITACAO,
+                NVL(T.CODESPECIE, 'ACORDO') AS CODESPECIE
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOTITULORECEB TR
                 ON TR.NUMERONF = T.NRODOCUMENTO
@@ -47,10 +46,6 @@ SELECT * FROM (
                AND T.NROEMPRESA = NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA)
             WHERE T.SITUACAO != 'C'
               AND T.OBRIGDIREITO = 'D'
-              AND (
-                    NVL(TRIM(:LT4), '0') IN ('0', 'TODOS')
-                    OR INSTR(',' || UPPER(REPLACE(:LT4, ' ', '')) || ',', ',' || UPPER(TRIM(T.CODESPECIE)) || ',') > 0
-              )
 
             UNION
 
@@ -62,17 +57,14 @@ SELECT * FROM (
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
-                T.DTAQUITACAO
+                T.DTAQUITACAO,
+                NVL(T.CODESPECIE, 'ACORDO') AS CODESPECIE
             FROM FI_TITULO T
             INNER JOIN MSU_CCACORDOPROMOC CC
                 ON CC.SEQTITULO = T.SEQTITULO
                AND T.NROEMPRESA = NVL(CC.NROEMPRESAACORDO, T.NROEMPRESA)
             WHERE CC.SEQTITULO IS NOT NULL
               AND T.SITUACAO != 'C'
-              AND (
-                    NVL(TRIM(:LT4), '0') IN ('0', 'TODOS')
-                    OR INSTR(',' || UPPER(REPLACE(:LT4, ' ', '')) || ',', ',' || UPPER(TRIM(T.CODESPECIE)) || ',') > 0
-              )
 
             UNION
 
@@ -84,17 +76,14 @@ SELECT * FROM (
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
-                T.DTAQUITACAO
+                T.DTAQUITACAO,
+                NVL(T.CODESPECIE, 'ACORDO') AS CODESPECIE
             FROM FI_TITULO T
             INNER JOIN MSU_CCDIVIDA CD
                 ON CD.SEQTITULO = T.SEQTITULO
                AND T.NROEMPRESA = NVL(CD.NROEMPRESA, T.NROEMPRESA)
             WHERE CD.SEQTITULO IS NOT NULL
               AND T.SITUACAO != 'C'
-              AND (
-                    NVL(TRIM(:LT4), '0') IN ('0', 'TODOS')
-                    OR INSTR(',' || UPPER(REPLACE(:LT4, ' ', '')) || ',', ',' || UPPER(TRIM(T.CODESPECIE)) || ',') > 0
-              )
 
             UNION
 
@@ -106,7 +95,8 @@ SELECT * FROM (
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
-                T.DTAQUITACAO
+                T.DTAQUITACAO,
+                NVL(T.CODESPECIE, 'ACORDO') AS CODESPECIE
             FROM MSU_ACORDOPROMOC A
             INNER JOIN FI_TITOPERACAO TOA
                 ON TOA.NROPROCESSO = A.SEQPROCESSO
@@ -115,10 +105,6 @@ SELECT * FROM (
                 ON T.SEQTITULO = TOA.SEQTITULO
                AND T.NROEMPRESA = A.NROEMPRESA
             WHERE T.SITUACAO != 'C'
-              AND (
-                    NVL(TRIM(:LT4), '0') IN ('0', 'TODOS')
-                    OR INSTR(',' || UPPER(REPLACE(:LT4, ' ', '')) || ',', ',' || UPPER(TRIM(T.CODESPECIE)) || ',') > 0
-              )
 
             UNION
 
@@ -130,7 +116,8 @@ SELECT * FROM (
                 T.ABERTOQUITADO,
                 NVL(T.VLRPAGO, 0) AS VLRPAGO,
                 T.DTAVENCIMENTO,
-                T.DTAQUITACAO
+                T.DTAQUITACAO,
+                NVL(T.CODESPECIE, 'ACORDO') AS CODESPECIE
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOPROMOC A
                 ON A.SEQFORNECEDOR = T.SEQPESSOA
@@ -159,10 +146,6 @@ SELECT * FROM (
                         'BONIF',
                         'VEXTRA'
                     )
-              )
-              AND (
-                    NVL(TRIM(:LT4), '0') IN ('0', 'TODOS')
-                    OR INSTR(',' || UPPER(REPLACE(:LT4, ' ', '')) || ',', ',' || UPPER(TRIM(T.CODESPECIE)) || ',') > 0
               )
         )
     ),
@@ -205,6 +188,7 @@ SELECT * FROM (
             NVL(TA.VLRPAGO, 0) AS VLRPAGO,
             TA.DTAVENCIMENTO,
             TA.DTAQUITACAO,
+            TA.CODESPECIE AS ESPECIE_TITULO,
             CASE
                 WHEN TA.OBRIGDIREITO = 'D' THEN 'Direito'
                 WHEN TA.OBRIGDIREITO = 'O' THEN 'Obrigação'
@@ -279,6 +263,7 @@ SELECT * FROM (
             MAX(SUBSTR(A.NUMERONF, 1, 250)) AS NUMERONF,
             A.NROPEDIDOSUPRIM,
             NVL(TG.DIREITO_OBRIGACAO, RG.DIREITO_OBRIGACAO) AS DIREITO_OBRIGACAO,
+            NVL(TG.ESPECIE_TITULO, 'ACORDO') AS ESPECIE_TITULO,
 
             CASE 
                 WHEN NVL(RG.TOTAL_TITULOS, 0) > 0 THEN 
@@ -291,22 +276,22 @@ SELECT * FROM (
 
             NVL(
                 MAX(A.VLRFINVENCIDO),
-                MAX(fValorTitAcordo(
+                fValorTitAcordo(
                     A.NROACORDO,
                     A.NROEMPRESA,
                     B.SEQPESSOA,
                     'V'
-                ))
+                )
             ) AS RAW_VLRFINVENCIDO,
 
             NVL(
                 MAX(A.VLRFINAVENCER),
-                MAX(fValorTitAcordo(
+                fValorTitAcordo(
                     A.NROACORDO,
                     A.NROEMPRESA,
                     B.SEQPESSOA,
                     'A'
-                ))
+                )
             ) AS RAW_VLRFINAVENCER,
 
             A.VLRACORDO AS RAW_VLRACORDO,
@@ -369,9 +354,7 @@ SELECT * FROM (
 
             TG.USU_ULTIMA_ALTERACAO,
             TG.DTA_ULTIMA_ALTERACAO,
-            TG.VLR_ULTIMA_OPERACAO,
-            MAX(AC.RESPACORDONOME) AS RESPONSAVEL_ACORDO,
-            MAX(NVL(DBMS_LOB.SUBSTR(AC.REFACORDOOBS, 4000), AC.OBSACORDO)) AS OBSERVACAO_CONTRATO
+            TG.VLR_ULTIMA_OPERACAO
 
         FROM MSUV_ACORDOPROMOC A
         INNER JOIN GE_PESSOA B
@@ -390,23 +373,25 @@ SELECT * FROM (
            AND RG.NROEMPRESA = A.NROEMPRESA
 
         WHERE (
-                NVL(TRIM(:LT1), '0') IN ('0', 'TODOS')
+                NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', '')
                 OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || TO_CHAR(A.NROEMPRESA) || ',') > 0
               )
           AND (
-                NVL(TRIM(:LT2), '0') = '0'
-                OR INSTR(',' || UPPER(REPLACE(:LT2, ' ', '')) || ',', ',' || TO_CHAR(A.STATUS) || ',') = 0
+                NVL(TO_NUMBER(:NR1), 0) = 0
+                OR A.STATUS != TO_NUMBER(:NR1)
+                OR INSTR(UPPER(:LS2), 'CANCEL') > 0
               )
-          AND (NVL(TO_NUMBER(:NR1), 0) = 0 OR A.NROACORDO = TO_NUMBER(:NR1))
-
           AND (
-                NVL(TRIM(:LT3), '0') IN ('0', 'TODOS')
-                OR INSTR(',' || UPPER(REPLACE(:LT3, ' ', '')) || ',', ',' || UPPER(TRIM(TG.USU_ULTIMA_ALTERACAO)) || ',') > 0
-          )
-
+                NVL(TRIM(:LT2), '0') IN ('0', 'TODOS', '')
+                OR INSTR(',' || UPPER(REPLACE(:LT2, ' ', '')) || ',', ',' || UPPER(TRIM(TG.USU_ULTIMA_ALTERACAO)) || ',') > 0
+              )
+          AND (
+                NVL(TRIM(:LT3), '0') IN ('0', 'TODOS', '')
+                OR INSTR(',' || UPPER(REPLACE(:LT3, ' ', '')) || ',', ',' || TO_CHAR(B.SEQPESSOA) || ',') > 0
+              )
           AND (
                 NVL(TRIM(:LS1), '0 - TODOS')
-                IN ('0 - TODOS', 'TODOS', '0')
+                IN ('0 - TODOS', 'TODOS', '', '0')
                 OR (
                     INSTR(:LS1, ' - ') > 0
                     AND C.SEQCOMPRADOR =
@@ -418,34 +403,24 @@ SELECT * FROM (
                             )
                         )
                 )
+                OR TO_CHAR(C.SEQCOMPRADOR) = TRIM(SUBSTR(:LS1, 1, 10))
           )
-
           AND (
-                NVL(TRIM(:LS2), '0 - TODOS')
-                IN ('0 - TODOS', 'TODOS', '0')
-                OR (
-                    INSTR(:LS2, ' - ') > 0
-                    AND B.SEQPESSOA =
-                        TO_NUMBER(
-                            SUBSTR(
-                                :LS2,
-                                1,
-                                INSTR(:LS2, ' - ') - 1
-                            )
-                        )
-                )
-          )
-
-          AND (
-                :LS4 = ' TODAS AS REDES'
-                OR NVL(TRIM(:LS4), '0') IN ('0', 'TODOS', 'TODAS AS REDES')
+                NVL(TRIM(:LS3), '0') IN ('0', 'TODOS', 'TODAS', '0 - TODOS', '0 - TODAS', '', ' TODAS AS REDES', 'TODAS AS REDES')
+                OR INSTR(UPPER(:LS3), 'TODA') > 0
                 OR EXISTS (
                     SELECT 1
                     FROM GE_REDEPESSOA RP
                     INNER JOIN GE_REDE R
                         ON R.SEQREDE = RP.SEQREDE
                     WHERE RP.SEQPESSOA = B.SEQPESSOA
-                      AND (R.DESCRICAO = :LS4 OR UPPER(TRIM(R.DESCRICAO)) = UPPER(TRIM(:LS4)))
+                      AND (
+                          UPPER(TRIM(R.DESCRICAO)) = UPPER(TRIM(:LS3))
+                          OR (
+                              INSTR(:LS3, ' - ') > 0
+                              AND TO_CHAR(R.SEQREDE) = TRIM(SUBSTR(:LS3, 1, INSTR(:LS3, ' - ') - 1))
+                          )
+                      )
                 )
           )
 
@@ -458,6 +433,7 @@ SELECT * FROM (
             TG.DTAVENCIMENTO,
             TG.DTAQUITACAO,
             TG.DIREITO_OBRIGACAO,
+            TG.ESPECIE_TITULO,
             TG.USU_ULTIMA_ALTERACAO,
             TG.DTA_ULTIMA_ALTERACAO,
             TG.VLR_ULTIMA_OPERACAO,
@@ -560,6 +536,7 @@ SELECT * FROM (
             B.NUMERONF,
             B.NROPEDIDOSUPRIM,
             B.DIREITO_OBRIGACAO,
+            B.ESPECIE_TITULO,
             B.ABERTO_QUITADO,
 
             F.VLR_TOTAL_ACORDO AS VLRACORDO,
@@ -574,16 +551,24 @@ SELECT * FROM (
                 ELSE F.ACORDO_VLR_ABERTO
             END AS CALC_VLR_EM_ABERTO,
 
-            CASE
-                WHEN F.ACORDO_SUM_PESO > 0
-                THEN
-                    LEAST(
-                        ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2) - ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2),
-                        ROUND(F.ACORDO_VLR_VENCIDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+            LEAST(
+                CASE
+                    WHEN F.ACORDO_SUM_PESO > 0
+                    THEN
+                        ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                        -
+                        ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
+                    ELSE F.ACORDO_VLR_ABERTO
+                END,
+                CASE
+                    WHEN F.ACORDO_SUM_PESO > 0
+                    THEN ROUND(
+                        F.ACORDO_VLR_VENCIDO * (B.PROD_PESO / F.ACORDO_SUM_PESO),
+                        2
                     )
-                ELSE
-                    LEAST(F.ACORDO_VLR_ABERTO, F.ACORDO_VLR_VENCIDO)
-            END AS CALC_VLRFINVENCIDO,
+                    ELSE F.ACORDO_VLR_VENCIDO
+                END
+            ) AS CALC_VLRFINVENCIDO,
 
             B.VLRUTILPROD,
             B.TOTAL_PARCELAS,
@@ -591,9 +576,7 @@ SELECT * FROM (
             B.PARCELAS_PENDENTES,
             B.USU_ULTIMA_ALTERACAO,
             B.DTA_ULTIMA_ALTERACAO,
-            B.VLR_ULTIMA_OPERACAO,
-            B.RESPONSAVEL_ACORDO,
-            B.OBSERVACAO_CONTRATO
+            B.VLR_ULTIMA_OPERACAO
 
         FROM CTE_VALORES_BRUTOS B
         INNER JOIN CTE_ACORDO_FINANCEIRO F
@@ -624,6 +607,7 @@ SELECT * FROM (
             NUMERONF,
             NROPEDIDOSUPRIM,
             DIREITO_OBRIGACAO,
+            ESPECIE_TITULO,
             ABERTO_QUITADO,
 
             CALC_VLRFINVENCIDO AS VLRFINVENCIDO,
@@ -637,9 +621,7 @@ SELECT * FROM (
             PARCELAS_PENDENTES,
             USU_ULTIMA_ALTERACAO,
             DTA_ULTIMA_ALTERACAO,
-            VLR_ULTIMA_OPERACAO,
-            RESPONSAVEL_ACORDO,
-            OBSERVACAO_CONTRATO
+            VLR_ULTIMA_OPERACAO
 
         FROM CTE_VALORES_PRE
     ),
@@ -676,24 +658,24 @@ SELECT * FROM (
             C.*
         FROM CTE_CLASSIFICADA_PRE C
         WHERE (
-            NVL(TRIM(:LS3), '0 - TODOS') IN ('0 - TODOS', 'TODOS', '0')
+            NVL(TRIM(:LS2), '0 - TODOS') IN ('0 - TODOS', 'TODOS', '', '0')
             OR (
-                (SUBSTR(TRIM(:LS3), 1, 1) = '1' OR INSTR(UPPER(:LS3), 'QUITADO') > 0)
+                (SUBSTR(TRIM(:LS2), 1, 1) = '1' OR INSTR(UPPER(:LS2), 'QUITADO') > 0)
                 AND C.ABERTO_QUITADO = 'Quitado'
             )
             OR (
-                (SUBSTR(TRIM(:LS3), 1, 1) = '2' OR (SUBSTR(TRIM(:LS3), 1, 1) = '3' AND INSTR(UPPER(:LS3), 'ABERTO') > 0))
+                (SUBSTR(TRIM(:LS2), 1, 1) = '2' OR (SUBSTR(TRIM(:LS2), 1, 1) = '3' AND INSTR(UPPER(:LS2), 'ABERTO') > 0))
                 AND C.ABERTO_QUITADO = 'Aberto'
             )
             OR (
-                (SUBSTR(TRIM(:LS3), 1, 1) = '4' OR INSTR(UPPER(:LS3), 'PARCELA') > 0 OR INSTR(UPPER(:LS3), 'TITULO') > 0 OR INSTR(UPPER(:LS3), 'PENDENTE') > 0)
+                (SUBSTR(TRIM(:LS2), 1, 1) = '4' OR INSTR(UPPER(:LS2), 'PARCELA') > 0 OR INSTR(UPPER(:LS2), 'TITULO') > 0 OR INSTR(UPPER(:LS2), 'PENDENTE') > 0)
                 AND C.ABERTO_QUITADO = 'Sem Título'
             )
             OR (
-                (SUBSTR(TRIM(:LS3), 1, 1) = '5' OR INSTR(UPPER(:LS3), 'CANCEL') > 0)
+                (SUBSTR(TRIM(:LS2), 1, 1) = '5' OR INSTR(UPPER(:LS2), 'CANCEL') > 0)
                 AND C.STATUS_ACORDO = 'Cancelado'
             )
-            OR C.ABERTO_QUITADO = TRIM(:LS3)
+            OR C.ABERTO_QUITADO = TRIM(:LS2)
         )
     ),
 
@@ -765,6 +747,7 @@ SELECT * FROM (
         STATUS_ACORDO,
         SITUACAO_ACORDO,
         DIREITO_OBRIGACAO,
+        ESPECIE_TITULO,
         ABERTO_QUITADO,
         TIPO_ACORDO,
         CODIGO_PRODUTO,
@@ -781,10 +764,8 @@ SELECT * FROM (
         TOTAL_PARCELAS,
         PARCELAS_PAGAS,
         PARCELAS_PENDENTES,
-        VALOR_ULTIMO_PAGAMENTO,
-        USUARIO_DATA_HORA_ALTERACAO,
-        RESPONSAVEL_ACORDO,
-        OBSERVACAO_CONTRATO
+        VALOR_PAG_REGISTRADO,
+        USUARIO_DATA_HORA_ALTERACAO
     FROM (
         SELECT
             1 AS ORDEM_LINHA,
@@ -801,6 +782,7 @@ SELECT * FROM (
             X.STATUS_ACORDO AS STATUS_ACORDO,
             X.SITUACAO_ACORDO AS SITUACAO_ACORDO,
             NVL(X.DIREITO_OBRIGACAO, 'Sem Título') AS DIREITO_OBRIGACAO,
+            NVL(X.ESPECIE_TITULO, 'ACORDO') AS ESPECIE_TITULO,
             NVL(X.ABERTO_QUITADO, 'Sem Título') AS ABERTO_QUITADO,
             CASE WHEN X.TIPOACORDO = 1 THEN 'VERBA EXTRA' WHEN X.TIPOACORDO = 2 THEN 'SELL-OUT' WHEN X.TIPOACORDO = 3 THEN 'SELL-IN' END AS TIPO_ACORDO,
             TO_CHAR(X.SEQPRODUTO) AS CODIGO_PRODUTO,
@@ -810,17 +792,15 @@ SELECT * FROM (
             TO_CHAR(NVL(X.ULTIMO_RECEBIMENTO, X.DTA_ULTIMA_ALTERACAO), 'DD/MM/YYYY') AS ULTIMO_RECEBIMENTO,
             X.NUMERONF AS NUMERO_NF,
             TO_CHAR(X.NROPEDIDOSUPRIM) AS NUMERO_PEDIDO_SUPRIMENTO,
-            'R$ ' || TO_CHAR(NVL(X.VLRACORDO, 0), 'FM999G999G990D00') AS VALOR_ACORDO,
-            'R$ ' || TO_CHAR(NVL(X.VLRFINVENCIDO, 0), 'FM999G999G990D00') AS VLR_FIN_VENCIDO,
-            'R$ ' || TO_CHAR(NVL(X.VLR_JA_QUITADO, 0), 'FM999G999G990D00') AS VLR_JA_QUITADO,
-            'R$ ' || TO_CHAR(NVL(X.VLRUTILPROD, 0), 'FM999G999G990D00') AS VALOR_UTILIZADO_PRODUTO,
+            'R$ ' || TO_CHAR(NVL(X.VLRACORDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_ACORDO,
+            'R$ ' || TO_CHAR(NVL(X.VLRFINVENCIDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_FIN_VENCIDO,
+            'R$ ' || TO_CHAR(NVL(X.VLR_JA_QUITADO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_JA_QUITADO,
+            'R$ ' || TO_CHAR(NVL(X.VLRUTILPROD, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_UTILIZADO_PRODUTO,
             TO_CHAR(X.TOTAL_PARCELAS) AS TOTAL_PARCELAS,
             TO_CHAR(X.PARCELAS_PAGAS) AS PARCELAS_PAGAS,
             TO_CHAR(X.PARCELAS_PENDENTES) AS PARCELAS_PENDENTES,
-            'R$ ' || TO_CHAR(NVL(X.VLR_ULTIMA_OPERACAO, 0), 'FM999G999G990D00') AS VALOR_ULTIMO_PAGAMENTO,
-            CASE WHEN X.USU_ULTIMA_ALTERACAO IS NOT NULL AND X.DTA_ULTIMA_ALTERACAO IS NOT NULL THEN X.USU_ULTIMA_ALTERACAO || ' - ' || TO_CHAR(X.DTA_ULTIMA_ALTERACAO, 'DD/MM/YYYY HH24:MI:SS') || CASE WHEN X.NROPARCELA IS NOT NULL THEN ' (Parc. ' || TO_CHAR(X.NROPARCELA) || NVL('/' || TO_CHAR(X.QTDPARCELA), '') || ')' ELSE '' END WHEN X.USU_ULTIMA_ALTERACAO IS NOT NULL THEN X.USU_ULTIMA_ALTERACAO || CASE WHEN X.NROPARCELA IS NOT NULL THEN ' (Parc. ' || TO_CHAR(X.NROPARCELA) || NVL('/' || TO_CHAR(X.QTDPARCELA), '') || ')' ELSE '' END WHEN X.DTA_ULTIMA_ALTERACAO IS NOT NULL THEN TO_CHAR(X.DTA_ULTIMA_ALTERACAO, 'DD/MM/YYYY HH24:MI:SS') ELSE NULL END AS USUARIO_DATA_HORA_ALTERACAO,
-            X.RESPONSAVEL_ACORDO AS RESPONSAVEL_ACORDO,
-            X.OBSERVACAO_CONTRATO AS OBSERVACAO_CONTRATO
+            'R$ ' || TO_CHAR(NVL(X.VLR_ULTIMA_OPERACAO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_PAG_REGISTRADO,
+            CASE WHEN X.USU_ULTIMA_ALTERACAO IS NOT NULL AND X.DTA_ULTIMA_ALTERACAO IS NOT NULL THEN X.USU_ULTIMA_ALTERACAO || ' - ' || TO_CHAR(X.DTA_ULTIMA_ALTERACAO, 'DD/MM/YYYY HH24.MI.SS') || CASE WHEN X.NROPARCELA IS NOT NULL THEN ' (Parc. ' || TO_CHAR(X.NROPARCELA) || NVL('/' || TO_CHAR(X.QTDPARCELA), '') || ')' ELSE '' END WHEN X.USU_ULTIMA_ALTERACAO IS NOT NULL THEN X.USU_ULTIMA_ALTERACAO || CASE WHEN X.NROPARCELA IS NOT NULL THEN ' (Parc. ' || TO_CHAR(X.NROPARCELA) || NVL('/' || TO_CHAR(X.QTDPARCELA), '') || ')' ELSE '' END WHEN X.DTA_ULTIMA_ALTERACAO IS NOT NULL THEN TO_CHAR(X.DTA_ULTIMA_ALTERACAO, 'DD/MM/YYYY HH24.MI.SS') ELSE NULL END AS USUARIO_DATA_HORA_ALTERACAO
         FROM CTE_CLASSIFICADA X
 
         UNION ALL
@@ -840,6 +820,7 @@ SELECT * FROM (
             NULL AS STATUS_ACORDO,
             NULL AS SITUACAO_ACORDO,
             NULL AS DIREITO_OBRIGACAO,
+            NULL AS ESPECIE_TITULO,
             NULL AS ABERTO_QUITADO,
             NULL AS TIPO_ACORDO,
             NULL AS CODIGO_PRODUTO,
@@ -849,17 +830,15 @@ SELECT * FROM (
             NULL AS ULTIMO_RECEBIMENTO,
             NULL AS NUMERO_NF,
             NULL AS NUMERO_PEDIDO_SUPRIMENTO,
-            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRACORDO, 0), 'FM999G999G990D00') AS VALOR_ACORDO,
-            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRFINVENCIDO, 0), 'FM999G999G990D00') AS VLR_FIN_VENCIDO,
-            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLR_QUITADO, 0), 'FM999G999G990D00') AS VLR_JA_QUITADO,
-            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRUTILPROD, 0), 'FM999G999G990D00') AS VALOR_UTILIZADO_PRODUTO,
+            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRACORDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_ACORDO,
+            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRFINVENCIDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_FIN_VENCIDO,
+            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLR_QUITADO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_JA_QUITADO,
+            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRUTILPROD, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_UTILIZADO_PRODUTO,
             TO_CHAR(T.TOTAL_PARC_GERADAS) AS TOTAL_PARCELAS,
             TO_CHAR(T.TOTAL_PARC_PAGAS) AS PARCELAS_PAGAS,
             TO_CHAR(T.TOTAL_PARC_PENDENTES) AS PARCELAS_PENDENTES,
-            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLR_OPERACAO, 0), 'FM999G999G990D00') AS VALOR_ULTIMO_PAGAMENTO,
-            NULL AS USUARIO_DATA_HORA_ALTERACAO,
-            NULL AS RESPONSAVEL_ACORDO,
-            NULL AS OBSERVACAO_CONTRATO
+            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLR_OPERACAO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_ULTIMO_PAGAMENTO,
+            NULL AS USUARIO_DATA_HORA_ALTERACAO
         FROM CTE_TOTAIS T
     )
     ORDER BY

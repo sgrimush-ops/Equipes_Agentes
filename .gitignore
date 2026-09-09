@@ -31,6 +31,17 @@ large_files.csv
 .claude/
 .vscode/
 
+# Builds e Distribuições (PyInstaller / Binários)
+**/dist/
+**/build/
+*.exe
+*.pkg
+*.pyz
+*.pyd
+*.dll
+*.so
+*.dylib
+
 # Ignorar pastas de carga bruta ou estática pesada
 Aplicativos/import_querys/arquivo_csv/
 Aplicativos/ruptura/historico_ruptura/
@@ -44,4 +55,5 @@ Aplicativos/import_querys/sem_venda.txt
 Aplicativos/import_querys/query_bz.txt
 Aplicativos/zcontratos
 Aplicativos/.temp/
+
 
