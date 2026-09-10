@@ -35,6 +35,8 @@ if hasattr(sys.stderr, 'reconfigure'):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "database", "banco_simulador_consinco.db")
 IMPORT_QUERYS_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "import_querys"))
+BANCO_CONSINCO_DIR = os.path.join(IMPORT_QUERYS_DIR, "Banco_Consico")
+APRENDIZADO_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "gerenciamento_sql", "aprendizado"))
 
 # Mapeamento de arquivos para Tabelas Canônicas Oficiais do Consinco
 MAPA_TABELAS_OFICIAIS = {
@@ -93,38 +95,73 @@ DESCRICOES_CONHECIDAS = {
 }
 
 def listar_arquivos_disponiveis():
-    """Busca todos os arquivos .txt e .csv na pasta import_querys e zona_sql."""
+    """Busca todos os arquivos .txt e .csv na pasta Banco_Consico, import_querys, aprendizado e zona_sql."""
     encontrados = {}
     
-    # 1. Pasta import_querys
-    if os.path.exists(IMPORT_QUERYS_DIR):
-        for f in sorted(os.listdir(IMPORT_QUERYS_DIR)):
+    # 1. Pasta Banco_Consico (Prioritária para tabelas oficiais Consinco)
+    if os.path.exists(BANCO_CONSINCO_DIR):
+        for f in sorted(os.listdir(BANCO_CONSINCO_DIR)):
             if (f.lower().endswith(".txt") or f.lower().endswith(".csv")) and f.lower() != "requeirements.txt":
-                caminho = os.path.join(IMPORT_QUERYS_DIR, f)
+                caminho = os.path.join(BANCO_CONSINCO_DIR, f)
                 nome_base = os.path.splitext(f)[0].lower()
                 tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())
                 encontrados[nome_base] = {
                     "arquivo": f,
                     "caminho": caminho,
-                    "pasta": "import_querys",
+                    "pasta": "Banco_Consico",
                     "tabela_destino": tbl_oficial,
                     "tamanho_kb": round(os.path.getsize(caminho) / 1024, 1),
                     "descricao": DESCRICOES_CONHECIDAS.get(nome_base, f"Tabela Oficial {tbl_oficial}")
                 }
 
-    # 2. Pasta local zona_sql
+    # 2. Pasta import_querys (Arquivos adicionais)
+    if os.path.exists(IMPORT_QUERYS_DIR):
+        for f in sorted(os.listdir(IMPORT_QUERYS_DIR)):
+            caminho_arq = os.path.join(IMPORT_QUERYS_DIR, f)
+            if os.path.isfile(caminho_arq):
+                if (f.lower().endswith(".txt") or f.lower().endswith(".csv")) and f.lower() != "requeirements.txt":
+                    nome_base = os.path.splitext(f)[0].lower()
+                    if nome_base not in encontrados:
+                        tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())
+                        encontrados[nome_base] = {
+                            "arquivo": f,
+                            "caminho": caminho_arq,
+                            "pasta": "import_querys",
+                            "tabela_destino": tbl_oficial,
+                            "tamanho_kb": round(os.path.getsize(caminho_arq) / 1024, 1),
+                            "descricao": DESCRICOES_CONHECIDAS.get(nome_base, f"Tabela Oficial {tbl_oficial}")
+                        }
+
+    # 3. Pasta gerenciamento_sql/aprendizado (Dicionários oficiais)
+    if os.path.exists(APRENDIZADO_DIR):
+        for f in sorted(os.listdir(APRENDIZADO_DIR)):
+            if f.lower().endswith(".txt"):
+                caminho_arq = os.path.join(APRENDIZADO_DIR, f)
+                nome_base = os.path.splitext(f)[0].lower()
+                if nome_base not in encontrados:
+                    tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())
+                    encontrados[nome_base] = {
+                        "arquivo": f,
+                        "caminho": caminho_arq,
+                        "pasta": "aprendizado",
+                        "tabela_destino": tbl_oficial,
+                        "tamanho_kb": round(os.path.getsize(caminho_arq) / 1024, 1),
+                        "descricao": DESCRICOES_CONHECIDAS.get(nome_base, f"Tabela Oficial {tbl_oficial}")
+                    }
+
+    # 4. Pasta local zona_sql
     for f in sorted(os.listdir(BASE_DIR)):
         if f.lower().endswith(".txt") or f.lower().endswith(".csv"):
-            caminho = os.path.join(BASE_DIR, f)
+            caminho_arq = os.path.join(BASE_DIR, f)
             nome_base = os.path.splitext(f)[0].lower()
             if nome_base not in encontrados:
                 tbl_oficial = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())
                 encontrados[nome_base] = {
                     "arquivo": f,
-                    "caminho": caminho,
+                    "caminho": caminho_arq,
                     "pasta": "zona_sql",
                     "tabela_destino": tbl_oficial,
-                    "tamanho_kb": round(os.path.getsize(caminho) / 1024, 1),
+                    "tamanho_kb": round(os.path.getsize(caminho_arq) / 1024, 1),
                     "descricao": DESCRICOES_CONHECIDAS.get(nome_base, f"Tabela Oficial {tbl_oficial}")
                 }
 
@@ -463,7 +500,7 @@ def menu_interativo():
     
     arquivos = listar_arquivos_disponiveis()
     if not arquivos:
-        print("[!] Nenhum arquivo .txt ou .csv encontrado na pasta import_querys.")
+        print("[!] Nenhum arquivo .txt ou .csv encontrado na pasta Banco_Consico ou import_querys.")
         return
 
     print("\nArquivos disponíveis para sincronização:")

@@ -13,6 +13,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ZONA_SQL_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
 DB_PATH = os.path.join(BASE_DIR, "banco_simulador_consinco.db")
 IMPORT_QUERYS_DIR = os.path.abspath(os.path.join(ZONA_SQL_DIR, "..", "import_querys"))
+BANCO_CONSINCO_DIR = os.path.join(IMPORT_QUERYS_DIR, "Banco_Consico")
 
 MAPA_TABELAS_OFICIAIS = {
     "mlfv_basenfe": "MLFV_BASENFE",
@@ -244,13 +245,13 @@ def executar_sincronizacao_completa():
     print("\n" + "="*75)
     print("  INICIANDO ATUALIZAÇÃO DO BANCO DE TREINAMENTO (ZONA SQL / CONSINCO)")
     print("="*75)
-    print(f"Pasta de Origem: {IMPORT_QUERYS_DIR}")
+    print(f"Pasta de Origem: {BANCO_CONSINCO_DIR}")
     print(f"Banco SQLite Destino: {DB_PATH}\n")
 
     t_inicio = time.time()
     tabelas_atualizadas = {}
 
-    # 1. Varre e importa todas as tabelas oficiais presentes em import_querys
+    # 1. Varre e importa todas as tabelas oficiais presentes em Banco_Consico
     arquivos_prioritarios = [
         "MLFV_BASENFE.txt",
         "MFLV_BASEDFITEM.txt",
@@ -276,7 +277,9 @@ def executar_sincronizacao_completa():
     ]
 
     for arq in arquivos_prioritarios:
-        caminho = os.path.join(IMPORT_QUERYS_DIR, arq)
+        caminho = os.path.join(BANCO_CONSINCO_DIR, arq)
+        if not os.path.exists(caminho):
+            caminho = os.path.join(IMPORT_QUERYS_DIR, arq)
         if os.path.exists(caminho):
             nome_base = os.path.splitext(arq)[0].lower()
             tbl_destino = MAPA_TABELAS_OFICIAIS.get(nome_base, nome_base.upper())

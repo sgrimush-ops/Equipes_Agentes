@@ -780,9 +780,15 @@ def build_database():
             cursor.execute("INSERT INTO MBI_TABCDISTRIB VALUES (?,?,?,?,?,?,?,?)",
                            (1001, seqprod, nroemp, qtd_abc, vlr_abc, lucro_abc, cto_abc, lucro_abc))
 
-    # 7.5. Carga de Produtos Reais da Tabela MAP_PRODUTO (map_produto.txt)
-    map_txt_path = os.path.abspath(os.path.join(base_dir, '..', '..', 'import_querys', 'map_produto.txt'))
-    if os.path.exists(map_txt_path):
+    # 7.5. Carga de Produtos Reais da Tabela MAP_PRODUTO (MAP_PRODUTO.txt / Banco_Consico)
+    candidatos_map_txt = [
+        os.path.abspath(os.path.join(base_dir, '..', '..', 'import_querys', 'Banco_Consico', 'MAP_PRODUTO.txt')),
+        os.path.abspath(os.path.join(base_dir, '..', '..', 'import_querys', 'Banco_Consico', 'map_produto.txt')),
+        os.path.abspath(os.path.join(base_dir, '..', '..', 'import_querys', 'MAP_PRODUTO.txt')),
+        os.path.abspath(os.path.join(base_dir, '..', '..', 'import_querys', 'map_produto.txt'))
+    ]
+    map_txt_path = next((p for p in candidatos_map_txt if os.path.exists(p)), None)
+    if map_txt_path and os.path.exists(map_txt_path):
         with open(map_txt_path, 'r', encoding='latin1') as f:
             lines = [l.strip() for l in f if l.strip()]
         if lines:

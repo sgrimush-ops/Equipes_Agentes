@@ -1,0 +1,10 @@
+SEQPONTOEXTRA;DESCRICAO;STATUS
+121;Pontas fixas;A
+101;loja 8 apyce;A
+222;FAROFA YOKI;A
+223;ponta loja 2 amor carioca;A
+241;cesta basica;A
+261;FERMENTOS;A
+143;Ponta de Biscoitos Isabela L03;A
+182;Pontas Loja 01;A
+203;coca;A
