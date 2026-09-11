@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import pyautogui
 import time
@@ -15,8 +16,14 @@ except ModuleNotFoundError:
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.02 # Reduzido para velocidade turbo
 
+def _get_base_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class MixProcessor:
     def __init__(self):
+        self.base_dir = _get_base_dir()
         self.coords = self.load_coordinates()
         self.familia_cleaner = FamiliaDescriptionCleaner()
         self._mouse = PynMouse()  # Cliques via pynput para paridade DPI (Regra 65)
@@ -383,10 +390,66 @@ class MixProcessor:
         self._mouse.click(PynButton.left)
 
     def load_coordinates(self):
-        if not os.path.exists('coords/coords.json'):
-            return None
-        with open('coords/coords.json', 'r') as f:
+        coords_path = os.path.join(self.base_dir, 'coords', 'coords.json')
+        if not os.path.exists(coords_path):
+            if os.path.exists('coords/coords.json'):
+                coords_path = 'coords/coords.json'
+            else:
+                return None
+        with open(coords_path, 'r', encoding='utf-8') as f:
             return json.load(f)
+
+    def _detectar_status_lojas_tela(self):
+        """
+        Lê a região das empresas na aba de Mix/Empresa e retorna um dicionário
+        com o status atual de cada loja na tela ('A' para Ativo, 'I' para Inativo).
+        Utiliza RapidOCR em lote na coluna do grid com alta precisão e velocidade.
+        """
+        status_tela = {}
+        if not self.coords:
+            return status_tela
+            
+        store_coords = [self.coords.get(f"loja_{st}") for st in self.store_list if self.coords.get(f"loja_{st}")]
+        if not store_coords:
+            return status_tela
+            
+        min_y = max(0, min(c[1] for c in store_coords) - 40)
+        sw, sh = pyautogui.size()
+        max_y = min(sh, max(c[1] for c in store_coords) + 30)
+        
+        try:
+            screenshot = pyautogui.screenshot(region=(30, min_y, 220, max_y - min_y))
+            img_np = np.array(screenshot)
+            
+            ocr = self._get_ocr()
+            if ocr:
+                res, _ = ocr(img_np)
+                if res:
+                    itens_lidos = []
+                    for box, text, score in res:
+                        y_center = min_y + (box[0][1] + box[2][1]) / 2.0
+                        itens_lidos.append({'text': text.strip(), 'y': y_center, 'score': score})
+                        
+                    for st in self.store_list:
+                        coord_loja = self.coords.get(f"loja_{st}")
+                        if not coord_loja:
+                            continue
+                        y_ref = coord_loja[1]
+                        
+                        # Faixa vertical com tolerância de alinhamento com a linha da loja
+                        candidatos = [it for it in itens_lidos if abs(it['y'] - y_ref) <= 15 or abs(it['y'] - (y_ref - 7)) <= 12]
+                        for it in candidatos:
+                            t_upper = it['text'].upper()
+                            if 'INATIV' in t_upper or 'INAT' in t_upper:
+                                status_tela[st] = 'I'
+                                break
+                            elif 'ATIV' in t_upper or 'ATV' in t_upper:
+                                status_tela[st] = 'A'
+                                break
+        except Exception as e:
+            print(f"[MixProcessor] Aviso na leitura OCR de status da tela: {e}")
+            
+        return status_tela
 
     def _normalize_header(self, value):
         txt = str(value).strip().upper()
@@ -451,11 +514,14 @@ class MixProcessor:
             if update_callback: update_callback({'error': msg})
             return
 
-        input_file = 'bd_entrada/mix.xlsx'
+        input_file = os.path.join(self.base_dir, 'bd_entrada', 'mix.xlsx')
         if not os.path.exists(input_file):
-            msg = f"Arquivo '{input_file}' não encontrado."
-            if update_callback: update_callback({'error': msg})
-            return
+            if os.path.exists('bd_entrada/mix.xlsx'):
+                input_file = 'bd_entrada/mix.xlsx'
+            else:
+                msg = f"Arquivo '{input_file}' não encontrado."
+                if update_callback: update_callback({'error': msg})
+                return
 
         try:
             if update_callback: update_callback({'status': "Lendo planilha..."})
@@ -498,7 +564,10 @@ class MixProcessor:
             import glob
             templates_cv2 = {'ativo': [], 'inativo': []}
             for stat_name in ['ativo', 'inativo']:
-                arquivos = glob.glob(f'captura_tela/status_{stat_name}*.png')
+                caminho_glob = os.path.join(self.base_dir, 'captura_tela', f'status_{stat_name}*.png')
+                arquivos = glob.glob(caminho_glob)
+                if not arquivos:
+                    arquivos = glob.glob(f'captura_tela/status_{stat_name}*.png')
                 for path_img in arquivos:
                     tmplt = cv2.imread(path_img)
                     if tmplt is not None: templates_cv2[stat_name].append(tmplt)
@@ -578,6 +647,9 @@ class MixProcessor:
                 
                 self._click(pos_empresa)
                 time.sleep(0.5) # Reduzido de 1s
+
+                # Detecção ultra-rápida do status atual de todas as lojas na tela
+                status_tela = self._detectar_status_lojas_tela()
 
                 # Mapa de Lojas
                 status_map = {str(rb['Código Empresa']).strip().upper().replace('.0', ''): str(rb.get('Status', 'I')).strip().upper() for _, rb in df_prod.iterrows()}
@@ -729,8 +801,13 @@ class MixProcessor:
                     elif loja_str in lojas_forcar_inativo: status = "I"
                     else: continue
 
-                    # Visão Turbo em Memória
-                    if tela_bgr is not None:
+                    # 1. VERIFICAÇÃO PRIMÁRIA VIA OCR: Se a loja já está no status desejado na tela, PULA!
+                    # Evita alterar/inativar empresas fantasmas (009, 010, 020, 021, 022, 023, 050, 900, 901, 902) e lojas que já estão corretas
+                    if status_tela.get(loja_str) == status:
+                        continue
+
+                    # 2. Fallback visual de Template Matching se o OCR não detectou esta loja específica
+                    if tela_bgr is not None and loja_str not in status_tela:
                         try:
                             coord_loja = self.coords[f"loja_{loja_str}"]
                             local_y = coord_loja[1] - min_y
@@ -745,7 +822,7 @@ class MixProcessor:
                                     _, mx, _, _ = cv2.minMaxLoc(res)
                                     if mx > maior_c: maior_c = mx; mel_est = "A" if st_n == "ativo" else "I"
                             
-                            if maior_c >= 0.75 and mel_est == status: 
+                            if maior_c >= 0.70 and mel_est == status: 
                                 continue # PULA! Já está correto.
                         except: pass
                     
