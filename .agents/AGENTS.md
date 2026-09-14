@@ -45,6 +45,14 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 10. **Padrão Obrigatório de Vendas Rápidas via `MRL_CUSTODIA`:**
     Para apuração de vendas consolidadas e faturamento por período e loja (Rankings, Giro, Curva ABC), **nunca varra documentos fiscais item a item** (`MLFV_BASENFE` + `MFLV_BASEDFITEM` ou `MFL_DFITEM`). Use obrigatoriamente a tabela analítica oficial **`MRL_CUSTODIA`** (`VLRTOTALVDA` para valor financeiro e `QTDVDA` para quantidade) filtrando por `DTAENTRADASAIDA`. Ao consultar saídas complementares (Devolução `802`, Troca `860`, Incineração `821, 831`), unifique todas as verificações fiscais em **um único scan** com `CASE WHEN CODGERALOPER IN (...)`.
 
+11. **Comparativo de Estoque WMS vs. ERP (Bypass do Bloqueio `LOG0085`):**
+    Para inventários e conciliações em tempo real sem travar a tela `LOG0085`, cruze `MRL_PRODUTOEMPRESA` (`ESTQDEPOSITO`) com `MLO_ENDERECO` (`ESPECIEENDERECO = 'A'` apanha, `'P'` pulmão), apurando pendências em trânsito com `MLO_CARGARECPROD` (recebimento não armazenado) e `MLO_CARGAEXPPROD` (separação liberada). Use `FULL OUTER JOIN` em CTE materializada para garantir que produtos com saldo apenas no WMS ou apenas no ERP não sejam omitidos. **`ESTQGERENCIAL` não existe em `MRL_PRODUTOEMPRESA`**; as reservas comerciais são obtidas pela soma `(NVL(QTDRESERVADAVDA,0) + NVL(QTDRESERVADARECEB,0) + NVL(QTDRESERVADAFIXA,0) + NVL(QTDRESERVADAFISC,0))`.
+
+12. **Expurgo Dinâmico Multi-Termos (`LT2`) com Imunidade a Acentos e Espaços:**
+    Ao implementar filtros de exclusão/expurgo de categorias ou departamentos onde o usuário digita múltiplos termos separados por vírgula em um bind literal (`LT2`), utilize `REGEXP_LIKE` combinado com `TRANSLATE` para remover acentuação gráfica e `REPLACE` para eliminar espaços:
+    `NOT REGEXP_LIKE(REPLACE(TRANSLATE(UPPER(COLUNA), 'ÁÉÍÓÚÀÈÌÒÙÃÕÂÊÎÔÛÇ', 'AEIOUAEIOUAOAEIOUC'), ' ', ''), REPLACE(REPLACE(TRANSLATE(UPPER(TRIM(:LT2)), 'ÁÉÍÓÚÀÈÌÒÙÃÕÂÊÎÔÛÇ', 'AEIOUAEIOUAOAEIOUC'), ' ', ''), ',', '|'), 'i')`.
+    Sempre preveja o sentinela `0` / `'NENHUM'` para desativar o expurgo (`NVL(TRIM(:LT2), '0') IN ('0', 'NENHUM', '')`).
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

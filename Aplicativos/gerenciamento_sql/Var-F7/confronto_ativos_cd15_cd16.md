@@ -18,25 +18,43 @@ Identificar e listar produtos que estão com status de compra ativo (`STATUSCOMP
 
 ## Variáveis para Cadastrar em Var - F7
 
-### LS1
-- **Tipo**: Lista
-- **Descrição**: Departamento
-- **Valor padrão**: `0 - TODOS`
-- **Instrução**: Selecione o departamento desejado ou deixe `0 - TODOS`.
+### 1. `LT1` (Literal) — Expurgos de Departamentos
+| Campo | Configuração |
+|---|---|
+| **Tipo** | Literal |
+| **Descrição** | Expurgar Departamentos (separados por vírgula) |
+| **Valor Padrão** | `almoxarifado, a classificar, inativar, servicos, frutas, padaria` *(ou `0` para não expurgar)* |
+| **Instrução p/ Usuário** | Digite os departamentos a desconsiderar separados por vírgula (imune a maiúsculas, minúsculas e acentos). Digite `0` para trazer todos. |
 
-## SQL da Lista LS1 (Total: 140 caracteres, respeitando o limite <= 145)
+---
+
+### 2. `LS1` (Lista) — Filtro de Departamento
+| Campo | Configuração |
+|---|---|
+| **Tipo** | Lista |
+| **Descrição** | Departamento |
+| **Valor Padrão** | `0 - TODOS` |
+| **Instrução p/ Usuário** | Selecione o departamento desejado ou deixe `0 - TODOS`. |
+
+#### SQL da Lista LS1 (Total: 140 caracteres, respeitando o limite <= 145)
 ```sql
 SELECT '0 - TODOS' FROM DUAL UNION SELECT CATEGORIA FROM MAP_CATEGORIA WHERE NIVELHIERARQUIA=1 AND STATUSCATEGOR='A' AND CATEGORIA!='ALMOXARIFADO'
 ```
+
+---
 
 ## Passo a Passo para Configurar no Consinco (Consulta Criação)
 1. Abra a tela de **Consulta Criação** no Totvs Consinco.
 2. Cole o conteúdo de [confronto_ativos_cd15_cd16.sql](../querys/confronto_ativos_cd15_cd16.sql) na tela.
 3. Pressione a tecla **F7** (ou clique no botão **Var - F7**).
-4. Na aba **Lista**, cadastre a variável `LS1`:
+4. Na aba **Texto / Literal**, cadastre a variável `LT1`:
+   - **Nome**: `LT1`
+   - **Descrição**: `Expurgar Departamentos`
+   - **Valor Padrão**: `almoxarifado, a classificar, inativar, servicos, frutas, padaria`
+5. Na aba **Lista**, cadastre a variável `LS1`:
    - **Nome**: `LS1`
    - **Descrição**: `Departamento`
    - **Valor Padrão**: `0 - TODOS`
    - **Retorno**: `Literal`
-   - **SQL da Lista**: Cole a instrução SQL de linha única acima (140 caracteres).
-5. Salve e execute a consulta com **F8**.
+   - **SQL da Lista**: `SELECT '0 - TODOS' FROM DUAL UNION SELECT CATEGORIA FROM MAP_CATEGORIA WHERE NIVELHIERARQUIA=1 AND STATUSCATEGOR='A' AND CATEGORIA!='ALMOXARIFADO'`
+6. Salve e execute a consulta com **F8**.
