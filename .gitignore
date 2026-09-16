@@ -8,8 +8,8 @@ _Equipes_agentes/_browser_profile/
 docs/
 
 # Regras do Projeto (rules.md)
-.venv/
-__pycache__/
+**/.venv/
+**/__pycache__/
 tmp/
 .motor/
 
@@ -56,3 +56,7 @@ Aplicativos/import_querys/query_bz.txt
 Aplicativos/zcontratos
 Aplicativos/.temp/
 Aplicativos/zona_sql/gemini_config.json
+Aplicativos/GAM/captura_tela/gravacao/
+Aplicativos/gerenciamento_sql/scratch/
+miniGAM/debug_ocr/
+.integracao_google/tmp/
