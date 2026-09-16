@@ -27,6 +27,8 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_acordos_verbas_movimentacao_parcelas.md`: guia definitivo anti-erros de SQL no Consinco (resolução de ORA-00936 em expressões CASE com operadores aritméticos externos, prevenção de ORA-01790 por desalinhamento em UNION ALL, contorno de CONNECT BY com INSTR em binds `:LT3`, compatibilidade com Var - F7 e arquitetura de movimentação financeira detalhada por parcela com totais acumulados).
 - `aprendizado_otimizacao_subquery_compradores_ativos_fornecedor.md`: resolução de travamentos e lentidões superiores a 1 hora em buscas globais ("Todos" / :NR1 = 0) causados por explosão combinatória com MRL_PRODUTOEMPRESA e LISTAGG, aplicando pré-redução de famílias ativas em CTEs materializadas (/*+ MATERIALIZE */).
 - `aprendizado_comparativo_estoque_wms_vs_erp_e_expurgo_departamentos.md`: arquitetura completa do comparativo de estoque WMS vs ERP Comercial (bypass do bloqueio LOG0085), apuração de recebimento e separação em trânsito, granularidade FULL OUTER JOIN, contorno de truncamento Delphi em listas LSx, expurgo dinâmico LT2 imune a acentos/espaços e prevenção de erros ORA-00904.
+- `aprendizado_piramide_afunilamento_filtros_iniciais.md`: regra de ouro da pirâmide de afunilamento e pesquisa inteligente inicial (códigos de produtos/fornecedores/lojas sempre no topo da pirâmide / primeira CTE para evitar varredura massiva em MRL_CUSTODIA e tabelas transacionais).
+
 
 ## Arquitetura do Consinco e do BI
 - `arquitetura_monitor_consico_totvs.md`: fluxo real das telas Consinco e uso de `SEQCONSULTA`.

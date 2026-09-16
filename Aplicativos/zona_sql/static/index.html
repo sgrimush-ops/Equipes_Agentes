@@ -32,10 +32,6 @@
             </div>
 
             <div class="header-right">
-                <button id="btn-open-ai-mentor" class="btn btn-ai-mentor btn-glow" title="Abrir Mentor IA Consinco (Gemini Flash / Ollama) [Atalho: F2 ou Ctrl+Espaço]">
-                    <span class="ai-status-dot online"></span>
-                    <span class="btn-icon">🤖</span> Mentor IA <span id="ai-status-text" class="badge-ai-model">Gemini Flash</span>
-                </button>
                 <button id="btn-clear-editor" class="btn btn-warning-soft" title="Limpar todo o texto do editor para iniciar uma nova digitação [Atalho: Alt+L ou Ctrl+K]">
                     <span class="btn-icon">🗑️</span> Limpar Editor
                 </button>
@@ -934,17 +930,19 @@ Exemplo:
     <!-- ============================================================ -->
     <!-- MODAL: CONFIGURAÇÃO DE CHAVE GOOGLE GEMINI FLASH -->
     <!-- ============================================================ -->
-    <div id="gemini-config-modal" class="modal-overlay">
-        <div class="modal-card gemini-modal-card">
+    <div id="gemini-config-modal" class="modal-backdrop">
+        <div class="modal-window gemini-modal-card">
             <div class="modal-header">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:1.4rem;">⚡</span>
+                <div class="modal-title-box" style="display:flex; align-items:center; gap:8px;">
+                    <span class="modal-icon" style="font-size:1.4rem;">⚡</span>
                     <div>
                         <h3 style="margin:0; font-size:1.05rem;">Configurar Google Gemini Flash</h3>
-                        <p style="margin:0; font-size:0.75rem; color:var(--text-muted);">Inferência ultrarrápida (sub-segundo) na nuvem Google</p>
+                        <p class="modal-sub" style="margin:0; font-size:0.75rem; color:var(--text-muted);">Inferência ultrarrápida (sub-segundo) na nuvem Google</p>
                     </div>
                 </div>
-                <button id="btn-close-gemini-modal" class="modal-close-btn">✕</button>
+                <div class="modal-header-actions">
+                    <button id="btn-close-gemini-modal" class="btn-close" title="Fechar modal (Esc)">✕</button>
+                </div>
             </div>
             <div class="modal-body">
                 <div class="gemini-banner-tip">
@@ -955,7 +953,7 @@ Exemplo:
                         Chave de API Gemini (Google AI Studio):
                     </label>
                     <div class="input-with-action">
-                        <input type="password" id="input-gemini-key" class="form-input" placeholder="Cole sua chave aqui (Ex: AIzaSy...)" style="flex:1;">
+                        <input type="password" id="input-gemini-key" class="form-input" placeholder="Cole sua chave aqui (Ex: AQ.Ab8...)" style="flex:1;">
                         <button type="button" id="btn-toggle-key-visibility" class="btn-icon-mini" title="Mostrar/Ocultar chave" style="padding:6px 10px;">👁️</button>
                     </div>
                     <small class="form-hint" style="display:block; margin-top:6px; color:var(--text-dim); font-size:0.75rem;">
@@ -968,20 +966,26 @@ Exemplo:
                         Modelo Padrão:
                     </label>
                     <select id="select-gemini-modal-model" class="form-input" style="width:100%;">
-                        <option value="gemini-2.5-flash" selected>⚡ gemini-2.5-flash (Mais Rápido & Recomendado)</option>
-                        <option value="gemini-3.5-flash">⚡ gemini-3.5-flash (Nova Geração)</option>
+                        <option value="gemini-3.6-flash" selected>⚡ gemini-3.6-flash (Mais Rápido & Recomendado)</option>
+                        <option value="gemini-3.5-flash">⚡ gemini-3.5-flash (Flash Estável)</option>
+                        <option value="gemini-2.5-flash">⚡ gemini-2.5-flash (Legado)</option>
                     </select>
                 </div>
 
                 <div id="gemini-test-result" class="gemini-test-result" style="display:none; margin-top:1rem;"></div>
             </div>
             <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; padding:1rem; border-top:1px solid var(--border-color);">
-                <button id="btn-test-gemini-key" class="btn btn-secondary">
+                <button id="btn-test-gemini-key" class="btn btn-secondary" type="button">
                     🧪 Testar Conexão
                 </button>
-                <button id="btn-save-gemini-key" class="btn btn-primary btn-glow">
-                    💾 Salvar e Ativar Flash
-                </button>
+                <div style="display:flex; gap:8px;">
+                    <button id="btn-cancel-gemini-modal" class="btn btn-outline" type="button">
+                        Fechar
+                    </button>
+                    <button id="btn-save-gemini-key" class="btn btn-primary btn-glow" type="button">
+                        💾 Salvar e Ativar Flash
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -992,7 +996,7 @@ Exemplo:
     <script src="js/mentor.js?v=20260831_05"></script>
     <script src="js/missions.js?v=20260831_05"></script>
     <script src="js/carga.js?v=20260831_05"></script>
-    <script src="js/ai_mentor.js?v=20260831_05"></script>
+    <script src="js/ai_mentor.js?v=20260915_01"></script>
     <script src="js/app.js?v=20260831_05"></script>
 </body>
 </html>

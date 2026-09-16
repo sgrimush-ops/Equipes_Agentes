@@ -62,9 +62,11 @@ Esta skill foi desenhada para uso neste workspace e prioriza o contexto Oracle e
 - Se faltar certeza sobre a estrutura do banco, prefira orientar uma consulta ao dicionario antes de inventar nomes.
 
 ### Se o pedido for otimizar ou validar resultado
+- **Pirâmide de Afunilamento Inicial**: Se o usuário informou códigos de produtos, fornecedores, lojas ou compradores, garanta que esses filtros estejam na **primeiríssima CTE materializada** antes de qualquer scan em tabelas transacionais (`MRL_CUSTODIA`, `MLF_NOTAFISCAL`).
 - Verifique se ha agregacao previa antes de juntar historico com saldo fixo.
 - Verifique se filtros de negocio e de escopo foram aplicados cedo o suficiente.
 - Verifique se a query preserva a granularidade esperada.
+
 
 ## Criterios de Qualidade
 - A resposta precisa ensinar, nao apenas entregar codigo.

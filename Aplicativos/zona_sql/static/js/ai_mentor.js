@@ -23,6 +23,7 @@ function initAiMentor() {
     const btnOpenGeminiConfig = document.getElementById('btn-open-gemini-config');
     const geminiModal = document.getElementById('gemini-config-modal');
     const btnCloseGeminiModal = document.getElementById('btn-close-gemini-modal');
+    const btnCancelGeminiModal = document.getElementById('btn-cancel-gemini-modal');
     const inputGeminiKey = document.getElementById('input-gemini-key');
     const btnToggleKeyVis = document.getElementById('btn-toggle-key-visibility');
     const selectGeminiModalModel = document.getElementById('select-gemini-modal-model');
@@ -159,17 +160,64 @@ function initAiMentor() {
     }
 
     // 2. Modal de Configuração do Gemini
+    function openGeminiModal() {
+        if (!geminiModal) return;
+        geminiModal.style.display = 'flex';
+        geminiModal.classList.add('active');
+        if (geminiTestResult) geminiTestResult.style.display = 'none';
+
+        // Carregar config atual
+        fetch('/api/ai/config')
+            .then(r => r.json())
+            .then(cfg => {
+                if (cfg.has_gemini_key && inputGeminiKey) {
+                    inputGeminiKey.placeholder = `Chave configurada (${cfg.masked_key}). Digite para alterar.`;
+                }
+                if (cfg.current_model && selectGeminiModalModel) {
+                    selectGeminiModalModel.value = cfg.current_model.startsWith('gemini') ? cfg.current_model : 'gemini-3.6-flash';
+                }
+            })
+            .catch(console.error);
+
+        if (inputGeminiKey) inputGeminiKey.focus();
+    }
+
+    function closeGeminiModal() {
+        if (geminiModal) {
+            geminiModal.classList.remove('active');
+            geminiModal.style.display = 'none';
+        }
+    }
+
     if (btnOpenGeminiConfig) {
-        btnOpenGeminiConfig.addEventListener('click', openGeminiModal);
+        btnOpenGeminiConfig.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openGeminiModal();
+        });
     }
 
     if (btnCloseGeminiModal) {
-        btnCloseGeminiModal.addEventListener('click', closeGeminiModal);
+        btnCloseGeminiModal.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeGeminiModal();
+        });
+    }
+
+    if (btnCancelGeminiModal) {
+        btnCancelGeminiModal.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeGeminiModal();
+        });
     }
 
     if (geminiModal) {
         geminiModal.addEventListener('click', (e) => {
-            if (e.target === geminiModal) closeGeminiModal();
+            if (e.target === geminiModal) {
+                closeGeminiModal();
+            }
         });
     }
 
@@ -185,36 +233,11 @@ function initAiMentor() {
         });
     }
 
-    async function openGeminiModal() {
-        if (!geminiModal) return;
-        geminiModal.classList.add('active');
-        if (geminiTestResult) geminiTestResult.style.display = 'none';
-
-        // Carregar config atual
-        try {
-            const resp = await fetch('/api/ai/config');
-            const cfg = await resp.json();
-            if (cfg.has_gemini_key && inputGeminiKey) {
-                inputGeminiKey.placeholder = `Chave configurada (${cfg.masked_key}). Digite para alterar.`;
-            }
-            if (cfg.current_model && selectGeminiModalModel) {
-                selectGeminiModalModel.value = cfg.current_model.startsWith('gemini') ? cfg.current_model : 'gemini-2.5-flash';
-            }
-        } catch (e) {
-            console.error(e);
-        }
-        if (inputGeminiKey) inputGeminiKey.focus();
-    }
-
-    function closeGeminiModal() {
-        if (geminiModal) geminiModal.classList.remove('active');
-    }
-
     // Testar Chave Gemini
     if (btnTestGeminiKey) {
         btnTestGeminiKey.addEventListener('click', async () => {
             const keyVal = inputGeminiKey ? inputGeminiKey.value.trim() : '';
-            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-2.5-flash';
+            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-3.6-flash';
 
             btnTestGeminiKey.disabled = true;
             btnTestGeminiKey.textContent = '⏳ Testando...';
@@ -256,7 +279,7 @@ function initAiMentor() {
     if (btnSaveGeminiKey) {
         btnSaveGeminiKey.addEventListener('click', async () => {
             const keyVal = inputGeminiKey ? inputGeminiKey.value.trim() : '';
-            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-2.5-flash';
+            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-3.6-flash';
 
             btnSaveGeminiKey.disabled = true;
             btnSaveGeminiKey.textContent = '⏳ Salvando...';

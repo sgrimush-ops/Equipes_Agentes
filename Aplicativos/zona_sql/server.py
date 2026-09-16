@@ -16,7 +16,7 @@ try:
 except Exception:
     pass
 
-from mentor_ai import ollama_mentor
+from mentor_ai import ollama_mentor, GEMINI_MODELS
 
 PORT = 8550
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1513,7 +1513,7 @@ class ConsincoSimulatorHandler(SimpleHTTPRequestHandler):
             'masked_key': masked_key,
             'current_model': ollama_mentor.current_model,
             'provider': 'gemini' if ollama_mentor.is_gemini_model() else 'ollama',
-            'gemini_models': ["gemini-2.5-flash", "gemini-3.5-flash"]
+            'gemini_models': GEMINI_MODELS
         })
 
     def handle_ai_save_config(self, data):

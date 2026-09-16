@@ -17,10 +17,11 @@ CONFIG_FILE = os.path.join(BASE_DIR, "gemini_config.json")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 
 GEMINI_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-3.5-flash"
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash"
 ]
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 DEFAULT_OLLAMA_MODEL = "qwen2.5-coder:1.5b"
 
 SYSTEM_PROMPT_CONSINCO = """Você é o Mentor IA Especialista em SQL Oracle do ERP Totvs Consinco.
@@ -122,9 +123,7 @@ class UnifiedMentorService:
             req = urllib.request.Request(url, headers={"User-Agent": "ZonaSQL-Mentor/2.0"})
             with urllib.request.urlopen(req, timeout=2.5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                raw_models = [m.get("name") for m in data.get("models", [])]
-                # Filtrar modelos indesejados (ex: hermes3)
-                models = [m for m in raw_models if "hermes" not in m.lower()]
+                models = [m.get("name") for m in data.get("models", [])]
                 latency_ms = round((time.time() - start) * 1000, 1)
                 return {
                     "online": True,

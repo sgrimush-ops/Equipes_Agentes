@@ -2960,6 +2960,8 @@ table.data-grid tr:hover {
 .gemini-modal-card {
     max-width: 540px;
     width: 90%;
+    height: auto;
+    max-height: 90vh;
     background: #0d121d;
     border: 1px solid #3b82f6;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.85), 0 0 20px rgba(59, 130, 246, 0.3);

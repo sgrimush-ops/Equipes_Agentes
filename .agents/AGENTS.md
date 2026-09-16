@@ -53,6 +53,10 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
     `NOT REGEXP_LIKE(REPLACE(TRANSLATE(UPPER(COLUNA), 'ÁÉÍÓÚÀÈÌÒÙÃÕÂÊÎÔÛÇ', 'AEIOUAEIOUAOAEIOUC'), ' ', ''), REPLACE(REPLACE(TRANSLATE(UPPER(TRIM(:LT2)), 'ÁÉÍÓÚÀÈÌÒÙÃÕÂÊÎÔÛÇ', 'AEIOUAEIOUAOAEIOUC'), ' ', ''), ',', '|'), 'i')`.
     Sempre preveja o sentinela `0` / `'NENHUM'` para desativar o expurgo (`NVL(TRIM(:LT2), '0') IN ('0', 'NENHUM', '')`).
 
+13. **Regra de Ouro da Pirâmide de Afunilamento e Pesquisa Inteligente Inicial (Topo da Pirâmide):**
+    Sempre que houver códigos específicos informados ou a filtrar (como códigos de fornecedores, produtos, compradores, departamentos ou lojas), esses filtros devem ser posicionados obrigatoriamente no **topo da pirâmide**, isto é, na **primeira CTE materializada (`WITH ... AS (SELECT /*+ MATERIALIZE */ ...)`)**. Isso afunila a massa de dados para dezenas ou centenas de registros antes de qualquer cruzamento com tabelas massivas ou transacionais (`MRL_CUSTODIA`, `MLF_NOTAFISCAL`, `MLF_NFITEM`, `MRL_PRODUTOEMPRESA`). **NUNCA varra tabelas gigantes abertas para o banco todo para depois filtrar por fornecedor/produto**, pois isso causa timeout imediato e travamento da sessão no Oracle/Consinco.
+
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco
