@@ -436,8 +436,9 @@ class MixProcessor:
                             continue
                         y_ref = coord_loja[1]
                         
-                        # Faixa vertical com tolerância de alinhamento com a linha da loja
-                        candidatos = [it for it in itens_lidos if abs(it['y'] - y_ref) <= 15 or abs(it['y'] - (y_ref - 7)) <= 12]
+                        # Faixa vertical com tolerância estrita de alinhamento com a linha da loja (máx 7px, pois o espaçamento entre linhas é ~17px)
+                        candidatos = [it for it in itens_lidos if abs(it['y'] - y_ref) <= 7]
+                        candidatos.sort(key=lambda it: abs(it['y'] - y_ref))
                         for it in candidatos:
                             t_upper = it['text'].upper()
                             if 'INATIV' in t_upper or 'INAT' in t_upper:
@@ -491,6 +492,83 @@ class MixProcessor:
             return 'I'
 
         return txt
+
+    def _parse_empresas(self, val):
+        """
+        Interpreta e separa múltiplos códigos de lojas em uma mesma célula.
+        Suporta:
+        - Listas separadas por vírgula: '12,18', '12, 18', '1, 2, 3'
+        - Decimais originados pelo Excel (onde '12,18' vira float 12.18): 12.18 -> ['012', '018']
+        - Ponto e vírgula, barra, pipe, 'e': '12;18', '12/18', '12 e 18'
+        - Códigos únicos e inteiros: 14 -> ['014'], '14.0' -> ['014']
+        - Grupos ou sentinelas: 'CD', 'TI', 'G, M', 'PP'
+        - Células vazias: preserva [''] para não descartar linhas sem empresa explícita (ex: TI)
+        """
+        if val is None or pd.isna(val):
+            return ['']
+
+        if isinstance(val, (int, float)):
+            if isinstance(val, float) and not val.is_integer():
+                s_val = str(val)
+                partes = s_val.split('.')
+                return [p.zfill(3) if p.isdigit() else p for p in partes if p]
+            else:
+                return [str(int(val)).zfill(3)]
+
+        s = str(val).strip()
+        if not s or s.lower() == 'nan':
+            return ['']
+
+        # Verifica se é um número inteiro vindo como float textual (ex: '14.0', '14.00')
+        try:
+            f_val = float(s)
+            if f_val.is_integer():
+                return [str(int(f_val)).zfill(3)]
+        except ValueError:
+            pass
+
+        import re
+        s = re.sub(r'\s+[eE]\s+', ',', s)
+        tokens = re.split(r'[,;/|\\+]+', s)
+
+        resultado = []
+        for tok in tokens:
+            tok = tok.strip()
+            if not tok:
+                continue
+
+            # Se o sub-token for um float decimal (ex: '12.18' gerado pelo Excel a partir de 12,18)
+            try:
+                f = float(tok)
+                if f.is_integer():
+                    resultado.append(str(int(f)).zfill(3))
+                    continue
+                else:
+                    partes = tok.split('.')
+                    for p in partes:
+                        if p.isdigit():
+                            resultado.append(p.zfill(3))
+                        elif p:
+                            resultado.append(p.upper())
+                    continue
+            except ValueError:
+                pass
+
+            # Se contiver espaços entre números (ex: '12 18')
+            if ' ' in tok:
+                sub_tokens = tok.split()
+                if all(st.isdigit() for st in sub_tokens):
+                    for st in sub_tokens:
+                        if st:
+                            resultado.append(st.zfill(3))
+                    continue
+
+            if tok.isdigit():
+                resultado.append(tok.zfill(3))
+            else:
+                resultado.append(tok.upper())
+
+        return resultado if resultado else ['']
 
     def run(self, update_callback=None, stop_event=None, pause_event=None):
         if not self.coords:
@@ -553,6 +631,10 @@ class MixProcessor:
             df = df.rename(columns={col_empresa: 'Código Empresa', col_produto: 'Código Produto', col_status: 'Status'})
             if col_descricao: df = df.rename(columns={col_descricao: 'Descrição'})
             
+            # Expansão robusta de múltiplas lojas (ex: '12,18', 12.18, '12;18', 'G, M')
+            df['Código Empresa'] = df['Código Empresa'].apply(self._parse_empresas)
+            df = df.explode('Código Empresa').reset_index(drop=True)
+
             df['Código Empresa'] = df['Código Empresa'].apply(lambda x: str(x).strip().replace('.0', ''))
             df['Código Empresa'] = df['Código Empresa'].apply(lambda s: s.zfill(3) if s.isdigit() else s)
             df['Status'] = df['Status'].apply(self._normalize_action)
@@ -801,35 +883,40 @@ class MixProcessor:
                     elif loja_str in lojas_forcar_inativo: status = "I"
                     else: continue
 
-                    # 1. VERIFICAÇÃO PRIMÁRIA VIA OCR: Se a loja já está no status desejado na tela, PULA!
-                    # Evita alterar/inativar empresas fantasmas (009, 010, 020, 021, 022, 023, 050, 900, 901, 902) e lojas que já estão corretas
-                    if status_tela.get(loja_str) == status:
-                        continue
+                    # Se a loja veio EXPLICITAMENTE da planilha, NUNCA pula por detecção visual (garante 100% de execução para a loja pedida)
+                    vem_da_planilha = (st_planilha is not None)
 
-                    # 2. Fallback visual de Template Matching se o OCR não detectou esta loja específica
-                    if tela_bgr is not None and loja_str not in status_tela:
-                        try:
-                            coord_loja = self.coords[f"loja_{loja_str}"]
-                            local_y = coord_loja[1] - min_y
-                            slice_y1 = max(0, local_y - 15)
-                            slice_y2 = min(h_region, local_y + 15)
-                            fatia = tela_bgr[slice_y1:slice_y2, :]
-                            
-                            maior_c = 0; mel_est = None
-                            for st_n, t_list in templates_cv2.items():
-                                for t in t_list:
-                                    res = cv2.matchTemplate(fatia, t, cv2.TM_CCOEFF_NORMED)
-                                    _, mx, _, _ = cv2.minMaxLoc(res)
-                                    if mx > maior_c: maior_c = mx; mel_est = "A" if st_n == "ativo" else "I"
-                            
-                            if maior_c >= 0.70 and mel_est == status: 
-                                continue # PULA! Já está correto.
-                        except: pass
+                    if not vem_da_planilha:
+                        # 1. VERIFICAÇÃO PRIMÁRIA VIA OCR: Se a loja automática já está no status desejado na tela, PULA!
+                        # Evita alterar/inativar empresas fantasmas (009, 010, 020, 021, 022, 023, 050, 900, 901, 902)
+                        if status_tela.get(loja_str) == status:
+                            continue
+
+                        # 2. Fallback visual de Template Matching se o OCR não detectou esta loja específica
+                        if tela_bgr is not None and loja_str not in status_tela:
+                            try:
+                                coord_loja = self.coords[f"loja_{loja_str}"]
+                                local_y = coord_loja[1] - min_y
+                                slice_y1 = max(0, local_y - 7)
+                                slice_y2 = min(h_region, local_y + 7)
+                                fatia = tela_bgr[slice_y1:slice_y2, :]
+                                
+                                maior_c = 0; mel_est = None
+                                for st_n, t_list in templates_cv2.items():
+                                    for t in t_list:
+                                        res = cv2.matchTemplate(fatia, t, cv2.TM_CCOEFF_NORMED)
+                                        _, mx, _, _ = cv2.minMaxLoc(res)
+                                        if mx > maior_c: maior_c = mx; mel_est = "A" if st_n == "ativo" else "I"
+                                
+                                if maior_c >= 0.85 and mel_est == status: 
+                                    continue # PULA! Já está correto.
+                            except: pass
                     
                     # Mecânica de Clique via pynput (Regra 65 anti-DPI)
                     self._click(self.coords[f"loja_{loja_str}"])
-                    time.sleep(0.01)
-                    pyautogui.press('a' if status == "A" else 'i', presses=2, interval=0.01)
+                    time.sleep(0.04) # Intervalo seguro para o Delphi focar a célula
+                    pyautogui.press('a' if status == "A" else 'i', presses=2, interval=0.03)
+                    time.sleep(0.02)
 
                 # --- Registro Visual para Trava de Imagem (Anti-Aba Fantasma) ---
                 tela_valida_gray = None
