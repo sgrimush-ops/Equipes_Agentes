@@ -1,10 +1,3 @@
-# Consulta Criação: Produtos Exclusivos Loja (Sem CD)
-
-## 1. Objetivo da consulta
-Identificar produtos ativos que entraram (foram comprados e recebidos) diretamente nas lojas (CGO 1) dentro do período parametrizado (`:NR1` dias) e que **nunca** tiveram entrada em um CD no mesmo período, caracterizando-os como produtos exclusivos das lojas (abastecimento direto). A finalidade é analisar o que pode/deve ser mudado no fluxo de abastecimento e pedidos, permitindo o expurgo dinâmico de departamentos e a visualização da última loja de recebimento.
-
-## 2. SQL Principal
-```sql
 SELECT * FROM (
     WITH ENTRADAS_LOJA AS (
         SELECT /*+ MATERIALIZE */
@@ -92,48 +85,3 @@ SELECT * FROM (
       )
 )
 ORDER BY DESC_PRODUTO ASC
-```
-
-## 3. Variáveis para cadastrar em `Var - F7`
-
-### Filtro 1: Dias Histórico Entradas
-- **Variável**: `NR1`
-- **Tipo**: Numérico
-- **Descrição**: Dias Histórico Pesquisa Entradas
-- **Valor padrão**: `180`
-
-### Filtro 2: Tipo de Abastecimento
-- **Variável**: `LT1`
-- **Tipo**: Literal
-- **Descrição**: Tipo Abastecimento (L,M,C,I)
-- **Valor padrão**: `L,M,C,I`
-
-### Filtro 3: Expurgo de Departamentos
-- **Variável**: `LT2`
-- **Tipo**: Literal
-- **Descrição**: Expurgo Departamentos (sep. por virgula, 0 p/ todos)
-- **Valor padrão**: `PERECIVEIS`
-
-### Filtro 4: Comprador
-- **Variável**: `LS2`
-- **Tipo**: Lista
-- **Descrição**: Selecione o Comprador
-- **Valor padrão**: `0 - TODOS`
-
-## 4. SQL da Lista LS2 (Compradores)
-
-```sql
-SELECT '0 - TODOS' FROM DUAL UNION ALL SELECT SEQCOMPRADOR || ' - ' || COMPRADOR FROM MAX_COMPRADOR WHERE STATUS = 'A'
-```
-
-## 5. Passo a Passo de Configuração
-
-1. Acesse o **Totvs Consinco > SGI > Consulta Criação**.
-2. Cole o **SQL Principal** na área de texto.
-3. Clique em **Var - F7** no menu superior.
-4. Cadastre as variáveis conforme a tabela acima:
-   - **`NR1`** (Numérico): valor padrão `180`.
-   - **`LT1`** (Literal): valor padrão `L,M,C,I`.
-   - **`LT2`** (Literal): valor padrão `PERECIVEIS` (ou digite múltiplos termos separados por vírgula como `PERECIVEIS, FLV, ACOUGUE` ou `0` para desativar).
-   - **`LS2`** (Lista): cole o SQL da lista acima no campo de instrução da variável.
-5. Pressione **Ok** e depois **Executar (F8)**.

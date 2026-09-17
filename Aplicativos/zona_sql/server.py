@@ -155,11 +155,45 @@ def oracle_rpad(val, length, pad=' '):
         return s[:l]
     return s + (pad_str * (l - len(s)))
 
+def oracle_translate(val, from_str, to_str):
+    if val is None:
+        return None
+    s = str(val)
+    from_s = str(from_str) if from_str is not None else ''
+    to_s = str(to_str) if to_str is not None else ''
+    trans_table = {}
+    for i, char in enumerate(from_s):
+        if char not in trans_table:
+            trans_table[char] = to_s[i] if i < len(to_s) else ''
+    return "".join(trans_table.get(c, c) for c in s)
+
+def oracle_nvl2(val, if_not_null, if_null):
+    if val is None or val == '':
+        return if_null
+    return if_not_null
+
+def oracle_initcap(val):
+    if val is None:
+        return None
+    return str(val).title()
+
+def oracle_regexp_substr(val, pattern):
+    if val is None or pattern is None:
+        return None
+    m = re.search(str(pattern), str(val))
+    return m.group(0) if m else None
+
+def oracle_regexp_replace(val, pattern, replacement=''):
+    if val is None:
+        return None
+    return re.sub(str(pattern), str(replacement), str(val))
+
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     # Registrar funções Oracle
     conn.create_function("NVL", 2, oracle_nvl)
+    conn.create_function("NVL2", 3, oracle_nvl2)
     conn.create_function("TO_CHAR", 1, oracle_to_char)
     conn.create_function("TO_CHAR", 2, oracle_to_char)
     conn.create_function("TO_NUMBER", 1, oracle_to_number)
@@ -174,6 +208,11 @@ def get_db_connection():
     conn.create_function("SUBSTR", 3, oracle_substr)
     conn.create_function("DECODE", -1, oracle_decode)
     conn.create_function("REGEXP_LIKE", 2, oracle_regexp_like)
+    conn.create_function("REGEXP_SUBSTR", 2, oracle_regexp_substr)
+    conn.create_function("REGEXP_REPLACE", 2, lambda v, p: oracle_regexp_replace(v, p, ''))
+    conn.create_function("REGEXP_REPLACE", 3, oracle_regexp_replace)
+    conn.create_function("TRANSLATE", 3, oracle_translate)
+    conn.create_function("INITCAP", 1, oracle_initcap)
     conn.create_function("LPAD", 2, lambda v, l: oracle_lpad(v, l, ' '))
     conn.create_function("LPAD", 3, oracle_lpad)
     conn.create_function("RPAD", 2, lambda v, l: oracle_rpad(v, l, ' '))
@@ -215,6 +254,53 @@ def transpile_oracle_merge(sql):
         dml_statements.append(f"INSERT OR IGNORE INTO MRL_PONTOEXTRAPRODUTOEMPRESA (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS) VALUES ({ponto}, {prod}, {emp}, {seqvig}, {minimo}, {maximo}, {ini}, {fim}, {qtddias}, {status});")
         
     return "\n".join(dml_statements)
+
+def transpile_oracle_row_limiting(sql):
+    """
+    Transpila comandos Oracle de limitação de linhas (ROWNUM, FETCH FIRST/NEXT) e ILIKE para SQLite.
+    """
+    clean_sql = sql
+    
+    # 0. ILIKE -> LIKE
+    clean_sql = re.sub(r'\bILIKE\b', 'LIKE', clean_sql, flags=re.IGNORECASE)
+    
+    # 1. FETCH FIRST / NEXT N ROWS ONLY / WITH TIES
+    offset_fetch = re.search(r'\bOFFSET\s+(\d+)\s+ROWS?\s+FETCH\s+(?:FIRST|NEXT)\s+(\d+)\s+ROWS?\s+(?:ONLY|WITH\s+TIES)\b', clean_sql, flags=re.IGNORECASE)
+    if offset_fetch:
+        offset_val = offset_fetch.group(1)
+        limit_val = offset_fetch.group(2)
+        clean_sql = re.sub(r'\bOFFSET\s+\d+\s+ROWS?\s+FETCH\s+(?:FIRST|NEXT)\s+\d+\s+ROWS?\s+(?:ONLY|WITH\s+TIES)\b', f'LIMIT {limit_val} OFFSET {offset_val}', clean_sql, flags=re.IGNORECASE)
+    else:
+        fetch_match = re.search(r'\bFETCH\s+(?:FIRST|NEXT)\s+(\d+)\s+ROWS?\s+(?:ONLY|WITH\s+TIES)\b', clean_sql, flags=re.IGNORECASE)
+        if fetch_match:
+            limit_val = fetch_match.group(1)
+            clean_sql = re.sub(r'\bFETCH\s+(?:FIRST|NEXT)\s+\d+\s+ROWS?\s+(?:ONLY|WITH\s+TIES)\b', f'LIMIT {limit_val}', clean_sql, flags=re.IGNORECASE)
+
+    # 2. ROWNUM (ex: WHERE ROWNUM <= 50, AND ROWNUM <= 20, ROWNUM < 10, ROWNUM = 1)
+    rownum_regex = r'(?:\b[A-Za-z0-9_]+\.)?\bROWNUM\s*(=|<=|<)\s*(\d+)'
+    m = re.search(rownum_regex, clean_sql, flags=re.IGNORECASE)
+    if m:
+        op = m.group(1)
+        val = int(m.group(2))
+        limit_val = val
+        if op == '<':
+            limit_val = max(0, val - 1)
+        elif op == '=':
+            limit_val = val if val == 1 else 0
+            
+        # Remover ROWNUM do SQL
+        # Caso A: WHERE ROWNUM <= N AND ... -> WHERE ...
+        clean_sql = re.sub(rf'\bWHERE\s+{rownum_regex}\s+AND\b', 'WHERE ', clean_sql, flags=re.IGNORECASE)
+        # Caso B: ... AND ROWNUM <= N
+        clean_sql = re.sub(rf'\s+AND\s+{rownum_regex}\b', '', clean_sql, flags=re.IGNORECASE)
+        # Caso C: WHERE ROWNUM <= N (única condição do WHERE)
+        clean_sql = re.sub(rf'\bWHERE\s+{rownum_regex}\b', '', clean_sql, flags=re.IGNORECASE)
+        
+        # Adicionar LIMIT no final se ainda não existir
+        if not re.search(r'\bLIMIT\s+\d+\b', clean_sql, flags=re.IGNORECASE):
+            clean_sql = clean_sql.rstrip().rstrip(';') + f' LIMIT {limit_val}'
+
+    return clean_sql
 
 # -------------------------------------------------------------
 # 2. Pré-processador e Normalizador Oracle -> SQLite
@@ -283,6 +369,9 @@ def preprocess_oracle_sql(sql, binds=None):
             val_sql = f"'{val_escaped}'"
             
         clean_sql = re.sub(rf':{p}\b', val_sql, clean_sql)
+
+    # 7. Transpilar Filtragem e Limitação de Linhas Oracle (ROWNUM, FETCH FIRST/NEXT) e ILIKE
+    clean_sql = transpile_oracle_row_limiting(clean_sql)
 
     return clean_sql
 
@@ -403,6 +492,84 @@ def analyze_consinco_rules(raw_sql):
                 'message': 'Cruzar MRL_CUSTODIA com tabelas de estoque fixo sem agregação prévia multiplica indevidamente os saldos de estoque!',
                 'suggestion': 'Agregue MRL_CUSTODIA por SEQPRODUTO e NROEMPRESA em uma subquery ou CTE antes do JOIN.'
             })
+
+    # Regra 10: Sintaxe Incompleta na Cláusula WHERE / LIKE (Prevenção de ORA-00933)
+    sql_clean_spaces = re.sub(r'\s+', ' ', sql_upper)
+    if re.search(r'\b(?:WHERE|AND|OR)\s+LIKE\b', sql_clean_spaces) or re.search(r'\bWHERE\s+[A-Za-z0-9_.]+\s+(?:AND|OR)\b', sql_clean_spaces):
+        alerts.append({
+            'type': 'danger',
+            'rule': 'Sintaxe Incompleta na Cláusula WHERE / LIKE (Prevenção de ORA-00933)',
+            'message': 'Detectada cláusula incompleta na filtragem (ex: "AND LIKE" sem coluna ou coluna no WHERE sem operador de comparação).',
+            'suggestion': 'Especifique a coluna antes do LIKE (ex: AND DESCCOMPLETA LIKE \'%termo%\') e certifique-se de que cada campo no WHERE possua um operador válido (ex: WHERE SEQFAMILIA = 100 AND DESCCOMPLETA LIKE \'%termo%\').'
+        })
+
+    # Regra 11: Validação Estrita de GROUP BY no Oracle (Prevenção de ORA-00979)
+    if 'GROUP BY' in sql_upper:
+        m_sel = re.search(r'SELECT\s+(.*?)\s+FROM\b', raw_sql, flags=re.IGNORECASE | re.DOTALL)
+        m_grp = re.search(r'GROUP\s+BY\s+(.*?)(?:HAVING|ORDER\s+BY|\)|;|$)', raw_sql, flags=re.IGNORECASE | re.DOTALL)
+        if m_sel and m_grp:
+            sel_part = m_sel.group(1).strip()
+            grp_part = m_grp.group(1).strip()
+            
+            grp_cols = set()
+            for item in grp_part.split(','):
+                c = re.sub(r'[^A-Za-z0-9_.]', '', item.strip().upper())
+                if c:
+                    grp_cols.add(c)
+                    if '.' in c:
+                        grp_cols.add(c.split('.')[-1])
+                        
+            # Separar itens do SELECT respeitando parênteses
+            items = []
+            current = []
+            paren_depth = 0
+            for char in sel_part:
+                if char == '(':
+                    paren_depth += 1
+                elif char == ')':
+                    paren_depth -= 1
+                elif char == ',' and paren_depth == 0:
+                    items.append(''.join(current).strip())
+                    current = []
+                    continue
+                current.append(char)
+            if current:
+                items.append(''.join(current).strip())
+                
+            missing_cols = []
+            unaggregated_metrics = []
+            for it in items:
+                it_u = it.upper()
+                if any(f in it_u for f in ['SUM(', 'AVG(', 'COUNT(', 'MAX(', 'MIN(', 'LISTAGG(', 'WM_CONCAT(']):
+                    continue
+                expr = re.split(r'\s+AS\s+|\s+', it_u)[0].strip()
+                clean = re.sub(r'[^A-Za-z0-9_.]', '', expr)
+                base = clean.split('.')[-1]
+                if not clean or clean in ['*', '1', 'NULL', "''"]:
+                    continue
+                if any(m in base for m in ['QTD', 'VLR', 'VALOR', 'PRECO', 'TOTAL', 'SALDO']) and clean not in grp_cols and base not in grp_cols:
+                    unaggregated_metrics.append(it.strip())
+                elif clean not in grp_cols and base not in grp_cols:
+                    missing_cols.append(it.strip())
+                    
+            if missing_cols or unaggregated_metrics:
+                all_missing = missing_cols + unaggregated_metrics
+                sugg_extra = f", {', '.join(missing_cols)}" if missing_cols else ""
+                alerts.append({
+                    'type': 'danger',
+                    'rule': 'ALERTA CRÍTICO: Erro ORA-00979 (not a GROUP BY expression)',
+                    'message': f'Colunas no SELECT não foram incluídas no GROUP BY nem encapsuladas em funções de agregação (SUM/AVG): {all_missing}. O Oracle Consinco rejeitará esta consulta com erro fatal ORA-00979!',
+                    'suggestion': f'Adicione as colunas dimensionais no GROUP BY (ex: GROUP BY {grp_part}{sugg_extra}) e utilize funções de agregação para quantidades/valores (ex: SUM(CD.QTDVDA) AS VENDA).'
+                })
+
+    # Regra 12: Datas no Padrão Oracle Consinco (Prevenção de ORA-01861)
+    if re.search(r"DTA[A-Z0-9_]*\s*(?:IN|=|>|<|BETWEEN)\s*\(?\s*'20\d{2}-\d{2}-\d{2}'", raw_sql, flags=re.IGNORECASE):
+        alerts.append({
+            'type': 'warning',
+            'rule': 'Formatação de Datas sem TO_DATE no Oracle (Prevenção de ORA-01861)',
+            'message': 'Datas no formato string literal \'YYYY-MM-DD\' podem falhar no Totvs Consinco dependendo do NLS_DATE_FORMAT da sessão.',
+            'suggestion': 'Utilize a conversão explícita: TO_DATE(\'15/08/2026\', \'DD/MM/YYYY\') ou DATE \'2026-08-15\'.'
+        })
 
     return alerts
 

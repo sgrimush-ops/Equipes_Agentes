@@ -127,13 +127,13 @@ function initAiMentor() {
 
     function updateModelDropdown(data) {
         if (!aiModelSelect) return;
-        const currentVal = data.current_model || 'gemini-2.5-flash';
+        const currentVal = data.current_model || 'gemini-3.5-flash-lite';
         
         let html = '';
         
         // Grupo Gemini Flash
         html += '<optgroup label="⚡ Google Gemini (Nuvem Ultrarrápida < 1s)">';
-        const geminiModels = data.gemini_models || ['gemini-2.5-flash', 'gemini-3.5-flash'];
+        const geminiModels = data.gemini_models || ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
         geminiModels.forEach(m => {
             const isSelected = m === currentVal ? 'selected' : '';
             const keyHint = !data.has_gemini_key ? ' [🔑 Inserir Chave]' : ' (Ativo ⚡)';
@@ -174,7 +174,7 @@ function initAiMentor() {
                     inputGeminiKey.placeholder = `Chave configurada (${cfg.masked_key}). Digite para alterar.`;
                 }
                 if (cfg.current_model && selectGeminiModalModel) {
-                    selectGeminiModalModel.value = cfg.current_model.startsWith('gemini') ? cfg.current_model : 'gemini-3.6-flash';
+                    selectGeminiModalModel.value = cfg.current_model.startsWith('gemini') ? cfg.current_model : 'gemini-3.5-flash-lite';
                 }
             })
             .catch(console.error);
@@ -237,7 +237,7 @@ function initAiMentor() {
     if (btnTestGeminiKey) {
         btnTestGeminiKey.addEventListener('click', async () => {
             const keyVal = inputGeminiKey ? inputGeminiKey.value.trim() : '';
-            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-3.6-flash';
+            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-3.5-flash-lite';
 
             btnTestGeminiKey.disabled = true;
             btnTestGeminiKey.textContent = '⏳ Testando...';
@@ -279,7 +279,7 @@ function initAiMentor() {
     if (btnSaveGeminiKey) {
         btnSaveGeminiKey.addEventListener('click', async () => {
             const keyVal = inputGeminiKey ? inputGeminiKey.value.trim() : '';
-            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-3.6-flash';
+            const modelVal = selectGeminiModalModel ? selectGeminiModalModel.value : 'gemini-3.5-flash-lite';
 
             btnSaveGeminiKey.disabled = true;
             btnSaveGeminiKey.textContent = '⏳ Salvando...';

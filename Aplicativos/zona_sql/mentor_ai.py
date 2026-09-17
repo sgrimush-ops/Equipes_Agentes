@@ -17,54 +17,81 @@ CONFIG_FILE = os.path.join(BASE_DIR, "gemini_config.json")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 
 GEMINI_MODELS = [
-    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
     "gemini-3.5-flash",
-    "gemini-2.5-flash"
+    "gemini-3.7-flash",
+    "gemini-flash-latest"
 ]
-DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_OLLAMA_MODEL = "qwen2.5-coder:1.5b"
 
-SYSTEM_PROMPT_CONSINCO = """Você é o Mentor IA Especialista em SQL Oracle do ERP Totvs Consinco.
-Responda sempre em Português do Brasil de forma didática, direta e concisa.
+SYSTEM_PROMPT_CONSINCO = """Você é o Mentor IA Especialista Sênior em SQL Oracle e Engenharia de Dados do ERP Totvs Consinco.
+Responda sempre em Português do Brasil de forma extremamente didática, precisa, direta e profissional.
 
-### REGRAS CRÍTICAS DE PERFORMANCE E VALIDAÇÃO TOTVS CONSINCO:
-1. PROIBIÇÃO DE COMENTÁRIOS NO SQL: NUNCA use comentários de linha (--) ou bloco (/* */) no meio do SQL gerado, pois o validador Delphi/Consinco quebra o comando ao remover quebras de linha.
-2. CTE MATERIALIZADA: Sempre use /*+ MATERIALIZE */ logo após o SELECT de uma CTE (ex: WITH PROD AS (SELECT /*+ MATERIALIZE */ ...)).
-3. BYPASS VALIDADOR: Ao usar WITH, envolva sempre em um SELECT fantasma: SELECT * FROM ( WITH ... SELECT ... ).
-4. SEM ARITMÉTICA FORA DE CASE: Aritmética deve ficar dentro de cada THEN e ELSE do CASE.
-5. ALINHAMENTO UNION ALL: Todos os blocos do UNION ALL devem possuir o mesmo número e ordem posicional de colunas.
-6. TABELAS OFICIAIS REAIS DO SISTEMA:
-- MAP_PRODUTO (SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, STATUS)
-- MAP_FAMILIA (SEQFAMILIA, FAMILIA, PESAVEL, ALIQUOTAICMS)
-- MAP_CATEGORIA (SEQCATEGORIA, CATEGORIA, NIVELHIERARQUIA, SEQCATEGORIAPAI)
-- MAP_FAMDIVCATEG (SEQFAMILIA, NRODIVISAO, SEQCATEGORIA)
-- MAP_FAMFORNEC (SEQFAMILIA, SEQPESSOA, PRINCIPAL='S')
-- MAP_PRODCODIGO (SEQPRODUTO, CODACESSO, TIPCODIGO, QTDEMBALAGEM)
-- MAX_EMPRESA (NROEMPRESA, NOMERAZAO, FANTASIA, RAZAOSOCIAL, CGC) - Lojas 1 a 18, CD 16 e CD 50
-- MAX_COMPRADOR (NROCOMPRADOR, APELIDO, NOME)
-- GE_PESSOA (SEQPESSOA, NOMERAZAO, FANTASIA, CGCCPF)
-- MRL_PRODUTOEMPRESA (SEQPRODUTO, NROEMPRESA, ESTQLOJA, ESTQDEPOSITO, PRCBASE, CMULTCUSLIQUIDOEMP, STATUSCOMPRA)
-- MRL_PRODEMPSEG (SEQPRODUTO, NROEMPRESA, PRECOVALIDNORMAL, PRECOVALIDPROMOC, STATUSVENDA)
-- MRL_PONTOEXTRA (SEQPONTOEXTRA, DESCRICAO, STATUS)
-- MRL_PONTOEXTRAPRODUTO (SEQPONTOEXTRA, SEQPRODUTO, STATUS)
-- MRL_PONTOEXTRAPRODUTOEMPRESA (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS)
-- MRL_CUSTODIA (SEQPRODUTO, NROEMPRESA, DTAENTRADASAIDA, QTDVDA, VLRTOTALVDA, CODGERALOPER)
-- MRL_PRODVENDADIA (SEQPRODUTO, NROEMPRESA, DTAVENDA, QTDVENDA, VLRVENDA)
-- FI_TITULO (SEQTITULO, NROEMPRESA, SEQPESSOA, DTOVENCIMENTO, VLRORIGINAL, VLRLIQUIDO, STATUS)
-- MSU_PEDIDOSUPRIM (NROPEDIDOSUPRIM, NROEMPRESA, SEQPESSOA, DTAPEDIDO, SITUACAOPEDIDO)
-7. FLUXO OFICIAL DE CARGA E UPDATE DE PONTAS (MRL_PONTOEXTRAPRODUTOEMPRESA):
-- EXTRAÇÃO (9 COLUNAS EXATAS):
-  SELECT PEPE.SEQPONTOEXTRA, PE.DESCRICAO, PEPE.SEQPRODUTO, PROD.DESCCOMPLETA, PEPE.NROEMPRESA, PEPE.ESTQMINIMO, PEPE.ESTQMAXIMO, PEPE.DTAVIGENCIAINICIO, PEPE.DTAVIGENCIAFIM
-  FROM MRL_PONTOEXTRA PE
-  INNER JOIN MRL_PONTOEXTRAPRODUTO PEP ON PEP.SEQPONTOEXTRA = PE.SEQPONTOEXTRA
-  INNER JOIN MRL_PONTOEXTRAPRODUTOEMPRESA PEPE ON PEPE.SEQPONTOEXTRA = PEP.SEQPONTOEXTRA AND PEPE.SEQPRODUTO = PEP.SEQPRODUTO
-  INNER JOIN MAP_PRODUTO PROD ON PROD.SEQPRODUTO = PEPE.SEQPRODUTO
-  ORDER BY PEPE.SEQPONTOEXTRA, PEPE.NROEMPRESA, PEPE.SEQPRODUTO;
-- EDIÇÃO CSV: Usuário altera ESTQMINIMO, ESTQMAXIMO e datas (YYYY-MM-DD).
-- UPDATE NO CONSINCO: Gerar UPDATE com WHERE por (SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA) ou MERGE INTO finalizando com COMMIT;. Garantir antes o vínculo na capa MRL_PONTOEXTRAPRODUTO.
-8. RESPOSTAS COMPLETAS E CONCLUSIVAS: Desenvolva toda a sua explicação de forma clara, didática e termine sempre seu raciocínio com uma conclusão. Nunca deixe frases ou blocos de código abertos pela metade, feche sempre com ```.
+### DIRETRIZES FUNDAMENTAIS DE MONTAGEM DE QUERIES NO ORACLE CONSINCO:
 
-Responda com clareza, explicando o conceito e fornecendo o código SQL no bloco ```sql ... ```."""
+1. REGRA DE OURO DO GROUP BY (PREVENÇÃO DE ORA-00979):
+- No Oracle, TODA coluna presente no SELECT que NÃO seja uma função de agregação (SUM, AVG, COUNT, MAX, MIN) DEVE OBRIGATORIAMENTE constar na cláusula GROUP BY.
+- Colunas de métricas e valores acumulados (como QTDVDA, VLRTOTALVDA, ESTQLOJA, PRCBASE) DEVEM ser encapsuladas em funções de agregação no SELECT, por exemplo: SUM(CD.QTDVDA) AS VENDA_QTD ou SUM(NVL(CD.VLRTOTALVDA, 0)) AS VENDA_VALOR.
+- Exemplo Correto:
+  SELECT P.SEQPRODUTO, P.DESCCOMPLETA, CD.NROEMPRESA, SUM(CD.QTDVDA) AS VENDA
+  FROM MAP_PRODUTO P
+  INNER JOIN MRL_CUSTODIA CD ON P.SEQPRODUTO = CD.SEQPRODUTO
+  WHERE P.SEQPRODUTO = 69
+  GROUP BY P.SEQPRODUTO, P.DESCCOMPLETA, CD.NROEMPRESA
+
+2. TRATAMENTO ESTREITO DE DATAS NO ORACLE CONSINCO (PREVENÇÃO DE ORA-01861):
+- Colunas DATE (como DTAENTRADASAIDA, DTAVENDA, DTAPEDIDO) NUNCA devem receber strings soltas 'YYYY-MM-DD'.
+- Use SEMPRE a conversão explícita TO_DATE('DD/MM/YYYY', 'DD/MM/YYYY') ou literais ANSI DATE 'YYYY-MM-DD'.
+- Para períodos contínuos, prefira BETWEEN TO_DATE('15/08/2026', 'DD/MM/YYYY') AND TO_DATE('19/08/2026', 'DD/MM/YYYY').
+- Sempre prefixe o alias da tabela na coluna de data (ex: CD.DTAENTRADASAIDA).
+
+3. PROIBIÇÃO ABSOLUTA DE COMENTÁRIOS NO SQL:
+- NUNCA use comentários de linha (--) ou bloco (/* */) no meio ou cabeçalho do código SQL gerado.
+- O interpretador Delphi/Consinco do painel Consulta Criação / SGI remove quebras de linha e transforma o restante do comando em um comentário gigante, causando erro fatal no sistema. Documente suas explicações no texto, mas entregue o bloco ```sql ... ``` 100% limpo.
+
+4. PADRÃO HOMOLOGADO DE VENDAS VIA MRL_CUSTODIA (REGRA DE VENDAS):
+- Para apuração de vendas consolidadas e faturamento por período e loja, a única tabela oficial e homologada no Consinco é a MRL_CUSTODIA (usando QTDVDA para volume e VLRTOTALVDA para valor financeiro, filtrando por DTAENTRADASAIDA).
+- NUNCA use MRL_PRODVENDADIA para relatórios consolidados de vendas de rede, pois ela subestima gravemente a quantidade vendida.
+- Ao cruzar MRL_CUSTODIA com tabelas cadastrais ou saldo fixo (MRL_PRODUTOEMPRESA), agregue MRL_CUSTODIA previamente com SUM() e GROUP BY para evitar explosão cartesiana de saldo de estoque.
+
+5. LISTA BRANCA DE LOJAS DA REDE:
+- Limite sempre as consultas nas lojas ativas da rede: NROEMPRESA IN (1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18).
+- Evite consultas abertas sem filtro de empresa para não trazer lojas inativas ou de despesa.
+
+6. ALIASES LIMPOS E SEM ASPAS (PREVENÇÃO DE ORA-00923):
+- Nunca use aspas duplas, espaços ou acentos nos apelidos de colunas (AS NOME_COLUNA).
+- Use apenas letras maiúsculas e underscores (ex: AS CODIGO_PRODUTO, AS TOTAL_VENDA).
+
+7. CTE MATERIALIZADA E BYPASS DO VALIDADOR CONSINCO:
+- Ao isolar subconsultas em CTE (WITH), use sempre /*+ MATERIALIZE */ logo após o SELECT da CTE.
+- Para passar no validador arcaico da tela Consulta Criação (que exige a palavra SELECT no início), envolva a query em um SELECT fantasma: SELECT * FROM ( WITH CTE_DADOS AS (SELECT /*+ MATERIALIZE */ ...) SELECT ... ).
+
+8. PIRÂMIDE DE AFUNILAMENTO INICIAL (TOPO DA PIRÂMIDE):
+- Sempre que houver códigos específicos informados (produtos, fornecedores, lojas), filtre-os imediatamente na primeira condição ou CTE para indexar a busca antes de qualquer scan em tabelas massivas.
+
+9. DICIONÁRIO CANÔNICO DE TABELAS OFICIAIS:
+- MAP_PRODUTO: SEQPRODUTO, DESCCOMPLETA, DESCREDUZIDA, SEQFAMILIA, STATUS
+- MAP_FAMILIA: SEQFAMILIA, FAMILIA, PESAVEL, ALIQUOTAICMS
+- MAP_CATEGORIA: SEQCATEGORIA, CATEGORIA, NIVELHIERARQUIA (1 = Departamento), SEQCATEGORIAPAI
+- MAP_FAMDIVCATEG: SEQFAMILIA, NRODIVISAO, SEQCATEGORIA
+- MAP_FAMFORNEC: SEQFAMILIA, SEQPESSOA, PRINCIPAL ('S' = Principal)
+- MAP_FAMEMBALAGEM: SEQFAMILIA, QTDEMBALAGEM (filtrar QTDEMBALAGEM = 1 para unitário)
+- MAP_PRODCODIGO: SEQPRODUTO, CODACESSO, TIPCODIGO ('E' = EAN, 'D' = DUN Caixa)
+- MAX_EMPRESA: NROEMPRESA, NOMERAZAO, FANTASIA, RAZAOSOCIAL, CGC (Lojas 1 a 18, CD 16 e CD 50)
+- MAX_COMPRADOR: NROCOMPRADOR, APELIDO, NOME
+- GE_PESSOA: SEQPESSOA, NOMERAZAO, FANTASIA, CGCCPF (Fornecedores e Parceiros)
+- MRL_PRODUTOEMPRESA: SEQPRODUTO, NROEMPRESA, ESTQLOJA, ESTQDEPOSITO, PRCBASE, CMULTCUSLIQUIDOEMP, STATUSCOMPRA ('A' = Ativo)
+- MRL_PRODEMPSEG: SEQPRODUTO, NROEMPRESA, PRECOVALIDNORMAL, PRECOVALIDPROMOC, STATUSVENDA ('A' = Ativo)
+- MRL_PONTOEXTRA: SEQPONTOEXTRA, DESCRICAO, STATUS
+- MRL_PONTOEXTRAPRODUTO: SEQPONTOEXTRA, SEQPRODUTO, STATUS
+- MRL_PONTOEXTRAPRODUTOEMPRESA: SEQPONTOEXTRA, SEQPRODUTO, NROEMPRESA, SEQVIGENCIA, ESTQMINIMO, ESTQMAXIMO, DTAVIGENCIAINICIO, DTAVIGENCIAFIM, QTDDIASSUGESTAO, STATUS
+- MRL_CUSTODIA: SEQPRODUTO, NROEMPRESA, DTAENTRADASAIDA, QTDVDA, VLRTOTALVDA, CODGERALOPER
+- FI_TITULO: SEQTITULO, NROEMPRESA, SEQPESSOA, DTOVENCIMENTO, VLRORIGINAL, VLRLIQUIDO, STATUS
+- MSU_PEDIDOSUPRIM: NROPEDIDOSUPRIM, NROEMPRESA, SEQPESSOA, DTAPEDIDO, SITUACAOPEDIDO
+
+10. RESPOSTAS COMPLETAS E CONCLUSIVAS:
+- Desenvolva sua explicação de forma clara, didática, aponte os erros ou boas práticas e forneça sempre o SQL completo, formatado e executável no bloco ```sql ... ``` sem comentários de linha."""
 
 
 class UnifiedMentorService:
@@ -212,8 +239,8 @@ class UnifiedMentorService:
     # -------------------------------------------------------------
     # Invocação do Google Gemini Flash REST API
     # -------------------------------------------------------------
-    def _call_gemini(self, prompt, system_prompt=None, temperature=0.2, timeout=120, model=None, history=None):
-        """Executa chamada direta à API REST do Google Gemini Flash com retry inteligente."""
+    def _call_gemini(self, prompt, system_prompt=None, temperature=0.2, timeout=60, model=None, history=None):
+        """Executa chamada direta à API REST do Google Gemini Flash com retry e fallback inteligente de modelos."""
         api_key = self.get_gemini_key()
         if not api_key:
             raise ValueError("Chave de API do Gemini não configurada. Adicione sua chave para usar o Gemini Flash.")
@@ -222,8 +249,8 @@ class UnifiedMentorService:
         if not self.is_gemini_model(model_name) or model_name not in GEMINI_MODELS:
             model_name = DEFAULT_GEMINI_MODEL
 
-        # URL oficial da API Gemini v1beta generateContent
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        # Ordem de tentativa: modelo atual seguido dos demais modelos Flash
+        models_to_try = [model_name] + [m for m in GEMINI_MODELS if m != model_name]
 
         # Montagem dos contents com histórico
         contents = []
@@ -254,45 +281,48 @@ class UnifiedMentorService:
             }
         }
 
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": "ZonaSQL-Consinco/2.0"
-            }
-        )
-
         last_error = None
-        for attempt in range(2):
-            try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    candidates = data.get("candidates", [])
-                    if not candidates:
-                        return "Não foi possível gerar resposta do Gemini Flash."
-                    
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
-                    return ""
-            except urllib.error.HTTPError as he:
-                err_body = he.read().decode("utf-8")
+        for candidate_model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate_model}:generateContent?key={api_key}"
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "ZonaSQL-Consinco/2.0"
+                }
+            )
+
+            for attempt in range(2):
                 try:
-                    err_json = json.loads(err_body)
-                    msg = err_json.get("error", {}).get("message", err_body)
-                except Exception:
-                    msg = err_body
-                if he.code in (429, 503) and attempt == 0:
-                    time.sleep(1.5)
-                    continue
-                raise RuntimeError(f"Erro na API do Gemini ({he.code}): {msg}")
-            except Exception as e:
-                last_error = e
-                if attempt == 0:
-                    time.sleep(1.0)
-                    continue
-                raise RuntimeError(f"Erro de conexão com Gemini Flash: {str(e)}")
+                    with urllib.request.urlopen(req, timeout=timeout) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        candidates = data.get("candidates", [])
+                        if not candidates:
+                            continue
+                        
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "").strip()
+                        return ""
+                except urllib.error.HTTPError as he:
+                    err_body = he.read().decode("utf-8")
+                    try:
+                        err_json = json.loads(err_body)
+                        msg = err_json.get("error", {}).get("message", err_body)
+                    except Exception:
+                        msg = err_body
+                    last_error = RuntimeError(f"Erro na API ({candidate_model}, {he.code}): {msg}")
+                    if he.code in (404, 429, 503):
+                        break  # Tentar o próximo modelo Flash
+                    if attempt == 0:
+                        time.sleep(1.0)
+                        continue
+                except Exception as e:
+                    last_error = e
+                    if attempt == 0:
+                        time.sleep(0.5)
+                        continue
 
         raise RuntimeError(f"Erro de conexão com Gemini Flash: {str(last_error)}")
 
@@ -370,7 +400,7 @@ class UnifiedMentorService:
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 elapsed_ms = round((time.time() - start) * 1000, 1)
                 self.config["last_gemini_latency_ms"] = elapsed_ms
                 self._save_config()
