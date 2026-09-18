@@ -291,56 +291,99 @@ def importar_dicionario_colunas(file_path):
     return True
 
 def importar_map_produto_oficial(file_path):
-    """Importa a tabela MAP_PRODUTO garantindo os 97 campos oficiais."""
-    with open(file_path, 'r', encoding='latin1', errors='replace') as f:
-        lines = [l.strip() for l in f if l.strip()]
-
-    if not lines:
-        print("[-] Arquivo vazio.")
+    """Importa a tabela MAP_PRODUTO garantindo os 97 campos oficiais e alta performance com batch."""
+    if not os.path.exists(file_path):
+        print(f"[-] Arquivo não encontrado: {file_path}")
         return False
 
-    headers = [h.strip().upper() for h in lines[0].split(';')]
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM MAP_PRODUTO")  # Limpar registros antigos para garantir 100% dados reais
+    with open(file_path, 'r', encoding='latin1', errors='replace') as f:
+        header_line = f.readline().strip()
+        if not header_line:
+            print("[-] Arquivo vazio.")
+            return False
 
-    count_imported = 0
-    for line in lines[1:]:
-        parts = line.split(';')
-        if len(parts) < len(headers):
-            parts.extend([''] * (len(headers) - len(parts)))
-        row = dict(zip(headers, parts))
+        sep = detectar_delimitador(header_line)
+        raw_headers = [h.strip().replace('"', '').replace("'", "") for h in header_line.split(sep)]
+        headers = [re.sub(r'[^A-Za-z0-9_]', '_', h).upper() for h in raw_headers]
+
+        # Garantir colunas essenciais para compatibilidade com queries do Consinco / simulador
+        if 'STATUS' not in headers:
+            headers.append('STATUS')
+            has_status_in_txt = False
+        else:
+            has_status_in_txt = True
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Recriar a tabela com schema limpo e Primary Key em SEQPRODUTO
+        cursor.execute('DROP TABLE IF EXISTS MAP_PRODUTO')
+        col_defs = []
+        for h in headers:
+            if h == 'SEQPRODUTO':
+                col_defs.append(f'"{h}" INTEGER PRIMARY KEY')
+            else:
+                col_defs.append(f'"{h}" TEXT')
         
-        seqp = int(row.get('SEQPRODUTO') or 0)
-        if seqp <= 0:
-            continue
-            
-        cols = []
-        vals = []
-        for k, v in row.items():
-            cols.append(k)
-            sanitized = sanitizar_valor(v)
-            vals.append(sanitized)
+        cursor.execute(f'CREATE TABLE MAP_PRODUTO ({", ".join(col_defs)})')
 
-        if 'STATUS' not in cols:
-            cols.append('STATUS')
-            vals.append('A')
+        placeholders = ', '.join(['?'] * len(headers))
+        cols_joined = ', '.join([f'"{h}"' for h in headers])
+        insert_sql = f'INSERT OR REPLACE INTO MAP_PRODUTO ({cols_joined}) VALUES ({placeholders})'
 
-        placeholders = ','.join(['?'] * len(cols))
-        col_names = ','.join(cols)
-        update_clause = ', '.join([f"{c}=excluded.{c}" for c in cols if c != 'SEQPRODUTO'])
+        batch = []
+        count_imported = 0
 
-        cursor.execute(f"""
-            INSERT INTO MAP_PRODUTO ({col_names})
-            VALUES ({placeholders})
-            ON CONFLICT(SEQPRODUTO) DO UPDATE SET {update_clause}
-        """, vals)
-        count_imported += 1
+        for line in f:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            parts = [p.strip().replace('"', '').replace("'", "") for p in line_str.split(sep)]
+            if not has_status_in_txt:
+                parts.append('A')  # Status Ativo por padrão
 
-    conn.commit()
-    conn.close()
-    print(f"[+] Sucesso! {count_imported} produtos oficiais importados para MAP_PRODUTO.")
-    return True
+            if len(parts) < len(headers):
+                parts.extend([''] * (len(headers) - len(parts)))
+
+            # Sanitizar valores
+            row_vals = []
+            for i, h in enumerate(headers):
+                val = parts[i] if i < len(parts) else None
+                sanitized = sanitizar_valor(val)
+                if h == 'INDCADASTROATIVO' and (sanitized is None or sanitized == ''):
+                    sanitized = 'S'
+                row_vals.append(sanitized)
+
+            # Validar SEQPRODUTO
+            try:
+                seqp_raw = str(row_vals[headers.index('SEQPRODUTO')]).replace('.', '').replace(',', '')
+                seqp = int(seqp_raw)
+                if seqp <= 0:
+                    continue
+                row_vals[headers.index('SEQPRODUTO')] = seqp
+            except (ValueError, TypeError):
+                continue
+
+            batch.append(row_vals)
+            count_imported += 1
+
+            if len(batch) >= 2500:
+                cursor.executemany(insert_sql, batch)
+                batch = []
+
+        if batch:
+            cursor.executemany(insert_sql, batch)
+
+        # Criar índices de alta performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_MAP_PRODUTO_prod ON MAP_PRODUTO (SEQPRODUTO)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_MAP_PRODUTO_fam ON MAP_PRODUTO (SEQFAMILIA)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_MAP_PRODUTO_desc ON MAP_PRODUTO (DESCCOMPLETA)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_MAP_PRODUTO_status ON MAP_PRODUTO (STATUS)')
+
+        conn.commit()
+        conn.close()
+        print(f"[+] Sucesso! {count_imported:,} produtos oficiais importados para MAP_PRODUTO.")
+        return True
 
 def importar_pontas_gondola(file_path):
     """Importa dados de pontas de gôndola garantindo capas e regras por empresa."""
