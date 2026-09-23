@@ -1,5 +1,6 @@
 import os
 import math
+import json
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
@@ -55,9 +56,10 @@ if __name__ == '__main__':
     except NameError:
         pass
 
-def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_lookup):
+def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_lookup, lojas_especiais_lookup=None):
     """
-    Função dedicada a calcular as novas propriedades de Estoque Mínimo e Máximo.
+    Função dedicada a calcular as novas propriedades de Estoque Mínimo e Máximo,
+    respeitando regras padrão globais e regras individuais customizadas por loja (ex: Loja 14).
     """
     try:
         embalagem = int(row['EMBL_TRANSFERENCIA_NUM'])
@@ -83,18 +85,30 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
 
     venda_media = venda_periodo / dias_relatorio
 
+    # Parâmetros especiais por loja (se configurado no JSON de lojas especiais)
+    regras_loja = {}
+    if lojas_especiais_lookup:
+        regras_loja = lojas_especiais_lookup.get(str(codigo_empresa), {})
+
+    min_piso_unitario = float(regras_loja.get('min_piso_unitario', 5.0))
+    reducao_dias_seg = int(regras_loja.get('reducao_dias_seguranca', 0))
+    pct_diferenca = float(regras_loja.get('pct_diferenca_alvo', 0.35))
+    fator_diff = pct_diferenca / max(0.01, (1.0 - pct_diferenca))
+
     # 1. Obter estoque mínimo de segurança com base nas vendas (Regra 7: X dias de venda dependendo do departamento)
     dept = str(row.get('DEPARTAMENTO', '')).strip().upper()
-    dias_seguranca = 5
+    dias_seguranca_padrao = 5
     if dias_seguranca_lookup:
-        dias_seguranca = dias_seguranca_lookup.get(dept, 5)
+        dias_seguranca_padrao = dias_seguranca_lookup.get(dept, 5)
 
+    # Aplica redução de dias para lojas em tratamento especial (ex: loja 14 em reforma)
+    dias_seguranca = max(1, dias_seguranca_padrao - reducao_dias_seg)
     minimo_dias = dias_seguranca * venda_media
 
-    # 2. Definir o piso mínimo do produto (Regras 4 e 10)
+    # 2. Definir o piso mínimo do produto (Regras 4 e 10 / Regra Loja Especial)
     if embalagem == 1:
-        min_floor = 5.0
-        regra_minimo = 'UNITARIO_PISO_5'
+        min_floor = min_piso_unitario
+        regra_minimo = f'UNITARIO_PISO_{int(min_piso_unitario)}'
     else:
         min_floor = 0.60 * embalagem
         regra_minimo = 'PISO_60_EMBALAGEM'
@@ -102,7 +116,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     # Mínimo obrigatório antes do ajuste de paridade
     min_floor_or_sales = max(minimo_dias, min_floor)
 
-    # 3. Obter capacidade
+    # 3. Obter capacidade de gôndola
     usa_semelhanca = False
     capacity = capacidade_lookup.get((codigo_produto, codigo_empresa), None)
     if capacity is None or capacity <= 0:
@@ -139,27 +153,37 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     if pe_max > 0 or pe_min > 0:
         ideal_min = math.ceil(min_floor_or_sales)
         if embalagem == 1:
-            ideal_max = max(10, ideal_min + math.ceil((0.35 / 0.65) * ideal_min))
+            piso_max_pe = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+            ideal_max = max(piso_max_pe, ideal_min + math.ceil(fator_diff * ideal_min))
         else:
-            ideal_max = ideal_min + max(1, math.ceil(((0.35 / 0.65) * ideal_min) / embalagem)) * embalagem
+            ideal_max = ideal_min + max(1, math.ceil((fator_diff * ideal_min) / embalagem)) * embalagem
             
         cap_val = capacity if (capacity is not None and capacity > 0) else 0
         total_capacity = cap_val + pe_max
         
         if ideal_max > total_capacity:
             max_novo = ideal_max - pe_max
-            min_novo = ideal_min - pe_min
-            if min_novo < min_floor:
-                min_novo = math.ceil(min_floor)
-            if embalagem == 1 and max_novo < min_novo + 1:
-                max_novo = min_novo + 1
-            elif embalagem > 1 and max_novo < min_novo + embalagem:
-                max_novo = min_novo + embalagem
+            # O padrão (gôndola) absorve o restante da venda
+            if embalagem == 1:
+                K_target = int(round(pct_diferenca * max_novo))
+                min_novo = max_novo - max(1, K_target)
+                if min_novo < min_floor:
+                    min_novo = math.ceil(min_floor)
+                    piso_max_pe = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+                    max_novo = max(piso_max_pe, min_novo + math.ceil(fator_diff * min_novo))
+            else:
+                K_target = int(round((pct_diferenca * max_novo) / embalagem))
+                min_novo = max_novo - max(1, K_target) * embalagem
+                if min_novo < min_floor:
+                    min_novo = math.ceil(min_floor)
+                    target_diff = fator_diff * min_novo
+                    K = max(1, math.ceil(target_diff / embalagem))
+                    max_novo = min_novo + K * embalagem
             regra_maximo = 'PE_ABSORVIDO_VENDA_ALTA'
         else:
             if cap_val > 0:
                 if embalagem == 1:
-                    K_target = int(round(0.35 * cap_val))
+                    K_target = int(round(pct_diferenca * cap_val))
                     K_max = int(math.floor(cap_val - min_floor))
                     if K_max >= 1:
                         min_novo = cap_val - max(1, min(K_max, K_target))
@@ -168,7 +192,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
                         min_novo = math.ceil(min_floor)
                         max_novo = min_novo + 1
                 else:
-                    K_target = int(round((0.35 * cap_val) / embalagem))
+                    K_target = int(round((pct_diferenca * cap_val) / embalagem))
                     K_max = int(math.floor((cap_val - min_floor) / embalagem))
                     if K_max >= 1:
                         min_novo = cap_val - max(1, min(K_max, K_target)) * embalagem
@@ -179,12 +203,14 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
                 regra_maximo = 'PE_ESTETICA_GONDOLA'
             else:
                 min_novo = math.ceil(min_floor)
-                max_novo = min_novo + (embalagem if embalagem > 1 else 1)
-                if embalagem == 1 and max_novo < 10:
-                    max_novo = 10
+                if embalagem == 1:
+                    piso_max_pe = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+                    max_novo = max(piso_max_pe, min_novo + 1)
+                else:
+                    max_novo = min_novo + embalagem
                 regra_maximo = 'PE_ESTETICA_PISO'
     else:
-        # Regra 8 & 9 & 10: Máximo (Lógica Padrão sem Ponto Extra)
+        # Regra 8, 9 & 10: Máximo (Lógica Padrão sem Ponto Extra)
         usar_capacidade = False
         if capacity is not None and capacity > 0:
             if venda_media <= capacity and min_floor_or_sales < capacity:
@@ -193,20 +219,28 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
         if usar_capacidade:
             if embalagem == 1:
                 K_max = int(math.floor(capacity - min_floor_or_sales))
-                K_target = int(round(0.35 * capacity))
+                K_target = int(round(pct_diferenca * capacity))
+                if K_max >= 1:
+                    K = max(1, min(K_max, K_target))
+                    min_novo = capacity - K
+                    max_novo = capacity
+                    regra_maximo = 'CAPACIDADE_DIRETA_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_DIRETA'
+                else:
+                    min_novo = math.ceil(min_floor_or_sales)
+                    max_novo = min_novo + 1
+                    regra_maximo = 'CAPACIDADE_ESTOURADA_MIN_ALTO_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_ESTOURADA_MIN_ALTO'
             else:
                 K_max = int(math.floor((capacity - min_floor_or_sales) / embalagem))
-                K_target = int(round((0.35 * capacity) / embalagem))
-
-            if K_max >= 1:
-                K = max(1, min(K_max, K_target))
-                min_novo = capacity - K * (1 if embalagem == 1 else embalagem)
-                max_novo = capacity
-                regra_maximo = 'CAPACIDADE_DIRETA_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_DIRETA'
-            else:
-                min_novo = math.ceil(min_floor_or_sales)
-                max_novo = min_novo + (1 if embalagem == 1 else embalagem)
-                regra_maximo = 'CAPACIDADE_ESTOURADA_MIN_ALTO_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_ESTOURADA_MIN_ALTO'
+                K_target = int(round((pct_diferenca * capacity) / embalagem))
+                if K_max >= 1:
+                    K = max(1, min(K_max, K_target))
+                    min_novo = capacity - K * embalagem
+                    max_novo = capacity
+                    regra_maximo = 'CAPACIDADE_DIRETA_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_DIRETA'
+                else:
+                    min_novo = math.ceil(min_floor_or_sales)
+                    max_novo = min_novo + embalagem
+                    regra_maximo = 'CAPACIDADE_ESTOURADA_MIN_ALTO_SEMELHANCA' if usa_semelhanca else 'CAPACIDADE_ESTOURADA_MIN_ALTO'
         else:
             if capacity is not None and capacity > 0:
                 if venda_media > capacity:
@@ -218,27 +252,28 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
 
             min_novo = math.ceil(min_floor_or_sales)
             if embalagem == 1:
-                target_diff = math.ceil((0.35 / 0.65) * min_novo)
-                max_novo = max(10, min_novo + target_diff)
+                target_diff = math.ceil(fator_diff * min_novo)
+                piso_max_calc = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+                max_novo = max(piso_max_calc, min_novo + max(1, target_diff))
             else:
-                target_diff = (0.35 / 0.65) * min_novo
+                target_diff = fator_diff * min_novo
                 K = max(1, math.ceil(target_diff / embalagem))
                 max_novo = min_novo + K * embalagem
             regra_maximo += '_ESTOQUE_SEGURANCA'
 
-
-    # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima)
-    if embalagem % 2 == 0:
-        if min_novo % 2 != 0:
-            min_novo += 1
-            regra_minimo += '_PAR'
-    else:
-        if min_novo % 2 == 0:
-            min_novo += 1
-            regra_minimo += '_IMPAR'
+    # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima apenas quando embalagem > 1)
+    if embalagem > 1:
+        if embalagem % 2 == 0:
+            if min_novo % 2 != 0:
+                min_novo += 1
+                regra_minimo += '_PAR'
+        else:
+            if min_novo % 2 == 0:
+                min_novo += 1
+                regra_minimo += '_IMPAR'
 
     # Se o mínimo subiu por conta de paridade ou arredondamento, garantir que o máximo é atualizado
-    # para que a diferença continue múltipla da embalagem
+    # para que a diferença continue respeitando a embalagem de transferência
     if embalagem == 1:
         if max_novo < min_novo + 1:
             max_novo = min_novo + 1
@@ -250,7 +285,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
             K = math.ceil(diff / embalagem)
             max_novo = min_novo + K * embalagem
 
-    if min_novo > min_floor:
+    if min_novo > min_floor and venda_media > 0:
         regra_minimo += f'_VENDA_{dias_seguranca}_DIAS'
 
     cap_out = int(capacity) if (capacity is not None and capacity > 0 and not usa_semelhanca) else None
@@ -263,9 +298,6 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
         regra_maximo,
         cap_out,
     ])
-
-
-
 
 
 def _resolver_coluna(df, candidatos, nome_logico):
@@ -410,6 +442,9 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         * resultado['EMBL_TRANSFERENCIA']
     ).astype(int)
 
+    # Quantidade disponível
+    qtd_disp_series = _to_numeric(resultado['QUANTIDADE_DISPONIVEL']).fillna(0).astype(int) if 'QUANTIDADE_DISPONIVEL' in resultado.columns else 0
+
     # Constrói o DataFrame alinhado com as colunas finais de df_export
     df_div = pd.DataFrame({
         'CODIGO_PRODUTO': resultado['CODIGO_PRODUTO'].astype(int),
@@ -417,15 +452,16 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         'COMPRADOR': resultado['COMPRADOR'].apply(lambda c: str(c).strip().split()[0].upper() if pd.notna(c) and str(c).strip() and str(c).strip().upper() not in ['NAN', 'NONE'] else 'SEM GESTOR') if 'COMPRADOR' in resultado.columns else 'SEM GESTOR',
         'EMBL_TRANSFERENCIA': resultado['EMBL_TRANSFERENCIA'].astype(int),
         'EMPRESA': resultado['EMPRESA'].astype(int),
+        'QUANTIDADE_DISPONIVEL': qtd_disp_series,
+        'VENDA_MEDIA': 0.0,
+        'DIAS_ESTOQUE': 0.0,
         'MINIMO': resultado['MINIMO'].astype(int),
         'MAXIMO': resultado['MAXIMO_CORRETO'].astype(int),
         'DIAS_RELATORIO_VENDA': dias_relatorio,
-        'VENDA_MEDIA': 0.0,
         'QUANTIDADE_ESTOQUE_MINIMO': resultado['MINIMO'].astype(int),
         'QUANTIDADE_ESTOQUE_MAXIMO': resultado['MAXIMO'].astype(int),
         'MINIMO_PONTO_EXTRA': _to_numeric(resultado['MINIMO_PONTO_EXTRA']).fillna(0).astype(int) if 'MINIMO_PONTO_EXTRA' in resultado.columns else 0,
         'MAXIMO_PONTO_EXTRA': _to_numeric(resultado['MAXIMO_PONTO_EXTRA']).fillna(0).astype(int) if 'MAXIMO_PONTO_EXTRA' in resultado.columns else 0,
-        'QUANTIDADE_DISPONIVEL': _to_numeric(resultado['QUANTIDADE_DISPONIVEL']).fillna(0).astype(int) if 'QUANTIDADE_DISPONIVEL' in resultado.columns else 0,
         'REGRA_MINIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'REGRA_MAXIMO': 'AJUSTE_DIFERENCA_EMBALAGEM',
         'Status': resultado['Status'],
@@ -461,22 +497,55 @@ def processar_calculos():
     else:
         dias_relatorio = 90
         print(f"Aviso: Coluna 'DIAS_PESQUISA' não encontrada no Parquet. Utilizando padrão de {dias_relatorio} dias.")
-    
+
+    # --- ETAPA INICIAL: ESCOPO DE PROCESSAMENTO (TODAS AS LOJAS OU LOJA ESPECÍFICA) ---
+    print("\n" + "="*50)
+    print("      DEFINIÇÃO DO ESCOPO DE PROCESSAMENTO")
+    print("="*50)
+    print("[1] - Todas as Lojas (Geral - exceto CDs)")
+    print("[2] - Loja Específica (Processamento Exclusivo)")
+    print("="*50)
+
+    while True:
+        opcao_escopo = input("-> Digite a opção escolhida (1 ou 2): ").strip()
+        if opcao_escopo in ['1', '2']:
+            break
+        print("x Opção inválida. Digite 1 para Todas as Lojas ou 2 para Loja Específica.")
+
+    loja_especifica = None
+    if opcao_escopo == '2':
+        while True:
+            loja_input = input("-> Digite o número da Loja a ser processada (ex: 14, 18): ").strip()
+            if loja_input.isdigit() and int(loja_input) > 0:
+                loja_especifica = int(loja_input)
+                break
+            print("x Número de loja inválido. Digite um número inteiro maior que 0.")
+
+        print(f"\n=> Filtrando o banco de dados exclusivamente para a Loja {loja_especifica}...")
+        df['CODIGO_EMPRESA_INT'] = pd.to_numeric(df['CODIGO_EMPRESA'], errors='coerce').fillna(-1).astype(int)
+        df = df[df['CODIGO_EMPRESA_INT'] == loja_especifica].copy()
+        df = df.drop(columns=['CODIGO_EMPRESA_INT'])
+        print(f"=> Total de registros carregados para a Loja {loja_especifica}: {len(df)} linhas.")
+        if df.empty:
+            print(f"[ERRO] Não foram encontrados registros para a Loja {loja_especifica} no arquivo query.parquet.")
+            return
+    else:
+        print("\n=> Processando todas as lojas da rede (exceto CDs)...")
+        # Remove CDs (empresas 15 e 16) do cálculo e exportação
+        if 'CODIGO_EMPRESA' in df.columns:
+            antes = len(df)
+            df['CODIGO_EMPRESA_TEMP'] = pd.to_numeric(df['CODIGO_EMPRESA'], errors='coerce').fillna(-1).astype(int)
+            df = df[~df['CODIGO_EMPRESA_TEMP'].isin([15, 16])].copy()
+            df = df.drop(columns=['CODIGO_EMPRESA_TEMP'])
+            depois = len(df)
+            print(f"Removidos {antes - depois} registros de CDs (empresas 15 e 16) do cálculo e exportação.")
+
     # Filtro de Ativos (Garante que só produtos em linha na loja recebam sugestão)
     if 'ATIVO_COMPRA' in df.columns:
         print("Filtrando apenas produtos ATIVOS para as lojas...")
         df = df[df['ATIVO_COMPRA'] == 'A'].copy()
     else:
         print("[AVISO] Coluna 'ATIVO_COMPRA' não encontrada. Todos os itens serão considerados ativos!")
-
-    # Remove CDs (empresas 15 e 16) do cálculo e exportação
-    if 'CODIGO_EMPRESA' in df.columns:
-        antes = len(df)
-        df = df[~df['CODIGO_EMPRESA'].isin([15, 16])].copy()
-        depois = len(df)
-        print(f"Removidos {antes - depois} registros de CDs (empresas 15 e 16) do cálculo e exportação.")
-    else:
-        print("[AVISO] Coluna 'CODIGO_EMPRESA' não encontrada. Não foi possível remover CDs.")
     
     # Saneamento da coluna COMPRADOR (extrai o primeiro nome / apelido)
     if 'COMPRADOR' in df.columns:
@@ -577,7 +646,6 @@ def processar_calculos():
         print(f"[AVISO] Arquivo '{capacidade_path.name}' não encontrado no diretório local. A regra de capacidade será ignorada.")
     
     # Carregar dias_seguranca.json para construir o lookup de segurança por departamento
-    import json
     dias_seguranca_path = Path(__file__).parent / 'dias_seguranca.json'
     dias_seguranca_lookup = {}
     if dias_seguranca_path.exists():
@@ -592,6 +660,19 @@ def processar_calculos():
             print(f"Erro ao carregar dias_seguranca.json: {e}")
     else:
         print(f"[AVISO] Arquivo '{dias_seguranca_path.name}' não encontrado. O padrão de 5 dias será adotado.")
+
+    # Carregar lojas_especiais.json para lookup de regras customizadas por loja (ex: Loja 14)
+    lojas_especiais_path = Path(__file__).parent / 'lojas_especiais.json'
+    lojas_especiais_lookup = {}
+    if lojas_especiais_path.exists():
+        try:
+            with open(lojas_especiais_path, 'r', encoding='utf-8') as f:
+                lojas_especiais_lookup = json.load(f)
+            print(f"Sucesso: {len(lojas_especiais_lookup)} lojas com regras especiais mapeadas de '{lojas_especiais_path.name}'.")
+            for l_id, r_info in lojas_especiais_lookup.items():
+                print(f"  -> Loja {l_id}: {r_info.get('descricao', 'Regra customizada')} (Piso unitário: {r_info.get('min_piso_unitario', 5)} un, Redução seg: -{r_info.get('reducao_dias_seguranca', 0)} dias, Alvo: {r_info.get('pct_diferenca_alvo', 0.35)*100:.0f}%)")
+        except Exception as e:
+            print(f"Erro ao carregar lojas_especiais.json: {e}")
     
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
@@ -605,26 +686,46 @@ def processar_calculos():
             'CAPACIDADE_GONDOLA_SUG',
         ]
     ] = df.apply(
-        lambda row: calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_lookup),
+        lambda row: calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_lookup, lojas_especiais_lookup),
         axis=1,
     )
+
+    # 3. Calcular coluna DIAS_ESTOQUE (Estoque Atual / Venda Média Diária)
+    # Resultados negativos ou sem venda são definidos como 0.0
+    print("Calculando cobertura / dias de estoque por produto...")
+    def _calc_dias_estoque(row):
+        v_med = float(row.get('VENDA_MEDIA', 0.0))
+        estq = float(row.get('QUANTIDADE_DISPONIVEL', 0.0))
+        if v_med > 0 and estq > 0:
+            return round(estq / v_med, 1)
+        return 0.0
+
+    df['DIAS_ESTOQUE'] = df.apply(_calc_dias_estoque, axis=1)
     
-    # 3. Aplicar Filtro de Diferença Mínima (>= 5 unidades no mínimo)
+    # 4. Aplicar Filtro de Diferença Mínima (>= 5 unidades no mínimo)
     print("Filtrando alterações irrelevantes (< 5 unidades de diferença no mínimo)...")
     df['MINIMO'] = _to_numeric(df['MINIMO']).fillna(0).astype(int)
     df['MAXIMO'] = _to_numeric(df['MAXIMO']).fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MINIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO']).fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO']).fillna(0).astype(int)
 
-    # Condição de exclusão da linha: diferença do mínimo menor que 5 unidades
-    # Exceções (Conflitos resolvidos):
-    # 1. Produto sem mínimo no sistema (0)
-    # 2. Produto violando o piso inegociável da embalagem
-    # 3. Divergência de embalagem (já tratada ao final via 'df_div_emb')
-    min_floor = df['EMBL_TRANSFERENCIA_NUM'].apply(lambda emb: 5.0 if emb == 1 else math.ceil(0.60 * emb))
+    # Piso de exclusão dinâmica por loja e embalagem
+    def _get_min_floor_row(row):
+        emb = int(row['EMBL_TRANSFERENCIA_NUM'])
+        c_emp = str(int(float(str(row['CODIGO_EMPRESA']).strip())))
+        regras_l = lojas_especiais_lookup.get(c_emp, {})
+        if emb == 1:
+            return float(regras_l.get('min_piso_unitario', 5.0))
+        return math.ceil(0.60 * emb)
+
+    min_floor_series = df.apply(_get_min_floor_row, axis=1)
     diff_min = (df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs()
 
-    manter = (diff_min >= 5) | (df['QUANTIDADE_ESTOQUE_MINIMO'] == 0) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor)
+    # Condição de manutenção da linha:
+    # - Diferença do mínimo >= 5 unidades
+    # - Ou mínimo atual zerado
+    # - Ou mínimo atual violando o piso obrigatório da loja/embalagem
+    manter = (diff_min >= 5) | (df['QUANTIDADE_ESTOQUE_MINIMO'] == 0) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor_series)
     df = df[manter].copy()
 
     # Re-aplicar regras de paridade e proporcionalidade no resultado final
@@ -633,13 +734,10 @@ def processar_calculos():
     is_odd_emb = ~is_even_emb
 
     # 1. Paridade do Mínimo
-    # Embalagem par -> Minimo deve ser par
     df.loc[is_even_emb & (df['MINIMO'] % 2 != 0), 'MINIMO'] += 1
-    # Embalagem impar -> Minimo deve ser impar
     df.loc[is_odd_emb & (df['MINIMO'] % 2 == 0), 'MINIMO'] += 1
 
     # 2. Proporcionalidade do Máximo
-    # Para cada linha, recalcular o Maximo para manter a proporcionalidade da embalagem
     for idx, row in df.iterrows():
         emb = int(row['EMBL_TRANSFERENCIA_NUM'])
         n_min = int(row['MINIMO'])
@@ -665,7 +763,7 @@ def processar_calculos():
     df = df[~sem_mudanca].copy()
     print(f"Itens sem alteração relevante expurgados. Itens com alteração: {len(df)}")
     
-    # 4. Input Terminal
+    # 5. Input Terminal para opções de relatório/exportação
     print("\n" + "="*50)
     print("           OPÇÕES DE RELATÓRIO / EXPORTAÇÃO")
     print("="*50)
@@ -700,7 +798,7 @@ def processar_calculos():
 
     print(f"Total de linhas prontas para exportação: {len(df_resultado)}")
     
-    # 5. Refaz o filtro de ativos para garantir que só exporta produtos ativos
+    # 6. Refaz o filtro de ativos para garantir que só exporta produtos ativos
     if 'ATIVO_COMPRA' in df_resultado.columns:
         antes = len(df_resultado)
         df_resultado = df_resultado[df_resultado['ATIVO_COMPRA'] == 'A'].copy()
@@ -712,8 +810,9 @@ def processar_calculos():
     # Adiciona coluna 'Status' e prepara colunas para exportação
     colunas_finais = [
         'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'COMPRADOR', 'EMBL_TRANSFERENCIA',
-        'CODIGO_EMPRESA', 'QUANTIDADE_DISPONIVEL', 'MINIMO', 'MAXIMO',
-        'DIAS_RELATORIO_VENDA', 'VENDA_MEDIA','QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
+        'CODIGO_EMPRESA', 'QUANTIDADE_DISPONIVEL', 'VENDA_MEDIA', 'DIAS_ESTOQUE',
+        'MINIMO', 'MAXIMO', 'DIAS_RELATORIO_VENDA',
+        'QUANTIDADE_ESTOQUE_MINIMO', 'QUANTIDADE_ESTOQUE_MAXIMO',
         'MINIMO_PONTO_EXTRA', 'MAXIMO_PONTO_EXTRA',
         'REGRA_MINIMO', 'REGRA_MAXIMO', 'CAPACIDADE_GONDOLA_SUG',
         'FORMA_ABASTECIMENTO'
@@ -746,7 +845,7 @@ def processar_calculos():
         'CODIGO_EMPRESA': 'EMPRESA'
     })
         
-    # Reordenar colunas para garantir que 'capacidade_gondola' e 'FORMA_ABASTECIMENTO' fiquem no final
+    # Reordenar colunas para garantir posicionamento padrão
     cols_base = [c for c in df_export.columns if c not in ['capacidade_gondola', 'FORMA_ABASTECIMENTO']]
     cols_order = cols_base + ['capacidade_gondola']
     if 'FORMA_ABASTECIMENTO' in df_export.columns:
@@ -804,7 +903,7 @@ def processar_calculos():
         )
     
     print("\n[SUCESSO] Trabalho finalizado com sucesso!")
-# mover ajustepp.xlsx para a pasta bd_entrada, dentro da pasta GAM
+    # Mover ajustepp.xlsx para a pasta bd_entrada, dentro da pasta GAM
     pasta_destino = Path(__file__).parent.parent / 'GAM' / 'bd_entrada'
     if not pasta_destino.exists():
         pasta_destino.mkdir(parents=True)

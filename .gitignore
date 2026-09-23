@@ -24,6 +24,11 @@ Aplicativos/cruzamento/guardar/banco_de_dados_*.txt
 Aplicativos/ruptura/dashboard_modelo.html
 Aplicativos/import_querys/query.txt
 Aplicativos/import_querys/ean_dun.txt
+Aplicativos/import_querys/Banco_Consico/MRL_CUSTODIA.txt
+Aplicativos/zona_sql/database/*.db
+*.db
+*.sqlite
+*.sqlite3
 large_files.csv
 
 # Ferramentas AI/IDE
