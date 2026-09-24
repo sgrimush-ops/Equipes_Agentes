@@ -34,6 +34,16 @@ def converter_para_csv(arquivo_parquet=None):
     if 'EMBL_TRANSFERENCIA' in df.columns:
         df['EMBL_TRANSFERENCIA'] = df['EMBL_TRANSFERENCIA'].astype(str).str.extract(r'(\d+)')[0].fillna(1).astype(int)
 
+    # Filtro de compradores (Exclui LAURINDO e SANDRO exceto Leite UHT)
+    if 'COMPRADOR' in df.columns and 'DESCRICAO_PRODUTO' in df.columns:
+        df['COMPRADOR'] = df['COMPRADOR'].apply(
+            lambda c: str(c).strip().split()[0].upper() if pd.notna(c) and str(c).strip() and str(c).strip().upper() not in ['NAN', 'NONE'] else 'SEM GESTOR'
+        )
+        is_laurindo = df['COMPRADOR'] == 'LAURINDO'
+        is_sandro = df['COMPRADOR'] == 'SANDRO'
+        is_leite_uht = df['DESCRICAO_PRODUTO'].astype(str).str.strip().str.upper().str.startswith('LEITE UHT')
+        df = df[~(is_laurindo | (is_sandro & ~is_leite_uht))].copy()
+
     # Ordena se possível
     if 'CODIGO_PRODUTO' in df.columns and 'EMPRESA' in df.columns:
         df = df.sort_values(by=['CODIGO_PRODUTO', 'EMPRESA'], ascending=[True, True])
@@ -419,6 +429,16 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
     # Filtra apenas lojas válidas (exceto CDs 15 e 16) e produtos válidos
     work = work[(work['CODIGO_PRODUTO'] > 0) & (work['EMPRESA'] > 0) & (~work['EMPRESA'].isin([15, 16]))].copy()
 
+    # Filtro de compradores (Exclui LAURINDO e SANDRO exceto Leite UHT)
+    if 'COMPRADOR' in work.columns and 'DESCRICAO_PRODUTO' in work.columns:
+        work_comp = work['COMPRADOR'].apply(
+            lambda c: str(c).strip().split()[0].upper() if pd.notna(c) and str(c).strip() and str(c).strip().upper() not in ['NAN', 'NONE'] else 'SEM GESTOR'
+        )
+        is_laurindo_div = work_comp == 'LAURINDO'
+        is_sandro_div = work_comp == 'SANDRO'
+        is_leite_uht_div = work['DESCRICAO_PRODUTO'].astype(str).str.strip().str.upper().str.startswith('LEITE UHT')
+        work = work[~(is_laurindo_div | (is_sandro_div & ~is_leite_uht_div))].copy()
+
     work['DIFERENCA_MIN_MAX'] = work['MAXIMO'] - work['MINIMO']
 
     # Identifica itens onde a diferença (MAX - MIN) não é múltipla da embalagem
@@ -554,6 +574,16 @@ def processar_calculos():
         )
     else:
         df['COMPRADOR'] = 'SEM GESTOR'
+
+    # Filtro de compradores: Excluir totalmente LAURINDO e excluir SANDRO (exceto Leite UHT)
+    print("Aplicando filtro de compradores: expurgando LAURINDO e produtos não-UHT do SANDRO...")
+    antes_comp = len(df)
+    is_laurindo = df['COMPRADOR'] == 'LAURINDO'
+    is_sandro = df['COMPRADOR'] == 'SANDRO'
+    is_leite_uht = df['DESCRICAO_PRODUTO'].astype(str).str.strip().str.upper().str.startswith('LEITE UHT')
+    df = df[~(is_laurindo | (is_sandro & ~is_leite_uht))].copy()
+    depois_comp = len(df)
+    print(f"Filtro de compradores aplicado: {antes_comp - depois_comp} registros expurgados (Laurindo e Sandro não-UHT). Restantes: {depois_comp} registros.")
 
     # Aplicando Regra Global nº 6 (Saneamento de Inteiros)
     print("Saneando extração de embalagens e ajustando preenchimentos...")
