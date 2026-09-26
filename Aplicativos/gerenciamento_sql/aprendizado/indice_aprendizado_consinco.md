@@ -28,6 +28,7 @@ Este indice organiza os arquivos uteis da pasta `aprendizado` por assunto, para 
 - `aprendizado_otimizacao_subquery_compradores_ativos_fornecedor.md`: resolução de travamentos e lentidões superiores a 1 hora em buscas globais ("Todos" / :NR1 = 0) causados por explosão combinatória com MRL_PRODUTOEMPRESA e LISTAGG, aplicando pré-redução de famílias ativas em CTEs materializadas (/*+ MATERIALIZE */).
 - `aprendizado_comparativo_estoque_wms_vs_erp_e_expurgo_departamentos.md`: arquitetura completa do comparativo de estoque WMS vs ERP Comercial (bypass do bloqueio LOG0085), apuração de recebimento e separação em trânsito, granularidade FULL OUTER JOIN, contorno de truncamento Delphi em listas LSx, expurgo dinâmico LT2 imune a acentos/espaços e prevenção de erros ORA-00904.
 - `aprendizado_piramide_afunilamento_filtros_iniciais.md`: regra de ouro da pirâmide de afunilamento e pesquisa inteligente inicial (códigos de produtos/fornecedores/lojas sempre no topo da pirâmide / primeira CTE para evitar varredura massiva em MRL_CUSTODIA e tabelas transacionais).
+- `aprendizado_pedidos_pendentes_status_entrega_e_combobox_delphi.md`: prevenção de truncamento de 3 letras em ComboBox Delphi no Consinco (solução DECODE + CONNECT BY LEVEL em <=145 chars), prevalência do status do item (MSU_PSITEMRECEBER.STATUSITEM) sobre a capa do pedido e regras de classificação de status de entrega (TOT_ATEND, ATEND_PARC, NÃO_ATENDIDO, ATRASO, AGUARDANDO).
 
 
 ## Arquitetura do Consinco e do BI

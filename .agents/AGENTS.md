@@ -56,6 +56,13 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 13. **Regra de Ouro da Pirâmide de Afunilamento e Pesquisa Inteligente Inicial (Topo da Pirâmide):**
     Sempre que houver códigos específicos informados ou a filtrar (como códigos de fornecedores, produtos, compradores, departamentos ou lojas), esses filtros devem ser posicionados obrigatoriamente no **topo da pirâmide**, isto é, na **primeira CTE materializada (`WITH ... AS (SELECT /*+ MATERIALIZE */ ...)`)**. Isso afunila a massa de dados para dezenas ou centenas de registros antes de qualquer cruzamento com tabelas massivas ou transacionais (`MRL_CUSTODIA`, `MLF_NOTAFISCAL`, `MLF_NFITEM`, `MRL_PRODUTOEMPRESA`). **NUNCA varra tabelas gigantes abertas para o banco todo para depois filtrar por fornecedor/produto**, pois isso causa timeout imediato e travamento da sessão no Oracle/Consinco.
 
+14. **Prevenção de Truncamento de 3 Letras em Listas (`LSx`) no Delphi via `DECODE` + `CONNECT BY`:**
+    Nunca utilize coleções de tipos Oracle como `SYS.ODCIVARCHAR2LIST` em queries de listas (`LSx`) do Consinco, pois o driver Delphi não define a largura estática do campo e trunca as opções para 3 caracteres (ex: `AGU`, `ATE`, `ATR`, `NÃO`, `TOD`). Para gerar opções fixas sem estourar o limite de 145 caracteres, use sempre a projeção:
+    `SELECT DECODE(LEVEL,1,'TODOS',2,'OPCAO1',3,'OPCAO2') FROM DUAL CONNECT BY LEVEL<=N`.
+
+15. **Status de Suprimento: Prevalência do Status do Item (`STATUSITEM`) sobre a Capa (`SITUACAOPED`):**
+    Em relatórios de pedidos de compra e suprimentos (`MSU_PEDIDOSUPRIM` / `MSU_PSITEMRECEBER`), a capa do pedido (`SITUACAOPED`) frequentemente permanece `'A'` (Aberto) mesmo quando itens individuais são cancelados. Para apurar cortes, cancelamentos e pendências reais de produtos, baseie-se exclusivamente no status da linha do item (`MSU_PSITEMRECEBER.STATUSITEM`) e na relação entre `QUANTIDADE_PEDIDA` e `QUANTIDADE_ATENDIDA` (`MSU_PSITEMRECEBIDO`), tratando `ATEND_PARC` para entregas incompletas e `NÃO_ATENDIDO` para quantidade zero após a data limite.
+
 
 ---
 
