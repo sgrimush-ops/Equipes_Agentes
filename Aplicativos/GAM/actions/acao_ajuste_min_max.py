@@ -145,23 +145,31 @@ class AcaoAjusteMinMax(BaseAction):
         try:
             # Forçando releitura do disco sem cache do sistema/pandas:
             with open(file_path, 'rb') as f:
-                # Lendo as colunas conforme solicitado
-                df = pd.read_excel(
-                    f,
-                    engine='openpyxl',
-                    usecols=['EMPRESA', 'CODIGO_PRODUTO', 'DESCRICAO_PRODUTO', 'MINIMO', 'MAXIMO']
-                )
+                df = pd.read_excel(f, engine='openpyxl')
+            
+            # Normalização de nomes de colunas
+            df.columns = [str(c).strip() for c in df.columns]
+            col_map = {str(c).strip().upper(): c for c in df.columns}
+            
+            col_empresa = col_map.get('EMPRESA', 'EMPRESA')
+            col_prod = col_map.get('CODIGO_PRODUTO', col_map.get('SEQPRODUTO', 'CODIGO_PRODUTO'))
+            col_desc = col_map.get('DESCRICAO_PRODUTO', col_map.get('DESCRICAO', 'DESCRICAO_PRODUTO'))
             
             # Expansão de empresas separadas por vírgula (ex: "2,3,6,11,12" -> várias linhas)
-            df['EMPRESA'] = df['EMPRESA'].astype(str).str.split(',')
-            df = df.explode('EMPRESA')
+            df[col_empresa] = df[col_empresa].astype(str).str.split(',')
+            df = df.explode(col_empresa)
             
             # Conversão e limpeza de tipos numéricos
-            df['EMPRESA'] = pd.to_numeric(df['EMPRESA'].str.strip(), errors='coerce')
-            df['CODIGO_PRODUTO'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce')
-            df = df.dropna(subset=['CODIGO_PRODUTO', 'EMPRESA'])
-            df['EMPRESA'] = df['EMPRESA'].astype(int)
-            df['CODIGO_PRODUTO'] = df['CODIGO_PRODUTO'].astype(int)
+            df[col_empresa] = pd.to_numeric(df[col_empresa].str.strip(), errors='coerce')
+            df[col_prod] = pd.to_numeric(df[col_prod], errors='coerce')
+            df = df.dropna(subset=[col_prod, col_empresa])
+            df[col_empresa] = df[col_empresa].astype(int)
+            df[col_prod] = df[col_prod].astype(int)
+            
+            # Renomear para colunas canônicas para consistência
+            df = df.rename(columns={col_empresa: 'EMPRESA', col_prod: 'CODIGO_PRODUTO'})
+            if col_desc in df.columns and col_desc != 'DESCRICAO_PRODUTO':
+                df = df.rename(columns={col_desc: 'DESCRICAO_PRODUTO'})
             
             # Remove duplicidades caso a mesma loja e produto apareçam em linhas repetidas
             df = df.drop_duplicates(subset=['CODIGO_PRODUTO', 'EMPRESA'], keep='last')
@@ -313,6 +321,50 @@ class AcaoAjusteMinMax(BaseAction):
                     return int(encontrados[0])
                 return ""
 
+        def buscar_valor_coluna(dados_dict, *nomes_possiveis):
+            if not isinstance(dados_dict, dict):
+                return None
+            for nome in nomes_possiveis:
+                if nome in dados_dict:
+                    return dados_dict[nome]
+            mapa_upper = {str(k).strip().upper(): v for k, v in dados_dict.items()}
+            for nome in nomes_possiveis:
+                nome_up = str(nome).strip().upper()
+                if nome_up in mapa_upper:
+                    return mapa_upper[nome_up]
+            return None
+
+        def formatar_ponto_extra(val):
+            if pd.isna(val) or val is None or str(val).strip() in ('', 'nan', 'None'):
+                return "P.Extra: Não"
+            try:
+                num = float(str(val).replace(',', '.'))
+                if num > 0:
+                    int_num = int(num) if num.is_integer() else round(num, 2)
+                    return f"P.Extra: {int_num}"
+                return "P.Extra: Não"
+            except Exception:
+                texto = str(val).strip()
+                return f"P.Extra: {texto}" if texto and texto != '0' else "P.Extra: Não"
+
+        def formatar_gondola(val):
+            if pd.isna(val) or val is None or str(val).strip() in ('', 'nan', 'None'):
+                return "Cap.Gôndola: -"
+            try:
+                num = float(str(val).replace(',', '.'))
+                if num > 0:
+                    int_num = int(num) if num.is_integer() else round(num, 2)
+                    return f"Cap.Gôndola: {int_num}"
+                return "Cap.Gôndola: -"
+            except Exception:
+                texto = str(val).strip()
+                return f"Cap.Gôndola: {texto}" if texto and texto != '0' else "Cap.Gôndola: -"
+
+        def formatar_abastecimento(val):
+            if pd.isna(val) or val is None or str(val).strip() in ('', 'nan', 'None'):
+                return "Abast: -"
+            return f"Abast: {str(val).strip()}"
+
         def escrever_valor_campo(valor):
             pyautogui.write(str(valor), interval=0.05)
             time.sleep(SLEEP_CAMPO)
@@ -326,12 +378,16 @@ class AcaoAjusteMinMax(BaseAction):
                 time.sleep(0.5)
 
             count += 1
+            faltam = total_produtos - count
             descricao_produto = str(df_grupo['DESCRICAO_PRODUTO'].iloc[0]) if 'DESCRICAO_PRODUTO' in df_grupo.columns else ""
             lojas_processar = df_grupo.set_index('EMPRESA').to_dict('index')
             ultima_loja = max(lojas_processar.keys()) if lojas_processar else 1
 
             if update_callback:
-                update_callback({'status': f'Processando {count}/{total_produtos}', 'log': f'Iniciando: {int(codigo_produto)} - {descricao_produto} | Lojas: 1 até {ultima_loja}'})
+                update_callback({
+                    'status': f'Processando {count}/{total_produtos} (Faltam {faltam})',
+                    'log': f'Iniciando: {int(codigo_produto)} - {descricao_produto} | Lojas: 1 até {ultima_loja}'
+                })
 
             # 2. Comando "F2", limpa a tela para digitação;
             pyautogui.press('f2')
@@ -386,18 +442,28 @@ class AcaoAjusteMinMax(BaseAction):
                     time.sleep(0.15) # Breve pausa para a tela do Consinco estabilizar após o salto rápido
                     loja_atual = num_loja
 
-                min_val = lojas_processar[num_loja]['MINIMO']
-                max_val = lojas_processar[num_loja]['MAXIMO']
+                min_val = lojas_processar[num_loja].get('MINIMO', '')
+                max_val = lojas_processar[num_loja].get('MAXIMO', '')
 
                 # Converte para inteiro preservando o 0
-                min_val = int(min_val) if not pd.isna(min_val) else ""
-                max_val = int(max_val) if not pd.isna(max_val) else ""
+                min_val = int(min_val) if not pd.isna(min_val) and min_val != "" else ""
+                max_val = int(max_val) if not pd.isna(max_val) and max_val != "" else ""
+
+                dados_loja = lojas_processar[num_loja]
+                val_pe = buscar_valor_coluna(dados_loja, 'MAXIMO_PONTO_EXTRA', 'MAX_PONTO_EXTRA', 'PONTO_EXTRA', 'MAXIMO_PE')
+                val_gondola = buscar_valor_coluna(dados_loja, 'capacidade_gondola', 'CAPACIDADE_GONDOLA', 'CAP_GONDOLA', 'GONDOLA')
+                val_abast = buscar_valor_coluna(dados_loja, 'FORMA_ABASTECIMENTO', 'forma_abastecimento', 'ABASTECIMENTO', 'FORMA_ABAST')
+
+                pe_str = formatar_ponto_extra(val_pe)
+                gondola_str = formatar_gondola(val_gondola)
+                abast_str = formatar_abastecimento(val_abast)
 
                 if update_callback:
                     update_callback({
                         'log': (
                             f'Loja {num_loja} | Produto: {int(codigo_produto)} - {descricao_produto} | '
-                            f'Escrevendo min={min_val!r} max={max_val!r}'
+                            f'Escrevendo min={min_val!r} max={max_val!r} | '
+                            f'{pe_str} | {gondola_str} | {abast_str}'
                         )
                     })
 
@@ -426,7 +492,7 @@ class AcaoAjusteMinMax(BaseAction):
                 return
 
         if update_callback:
-            update_callback({'status': 'Concluído', 'finished': True, 'log': 'Todos os produtos processados com sucesso.'})
+            update_callback({'status': 'Concluído (Faltam 0)', 'finished': True, 'log': 'Todos os produtos processados com sucesso.'})
 
     def has_calibration(self) -> bool:
         return True
