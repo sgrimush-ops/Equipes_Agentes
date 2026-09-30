@@ -1,25 +1,35 @@
-# Var-F7 - Consulta de Devolucao de Compra
+# Var-F7 - Consulta de Devolucao de Compra com Filtro de Rede
 
 ## Objetivo
-Listar uma linha por nota fiscal de devolucao de compra com loja, numero da NF, codigo e razao social do fornecedor, valores, observacao/motivo da devolucao e as listas de codigos e descricoes dos produtos.
+Listar uma linha por nota fiscal de devolucao de compra com loja, numero da NF, rede, codigo e razao social do fornecedor, valores, observacao/motivo da devolucao e as listas de codigos e descricoes dos produtos, permitindo filtrar por fornecedor, período de emissao e Rede (`LS1`).
 
 ## Query vinculada
 - Arquivo SQL: `Aplicativos/gerenciamento_sql/querys/consulta_devolucao_compra.sql`
 
 ## Variaveis para cadastrar em Var - F7
 
-| Variavel | Tipo | Descricao | Valor padrao |
-|---|---|---|---|
-| `NR1` | Numerico | Codigo do fornecedor (`SEQPESSOA`) ou `0` para todos | `0` |
-| `DT1` | Data | Data inicial de emissao | - |
-| `DT2` | Data | Data final de emissao | - |
+| Variavel | Tipo | Descricao | Valor padrao | Instrucao ao Usuario |
+|---|---|---|---|---|
+| `NR1` | Numerico | Codigo do fornecedor (`SEQPESSOA`) ou `0` para todos | `0` | Digite o codigo do fornecedor ou `0` para todos |
+| `DT1` | Data | Data inicial de emissao | - | Informe a data inicial |
+| `DT2` | Data | Data final de emissao | - | Informe a data final |
+| `LS1` | Lista | Rede do Fornecedor | ` TODAS AS REDES` | Selecione a Rede desejada ou deixe ` TODAS AS REDES` |
 
-## Configuracao
+---
 
-Cadastre as variaveis acima em **Var - F7** com os mesmos nomes usados no SQL. Os campos de filtro antes do Run nao nascem apenas do texto da consulta; eles dependem desse cadastro manual.
+## SQL da Lista LS1 (Rede)
+Cole o script SQL abaixo no cadastro da variavel `LS1` dentro de **Var - F7** (limite de 145 caracteres):
 
-O campo `OBSERVACAO` usa a observacao do item (`I.OBSERVACAO`) e, quando estiver vazia, utiliza a observacao da nota (`N.OBSERVACAOLF`). Os campos `CODIGOS_PRODUTOS` e `DESCRICOES_PRODUTOS` ficam nas duas ultimas colunas e reune os itens da NF separados por ` / `.
+```sql
+SELECT ' TODAS AS REDES' FROM DUAL UNION ALL SELECT DESCRICAO FROM GE_REDE
+```
 
-Os dados da NF e as listas de produtos sao agregados separadamente e relacionados por `SEQNF`, `NROEMPRESA` e `TIPNOTAFISCAL`.
+---
 
-A consulta usa o bypass `SELECT * FROM (WITH ...)` porque a Consulta Criacao exige que o primeiro comando seja `SELECT`.
+## Configuracao e Passo a Passo
+
+1. Abra a tela **Consulta Criacao** no Totvs Consinco.
+2. Pressione **Var - F7** para abrir a janela de parametros/variaveis.
+3. Cadastre as variaveis `NR1`, `DT1`, `DT2` e `LS1` conforme a tabela acima.
+4. No cadastro da variavel `LS1`, selecione o tipo **Lista** e cole o SQL da lista acima.
+5. Salve e execute a consulta informando os parametros desejados.
