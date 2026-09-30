@@ -115,6 +115,19 @@ Na Zona SQL e ferramentas de apoio com IA:
 
 ---
 
+# Padrões e Regras de Arquitetura do ProjetoBak (Sincronizador, Fornecedores & Consumo)
+
+1. **Granularidade do `query.parquet` e Filtragem Estrita por Filial:**
+   O arquivo analítico `query.parquet` possui granularidade de 1 linha por filial (`CODIGO_EMPRESA`). Ao exibir mix de produtos filtrados por loja de destino (ex: Área do Fornecedor e Pedidos de Mix), **é obrigatório filtrar estritamente `CODIGO_EMPRESA == loja_selecionada` antes de deduplicar produtos**. Nunca deduplique a base inteira antes do filtro de loja, pois isso causaria a exibição de produtos inativos para aquela filial com estoque `0`. Produtos ativos na filial devem permanecer visíveis mesmo com estoque local `0`, exibindo o saldo real do CD15 para digitação do pedido.
+
+2. **Governança da Tabela `consumo` e Catálogo de Pedidos para o CD:**
+   A tabela `consumo` (`codigo`, `descricao consinco`, `embalagem`) gerencia os materiais de consumo interno das filiais para abastecimento pelo CD. É mandatório aplicar validação estrita que **proíba códigos repetidos**. Qualquer mutação (`INSERT` ou `DELETE`) no PostgreSQL deve sincronizar atomicamente o buffer no arquivo `bdados/consumo.parquet` e na tabela `arquivos_sync`.
+
+3. **Padrão de Visualização Universal e Exportações Excel / PDF:**
+   A página **"Lista Consumo"** deve permanecer acessível a todos os usuários no menu lateral, operando em modo somente leitura para filiais e liberando inclusão/exclusão exclusivamente para `admin` e cargo `consumo cd`. Exportações em PDF devem utilizar `ReportLab` com `SimpleDocTemplate`, `repeatRows=1` (repetição de cabeçalho em todas as páginas) e estilo zebra para conferência e impressão em prancheta.
+
+---
+
 # Permissões e Autonomia no Workspace `Equipes_Agentes`
 
 - **Acesso Total e Sem Bloqueio:** O agente possui **acesso total** e **permissão contínua irrestrita** em todos os diretórios e arquivos dentro da pasta `Equipes_Agentes`.

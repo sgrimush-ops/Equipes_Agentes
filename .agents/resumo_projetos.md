@@ -79,7 +79,14 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 * **Funcionamento:** Lógica para garantir a fluidez do abastecimento baseando-se em vendas e coberturas.
 * **Regra Crítica (Min/Max):** As colunas de Min/Max no Consinco são **baseadas em CAIXAS** (unidade de embalagem), não em unidades avulsas. Ao comparar estoque disponível (em unidades) com Min/Max, SEMPRE converta para a mesma unidade multiplicando Min/Max pelo fator da embalagem (`EMBL_COMPRA`). Nunca compare unidades vs caixas diretamente.
 
-
+## 15. ProjetoBak_Sincronizador
+* **Propósito:** Plataforma web Streamlit multi-perfil para gestão de pedidos de mix por fornecedores/representantes, pedidos internos de consumo/CD para filiais, campanhas de exposição e aprovação centralizada de compras/supply.
+* **Principais Arquivos:** `app.py`, `main.py`, `page/area_fornecedor.py`, `page/pedido_consumo.py`, `page/lista_consumo.py`, `page/pedido_cd.py`, `page/aprovacao_pedidos.py`, `utils/fornecedores_loader.py`.
+* **Destaques de Arquitetura:**
+  - **Catálogo Analítico (`query.parquet`):** Filtragem estrita por `CODIGO_EMPRESA` antes de deduplicar, garantindo que produtos inativos para a filial não sejam exibidos com estoque 0.
+  - **Tabela `consumo` & "Lista Consumo":** Gestão de materiais de consumo com validação rígida de código único, exportações formatadas em Excel (`.xlsx`) e PDF (`.pdf` via ReportLab com repetição de cabeçalho) e sincronização atômica contínua.
+  - **Módulo de Campanhas de Exposição:** Workflow ponta a ponta Compras -> Supply -> Loja física com cubagem por bandeja e confronto de ruptura com CD15.
 
 ---
-> **Nota de Contexto:** Estes projetos seguem `rules.md` deste ecossistema (usam Pandas, pathlib, openpyxl, com try-excepts e isolamentos em Parquet e automação via GAM).
+> **Nota de Contexto:** Estes projetos seguem `rules.md` e `AGENTS.md` deste ecossistema (usam Pandas, SQLAlchemy, PostgreSQL, ReportLab, Parquet e automação via GAM).
+
