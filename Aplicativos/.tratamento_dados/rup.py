@@ -24,6 +24,7 @@ def encontrar_query_parquet(base_dir: Path) -> Path:
     """Busca o arquivo query.parquet nos locais conhecidos do ecossistema."""
     candidatos = [
         base_dir.parent / "import_querys" / "query.parquet",
+        base_dir.parent / "ProjetoBak_Sincronizador" / "bdados" / "query.parquet",
         base_dir.parent.parent / "import_querys" / "query.parquet",
         base_dir.parent / "bdados" / "query.parquet",
         base_dir.parent.parent / "bdados" / "query.parquet",
@@ -104,7 +105,9 @@ def formatar_aba_excel(ws, titulo_aba: str = ""):
             header_name = headers[col_idx - 1] if col_idx - 1 < len(headers) else ""
             
             # Formatação por tipo de coluna
-            if any(k in header_name for k in ["SEQPRODUTO", "CODIGO", "LOJA", "EMPRESA", "DIAS"]):
+            if any(k in header_name for k in ["DATA CADASTRO", "DATA_CADASTRO", "DTA CADASTRO", "DTA_CADASTRO"]):
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            elif any(k in header_name for k in ["SEQPRODUTO", "CODIGO", "LOJA", "EMPRESA", "DIAS"]):
                 cell.alignment = Alignment(horizontal="center", vertical="center")
                 if isinstance(cell.value, (int, float)):
                     cell.number_format = "#,##0"
@@ -149,7 +152,7 @@ def formatar_aba_excel(ws, titulo_aba: str = ""):
 def criar_relatorio_ruptura():
     dir_script = Path(__file__).parent.resolve()
     parquet_path = encontrar_query_parquet(dir_script)
-    saida_excel = dir_script / "ruptura_joao_batista_lojas_1_4_5_7_8.xlsx"
+    saida_excel = dir_script / "ruptura_joao_batista_lojas_11_12_13.xlsx"
     
     print(f"[1/5] Carregando catálogo: {parquet_path}")
     df = pd.read_parquet(parquet_path)
@@ -187,8 +190,17 @@ def criar_relatorio_ruptura():
     df_rup = df_lojas[df_lojas['QUANTIDADE_DISPONIVEL'] <= 0].copy()
     
     # Cálculos das colunas solicitadas
-    # seqproduto, descclompleta, estoque da loja, estoque cd, venda diaria, venda semanal
     df_rup['ESTOQUE_CD'] = df_rup['CODIGO_PRODUTO'].map(cd_map).fillna(0)
+    
+    # Data de Cadastro do Item e Contagem de Dias do Cadastro até Hoje
+    hoje = pd.Timestamp.now().normalize()
+    if 'DATA_CADASTRO_PRODUTO' in df_rup.columns:
+        dt_cad = pd.to_datetime(df_rup['DATA_CADASTRO_PRODUTO'], format='mixed', dayfirst=True, errors='coerce')
+        df_rup['DATA_CADASTRO'] = dt_cad.dt.strftime('%d/%m/%Y').fillna(df_rup['DATA_CADASTRO_PRODUTO'].astype(str))
+        df_rup['DIAS_CADASTRO'] = (hoje - dt_cad).dt.days.fillna(0).astype(int)
+    else:
+        df_rup['DATA_CADASTRO'] = '-'
+        df_rup['DIAS_CADASTRO'] = 0
     
     dias_pesq = df_rup['DIAS_PESQUISA'].replace(0, 90)
     df_rup['VENDA_DIARIA'] = (df_rup['QTD_VENDIDA_PERIODO'] / dias_pesq).round(4)
@@ -203,6 +215,8 @@ def criar_relatorio_ruptura():
         'CODIGO_EMPRESA': 'LOJA',
         'CODIGO_PRODUTO': 'SEQPRODUTO',
         'DESCRICAO_PRODUTO': 'DESCCMPLETA',
+        'DATA_CADASTRO': 'DATA CADASTRO',
+        'DIAS_CADASTRO': 'DIAS CADASTRO',
         'QUANTIDADE_DISPONIVEL': 'ESTOQUE DA LOJA',
         'ESTOQUE_CD': 'ESTOQUE CD',
         'VENDA_DIARIA': 'VENDA DIARIA',
