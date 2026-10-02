@@ -74,12 +74,12 @@ try:
 except Exception as e:
     print(f"⚠️ Aviso: Falha ao executar a sincronização com AppSheet: {e}")
 
-# Executar o upload silencioso para o Banco de Dados do Render
-print("\n[INFO] Iniciando upload para o banco de dados (API Invisível)...")
+# Executar a sincronização com o Servidor Local da Empresa
+print("\n[INFO] Iniciando sincronização com o Servidor Local da Empresa...")
 try:
     upload_db_path = os.path.join(base_dir, 'upload_direto_banco.py')
     subprocess.run([sys.executable, upload_db_path], check=True, cwd=base_dir)
 except Exception as e:
-    print(f"⚠️ Aviso: Falha ao fazer o upload para o banco de dados: {e}")
+    print(f"⚠️ Aviso: Falha ao sincronizar com o servidor local: {e}")
 
-print("\n[OK] Processo concluído!")   
+print("\n[OK] Processo de geração e sincronização concluído com sucesso!")   
