@@ -178,12 +178,12 @@ def criar_relatorio_ruptura():
     df_cd15 = df_jb[df_jb['CODIGO_EMPRESA'] == 15]
     cd_map = df_cd15.set_index('CODIGO_PRODUTO')['QUANTIDADE_DISPONIVEL'].to_dict()
     
-    # Lojas solicitadas: 1, 4, 5, 7, 8
-    lojas_alvo = [1, 4, 5, 7, 8]
+    # Lojas solicitadas: 11, 12, 13
+    lojas_alvo = [11, 12, 13]
     df_lojas = df_jb[df_jb['CODIGO_EMPRESA'].isin(lojas_alvo)].copy()
     
     # Filtro de ruptura da loja: QUANTIDADE_DISPONIVEL <= 0
-    print("[4/5] Filtrando produtos em ruptura nas lojas 1, 4, 5, 7, 8...")
+    print("[4/5] Filtrando produtos em ruptura nas lojas 11, 12, 13...")
     df_rup = df_lojas[df_lojas['QUANTIDADE_DISPONIVEL'] <= 0].copy()
     
     # Cálculos das colunas solicitadas
