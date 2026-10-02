@@ -332,87 +332,90 @@ def principal():
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
         <style>
-            body { background-color: #f8f9fa; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-            .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 12px; margin-bottom: 20px; padding: 20px; }
-            .header-info { background: #2c3e50; color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-            .table-container { overflow-x: auto; max-height: 800px; }
-            .table th { text-align: center !important; font-weight: bold; background-color: #f1f3f5 !important; border-bottom: 2px solid #dee2e6; position: sticky; top: 0; z-index: 2; }
-            .table td { text-align: center; vertical-align: middle; white-space: nowrap; }
-            .table th:first-child, .table td:first-child { text-align: left; padding-left: 15px; position: sticky; left: 0; background: white; z-index: 1; }
+            body { background-color: #f8f9fa; padding: 10px 14px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 0.74rem; }
+            .card { border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.06); border-radius: 8px; margin-bottom: 10px; padding: 10px 14px; }
+            .header-info { background: #1e293b; color: white; padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; }
+            .table-container { overflow-x: auto; max-height: 760px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 !important; }
+            .table { font-size: 0.72rem; margin-bottom: 0; }
+            .table th { text-align: center !important; font-size: 0.68rem !important; padding: 5px 6px !important; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; background-color: #f1f5f9 !important; border-bottom: 2px solid #cbd5e1; position: sticky; top: 0; z-index: 2; white-space: nowrap; }
+            .table td { font-size: 0.72rem !important; padding: 3px 6px !important; text-align: center; vertical-align: middle; white-space: nowrap; line-height: 1.2; }
+            .table th:first-child, .table td:first-child { text-align: left; padding-left: 10px; position: sticky; left: 0; background: white; z-index: 1; }
             .table th:first-child { z-index: 3; }
-            select.form-select { border-radius: 8px; border: 2px solid #dee2e6; }
-            .badge { font-size: 0.85rem; padding: 0.5em 0.8em; }
+            .form-label { font-size: 0.70rem; margin-bottom: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+            select.form-select, .form-control { font-size: 0.74rem !important; padding: 3px 8px !important; min-height: 28px !important; border-radius: 5px !important; border: 1px solid #cbd5e1; }
+            .badge { font-size: 0.68rem; padding: 0.3em 0.6em; }
             .th-cd15 { background-color: #ffebee !important; color: #b71c1c !important; }
             .th-cd16 { background-color: #fbe9e7 !important; color: #bf360c !important; }
-            .kpi-card { border-radius: 10px; padding: 15px 20px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+            .kpi-card { border-radius: 8px; padding: 8px 12px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+            .kpi-card h3 { font-size: 1.05rem !important; margin: 0; }
         </style>
     </head>
     <body>
-        <div class="container-fluid">
-            <div class="header-info row align-items-center">
+        <div class="container-fluid px-1">
+            <div class="header-info row align-items-center g-2">
                 <div class="col-md-4">
-                    <h2>📊 Painel de Ruptura Multi-CD</h2>
-                    <p class="mb-0">Atualizado em: [DATA_HOJE]</p>
+                    <h2 style="font-size: 1.05rem; margin-bottom: 1px;" class="fw-bold">📊 Painel de Ruptura Multi-CD</h2>
+                    <p class="mb-0 text-white-50" style="font-size: 0.70rem;">Atualizado em: [DATA_HOJE]</p>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label mb-1">Visão por Loja</label>
-                    <select id="FiltroLoja" class="form-select form-select-lg" onchange="atualizarDashboard()">
+                    <label class="form-label">Visão por Loja</label>
+                    <select id="FiltroLoja" class="form-select" onchange="atualizarDashboard()">
                         [OPTIONS_LOJAS]
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label mb-1">Filtro Comprador</label>
-                    <select id="FiltroComprador" class="form-select form-select-lg" onchange="atualizarDashboard()">
+                    <label class="form-label">Filtro Comprador</label>
+                    <select id="FiltroComprador" class="form-select" onchange="atualizarDashboard()">
                         [OPTIONS_COMPRADORES]
                     </select>
                 </div>
             </div>
 
             <!-- KPI Cards no Topo -->
-            <div class="row g-3 mb-3" id="kpi-cards-container">
+            <div class="row g-2 mb-2" id="kpi-cards-container">
                 <div class="col-md-4">
-                    <div class="kpi-card" style="border-left: 5px solid #FF0000;">
+                    <div class="kpi-card" style="border-left: 4px solid #FF0000;">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted fw-bold" style="font-size: 0.85rem;">📦 MIX CD 15 (DEPÓSITO)</span>
+                            <span class="text-muted fw-bold" style="font-size: 0.72rem;">📦 MIX CD 15 (DEPÓSITO)</span>
                             <span class="badge" style="background-color: #ffebee; color: #b71c1c;">Geral</span>
                         </div>
-                        <div class="d-flex align-items-baseline mt-2">
+                        <div class="d-flex align-items-baseline mt-1">
                             <h3 class="mb-0 fw-bold" id="kpi-rup-cd15" style="color: #b71c1c;">-</h3>
-                            <span class="ms-2 fw-bold" id="kpi-pct-cd15" style="color: #FF0000; font-size: 1.1rem;">-</span>
+                            <span class="ms-2 fw-bold" id="kpi-pct-cd15" style="color: #FF0000; font-size: 0.85rem;">-</span>
                         </div>
-                        <div class="d-flex justify-content-between text-muted mt-2" style="font-size: 0.85rem;">
+                        <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 0.70rem;">
                             <span>Base: <strong id="kpi-base-cd15" class="text-dark">-</strong></span>
                             <span>Pend. Forn: <strong id="kpi-pend-cd15" class="text-dark">-</strong></span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="kpi-card" style="border-left: 5px solid #C62828;">
+                    <div class="kpi-card" style="border-left: 4px solid #C62828;">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted fw-bold" style="font-size: 0.85rem;">📦 MIX CD 16 (DEPÓSITO)</span>
+                            <span class="text-muted fw-bold" style="font-size: 0.72rem;">📦 MIX CD 16 (DEPÓSITO)</span>
                             <span class="badge" style="background-color: #fbe9e7; color: #bf360c;">Sandro & Laurindo</span>
                         </div>
-                        <div class="d-flex align-items-baseline mt-2">
+                        <div class="d-flex align-items-baseline mt-1">
                             <h3 class="mb-0 fw-bold" id="kpi-rup-cd16" style="color: #bf360c;">-</h3>
-                            <span class="ms-2 fw-bold" id="kpi-pct-cd16" style="color: #C62828; font-size: 1.1rem;">-</span>
+                            <span class="ms-2 fw-bold" id="kpi-pct-cd16" style="color: #C62828; font-size: 0.85rem;">-</span>
                         </div>
-                        <div class="d-flex justify-content-between text-muted mt-2" style="font-size: 0.85rem;">
+                        <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 0.70rem;">
                             <span>Base: <strong id="kpi-base-cd16" class="text-dark">-</strong></span>
                             <span>Pend. Forn: <strong id="kpi-pend-cd16" class="text-dark">-</strong></span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="kpi-card" style="border-left: 5px solid #FFA500;">
+                    <div class="kpi-card" style="border-left: 4px solid #FFA500;">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted fw-bold" style="font-size: 0.85rem;">🏢 RUPTURA NAS LOJAS</span>
+                            <span class="text-muted fw-bold" style="font-size: 0.72rem;">🏢 RUPTURA NAS LOJAS</span>
                             <span class="badge" style="background-color: #fff3e0; color: #e65100;">Gôndola</span>
                         </div>
-                        <div class="d-flex align-items-baseline mt-2">
+                        <div class="d-flex align-items-baseline mt-1">
                             <h3 class="mb-0 fw-bold" id="kpi-rup-loja" style="color: #e65100;">-</h3>
-                            <span class="ms-2 fw-bold" id="kpi-pct-loja" style="color: #FFA500; font-size: 1.1rem;">-</span>
+                            <span class="ms-2 fw-bold" id="kpi-pct-loja" style="color: #FFA500; font-size: 0.85rem;">-</span>
                         </div>
-                        <div class="d-flex justify-content-between text-muted mt-2" style="font-size: 0.85rem;">
+                        <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 0.70rem;">
                             <span>Via CD 15: <strong id="kpi-loja-cd15" class="text-dark">-</strong></span>
                             <span>Via CD 16: <strong id="kpi-loja-cd16" class="text-dark">-</strong></span>
                         </div>
@@ -420,8 +423,8 @@ def principal():
                 </div>
             </div>
 
-            <div class="card">
-                <div id="chart-container" style="width: 100%; height: 530px;"></div>
+            <div class="card p-2">
+                <div id="chart-container" style="width: 100%; height: 420px;"></div>
             </div>
             
             <div class="card table-container">

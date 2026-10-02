@@ -66,7 +66,7 @@ def main():
             
     # 3. Envia via API para o Servidor Moderno na VM (192.168.50.211:8000)
     server_url = "http://192.168.50.211:8000/api/admin/upload-query"
-    print(f"\n[3/3] Enviando query.parquet para o Servidor Moderno ({server_url})...")
+    print(f"\n[3/4] Enviando query.parquet para o Servidor Moderno ({server_url})...")
     try:
         with open(arquivo_origem, 'rb') as f:
             conteudo_binario = f.read()
@@ -79,15 +79,25 @@ def main():
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
             if resp.status == 200:
-                print(f"      -> [OK] Servidor interno atualizado e cache de produtos recarregado na RAM!")
+                print(f"      -> [OK] Servidor interno atualizado e cálculo de ruptura disparado no servidor!")
             else:
                 print(f"      -> [!] Resposta do servidor: {resp.status}")
     except urllib.error.URLError as e:
         print(f"      -> [!] Servidor VM 192.168.50.211 offline ou não alcançável no momento: {e}")
         print("         (Os arquivos locais já foram atualizados perfeitamente)")
+
+    # 4. Executa os dashboards de ruptura no ambiente local
+    print(f"\n[4/4] Atualizando dashboards de ruptura locais...")
+    try:
+        if app_bak_dir not in sys.path:
+            sys.path.insert(0, app_bak_dir)
+        from services.ruptura_service import executar_pipeline_ruptura
+        executar_pipeline_ruptura()
+    except Exception as e:
+        print(f"      -> [!] Aviso ao gerar dashboards de ruptura locais: {e}")
         
     print("\n" + "=" * 60)
-    print("[OK] SUCESSO: Sincronização de dados do servidor concluída!")
+    print("[OK] SUCESSO: Sincronização de dados e Ruptura concluídas!")
     print("=" * 60)
 
 if __name__ == "__main__":

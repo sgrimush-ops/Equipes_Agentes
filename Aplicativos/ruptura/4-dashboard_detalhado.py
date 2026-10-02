@@ -189,48 +189,52 @@ def principal():
         <title>Dashboard Detalhado (Nível Tático)</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            body { background-color: #f8f9fa; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-            .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 12px; margin-bottom: 20px; padding: 20px; }
-            .header-info { background: #2c3e50; color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-            .table-container { overflow-x: auto; max-height: 800px; }
-            .table th { text-align: center; font-weight: bold; background-color: #f1f3f5; border-bottom: 2px solid #dee2e6; position: sticky; top: 0; z-index: 2; }
-            .table td { text-align: center; vertical-align: middle; }
-            .table th:first-child, .table td:first-child { text-align: left; padding-left: 15px; }
-            .btn-metric { margin-right: 5px; margin-bottom: 10px; font-weight: 500; }
+            body { background-color: #f8f9fa; padding: 10px 14px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 0.74rem; }
+            .card { border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.06); border-radius: 8px; margin-bottom: 10px; padding: 10px 14px; }
+            .header-info { background: #1e293b; color: white; padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; }
+            .table-container { overflow-x: auto; max-height: 760px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 !important; }
+            .table { font-size: 0.72rem; margin-bottom: 0; }
+            .table th { font-size: 0.68rem; padding: 5px 6px; text-align: center; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1; position: sticky; top: 0; z-index: 2; white-space: nowrap; }
+            .table td { font-size: 0.72rem; padding: 3px 6px; text-align: center; vertical-align: middle; line-height: 1.2; }
+            .table th:first-child, .table td:first-child { text-align: left; padding-left: 10px; }
+            .btn-metric { font-size: 0.70rem; padding: 3px 8px; margin-right: 3px; margin-bottom: 3px; font-weight: 600; border-radius: 5px; }
             .btn-rup-cd15 { background-color: #EF553B; color: white; border: none; }
             .btn-rup-cd16 { background-color: #C62828; color: white; border: none; }
             .btn-rup-loja { background-color: #636EFA; color: white; border: none; }
             .btn-rup-neg { background-color: #800080; color: white; border: none; }
             .btn-rup-pend { background-color: #FFD700; color: black; border: none; }
             .btn-cross { background-color: #8E24AA; color: white; border: none; }
-            .active-metric { outline: 3px solid #333; transform: scale(1.05); }
-            .cd15-column { background-color: #ffebee !important; font-weight: bold; color: #b71c1c; }
-            .cd16-column { background-color: #fbe9e7 !important; font-weight: bold; color: #bf360c; }
+            .active-metric { outline: 2px solid #0f172a; box-shadow: 0 2px 5px rgba(0,0,0,0.25); transform: translateY(-1px); }
+            .cd15-column { background-color: #ffebee !important; font-weight: 700; color: #b71c1c; }
+            .cd16-column { background-color: #fbe9e7 !important; font-weight: 700; color: #bf360c; }
+            .form-label { font-size: 0.70rem; margin-bottom: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+            .form-select, .form-control { font-size: 0.74rem !important; padding: 3px 8px !important; min-height: 28px !important; border-radius: 5px !important; }
+            .input-group .btn { padding: 3px 8px !important; font-size: 0.72rem !important; }
         </style>
     </head>
     <body>
-        <div class="container-fluid">
-            <div class="header-info row align-items-center g-3">
+        <div class="container-fluid px-1">
+            <div class="header-info row align-items-center g-2">
                 <div class="col-lg-3 col-md-12">
-                    <h2 style="font-size: 1.5rem;" class="mb-1">🔍 Detalhamento Tático</h2>
-                    <p class="mb-0 text-white-50" style="font-size: 0.85rem;">Atualizado em: [DATA_HOJE]</p>
+                    <h2 style="font-size: 1.05rem; margin-bottom: 1px;" class="fw-bold">🔍 Detalhamento Tático</h2>
+                    <p class="mb-0 text-white-50" style="font-size: 0.70rem;">Atualizado em: [DATA_HOJE]</p>
                 </div>
                 <div class="col-lg-3 col-md-4">
-                    <label class="form-label mb-1 fw-bold">Visão por Loja</label>
-                    <select id="FiltroLoja" class="form-select form-select-lg" onchange="aplicarFiltros()">
+                    <label class="form-label">Visão por Loja</label>
+                    <select id="FiltroLoja" class="form-select" onchange="aplicarFiltros()">
                         [OPTIONS_LOJAS]
                     </select>
                 </div>
                 <div class="col-lg-3 col-md-4">
-                    <label class="form-label mb-1 fw-bold">Filtro Comprador</label>
-                    <select id="FiltroComprador" class="form-select form-select-lg" onchange="aplicarFiltros()">
+                    <label class="form-label">Filtro Comprador</label>
+                    <select id="FiltroComprador" class="form-select" onchange="aplicarFiltros()">
                         [OPTIONS_COMPRADORES]
                     </select>
                 </div>
                 <div class="col-lg-3 col-md-4">
-                    <label class="form-label mb-1 fw-bold">Pesquisar Fornecedor</label>
-                    <div class="input-group input-group-lg">
-                        <input type="search" id="FiltroFornecedor" class="form-control form-control-lg" list="lista-fornecedores" placeholder="Cód. ou Nome (ex: 15441 ou SPAL)..." oninput="aplicarFiltros()" autocomplete="off">
+                    <label class="form-label">Pesquisar Fornecedor</label>
+                    <div class="input-group">
+                        <input type="search" id="FiltroFornecedor" class="form-control" list="lista-fornecedores" placeholder="Cód. ou Nome (ex: 15441 ou SPAL)..." oninput="aplicarFiltros()" autocomplete="off">
                         <button class="btn btn-outline-light" type="button" onclick="limparFiltroFornecedor()" title="Limpar pesquisa">✕</button>
                     </div>
                     <datalist id="lista-fornecedores">
@@ -239,16 +243,18 @@ def principal():
                 </div>
             </div>
 
-            <div class="card" id="filtros-container">
-                <h5 class="mb-3">Selecione uma Visão:</h5>
-                <div>
-                    <button class="btn btn-metric btn-rup-cd15" id="btn_rup_cd15" onclick="mudarVisao('RUPTURA_CD15')">Ruptura CD 15</button>
-                    <button class="btn btn-metric btn-rup-cd16" id="btn_rup_cd16" onclick="mudarVisao('RUPTURA_CD16')">Ruptura CD 16</button>
-                    <button class="btn btn-metric btn-rup-loja" id="btn_rup_loja" onclick="mudarVisao('RUPTURA_LOJA')">Ruptura Loja</button>
-                    <button class="btn btn-metric btn-rup-neg" id="btn_rup_neg" onclick="mudarVisao('RUPTURA_NEG')">Estoque Neg. Loja</button>
-                    <button class="btn btn-metric btn-rup-pend" id="btn_rup_pend" onclick="mudarVisao('RUPTURA_PEND')">Rup. Loja Pend.</button>
-                    <button class="btn btn-metric btn-cross" id="btn_cross" onclick="mudarVisao('CROSSDOCKING')">Crossdocking</button>
-                    <span id="contador-linhas" class="ms-3 text-muted fw-bold"></span>
+            <div class="card py-2" id="filtros-container">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center flex-wrap gap-1">
+                        <span class="fw-bold text-dark me-2" style="font-size: 0.72rem;">Visão:</span>
+                        <button class="btn btn-metric btn-rup-cd15" id="btn_rup_cd15" onclick="mudarVisao('RUPTURA_CD15')">Ruptura CD 15</button>
+                        <button class="btn btn-metric btn-rup-cd16" id="btn_rup_cd16" onclick="mudarVisao('RUPTURA_CD16')">Ruptura CD 16</button>
+                        <button class="btn btn-metric btn-rup-loja" id="btn_rup_loja" onclick="mudarVisao('RUPTURA_LOJA')">Ruptura Loja</button>
+                        <button class="btn btn-metric btn-rup-neg" id="btn_rup_neg" onclick="mudarVisao('RUPTURA_NEG')">Estoque Neg. Loja</button>
+                        <button class="btn btn-metric btn-rup-pend" id="btn_rup_pend" onclick="mudarVisao('RUPTURA_PEND')">Rup. Loja Pend.</button>
+                        <button class="btn btn-metric btn-cross" id="btn_cross" onclick="mudarVisao('CROSSDOCKING')">Crossdocking</button>
+                    </div>
+                    <span id="contador-linhas" class="text-muted fw-bold" style="font-size: 0.72rem;"></span>
                 </div>
             </div>
             
@@ -462,17 +468,17 @@ def principal():
                 const fornDesc = row.FORNECEDOR ? (row.COD_FORNECEDOR + ' - ' + row.FORNECEDOR) : '-';
 
                 tbody += `<tr>
-                    <td class="fw-bold">${row.CODIGO_PRODUTO}</td>
-                    <td style="text-align: left;">${row.DESCRICAO_PRODUTO}</td>
-                    <td style="text-align: left; font-size: 0.85rem; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="text-secondary" title="${fornDesc}">${fornDesc}</td>
-                    <td class="fw-bold text-secondary">${base_lojas_count}</td>
-                    <td><span class="fw-bold text-muted" title="${lojas_list}">${lojas_list.length > 30 ? lojas_list.substring(0,27)+'...' : lojas_list}</span></td>
-                    <td class="cd15-column">${fmtNum(row.ESTOQUE_CD15)}</td>
-                    <td class="cd16-column">${fmtNum(row.ESTOQUE_CD16)}</td>
-                    <td class="${est_loc < 0 ? 'text-danger fw-bold' : ''}">${fmtNum(est_loc)}</td>
-                    <td>${fmtNum(ped_transf_loc)}</td>
-                    <td>${fmtNum(ped_forn_loc)}</td>
-                    <td class="text-primary fw-bold">${fmtNum(vda_loc)}</td>
+                    <td class="fw-bold" style="font-size: 0.72rem;">${row.CODIGO_PRODUTO}</td>
+                    <td style="text-align: left; font-weight: 600; font-size: 0.72rem;">${row.DESCRICAO_PRODUTO}</td>
+                    <td style="text-align: left; font-size: 0.68rem; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="text-secondary" title="${fornDesc}">${fornDesc}</td>
+                    <td class="fw-bold text-secondary" style="font-size: 0.72rem;">${base_lojas_count}</td>
+                    <td style="font-size: 0.68rem;"><span class="fw-bold text-muted" title="${lojas_list}">${lojas_list.length > 30 ? lojas_list.substring(0,27)+'...' : lojas_list}</span></td>
+                    <td class="cd15-column" style="font-size: 0.72rem;">${fmtNum(row.ESTOQUE_CD15)}</td>
+                    <td class="cd16-column" style="font-size: 0.72rem;">${fmtNum(row.ESTOQUE_CD16)}</td>
+                    <td style="font-size: 0.72rem;" class="${est_loc < 0 ? 'text-danger fw-bold' : ''}">${fmtNum(est_loc)}</td>
+                    <td style="font-size: 0.72rem;">${fmtNum(ped_transf_loc)}</td>
+                    <td style="font-size: 0.72rem;">${fmtNum(ped_forn_loc)}</td>
+                    <td class="text-primary fw-bold" style="font-size: 0.72rem;">${fmtNum(vda_loc)}</td>
                 </tr>`;
             });
             
