@@ -74,7 +74,7 @@ class MargemObjetivaProcessor:
             return
 
         def on_press(key):
-            if key == keyboard.Key.esc:
+            if key in (keyboard.Key.esc, keyboard.Key.space) or getattr(key, 'char', None) == ' ':
                 if stop_event: stop_event.set()
                 return False 
         

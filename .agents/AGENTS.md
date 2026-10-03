@@ -126,6 +126,19 @@ Na Zona SQL e ferramentas de apoio com IA:
 3. **Padrão de Visualização Universal e Exportações Excel / PDF:**
    A página **"Lista Consumo"** deve permanecer acessível a todos os usuários no menu lateral, operando em modo somente leitura para filiais e liberando inclusão/exclusão exclusivamente para `admin` e cargo `consumo cd`. Exportações em PDF devem utilizar `ReportLab` com `SimpleDocTemplate`, `repeatRows=1` (repetição de cabeçalho em todas as páginas) e estilo zebra para conferência e impressão em prancheta.
 
+4. **Padrão Universal e Obrigatório de Pesquisa Inteligente com Coringa (`%` / `*` / Espaços / NFD):**
+   Em **todas as telas, relatórios e componentes de busca** desenvolvidos no ecossistema:
+   - **Coringa SQL (`%` ou `*`):** A digitação de `%coca%2l%` ou `coca%2l` deve ser tratada como expressão regular (`.*`), localizando qualquer combinação de termos em sequência no código ou na descrição.
+   - **Múltiplos Termos por Espaço:** A digitação de múltiplos termos sem `%` (ex: `COCA 2L`) deve exigir a presença simultânea de todas as palavras independentemente da ordem.
+   - **Imunidade a Acentuação e Maiúsculas (NFD):** Toda busca textual deve converter strings para caixa alta e remover diacríticos/acentos via `normalize('NFD').replace(/[\u0300-\u036f]/g, '')` (no JS) e `unicodedata.normalize` (no Python).
+   - **Busca Multidimensional:** O termo deve ser testado simultaneamente contra o Código do Produto, a Descrição e o Nome do Fornecedor.
+
+5. **Regra Arquitetural de Eliminação de Scroll Duplo (Zero Double Scroll):**
+   - É expressamente proibido permitir barras de rolagem verticais simultâneas (uma na janela externa/iframe e outra na tabela interna).
+   - O container externo (`.main-content`, `#view_*`, iframe container) deve ter altura travada (`calc(100vh - 64px)` ou `100%`) com `overflow: hidden`.
+   - Apenas o elemento estritamente tabular (`.table-container` ou `tbody`) deve rolar (`overflow-y: auto`), mantendo o cabeçalho congelado (`position: sticky; top: 0; z-index: 10`).
+   - Disponibilizar sempre atalho para abertura em tela cheia / nova guia (`window.open(..., '_blank')`).
+
 ---
 
 # Permissões e Autonomia no Workspace `Equipes_Agentes`

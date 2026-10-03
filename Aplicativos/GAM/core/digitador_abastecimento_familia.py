@@ -107,9 +107,9 @@ class AbastecimentoFamiliaProcessor:
             'I': coord_pos_i
         }
 
-        # Listener do teclado para parar com ESC
+        # Listener do teclado para parar com ESC ou Barra de Espaço
         def on_press(key):
-            if key == keyboard.Key.esc:
+            if key in (keyboard.Key.esc, keyboard.Key.space) or getattr(key, 'char', None) == ' ':
                 if stop_event: stop_event.set()
                 return False 
         

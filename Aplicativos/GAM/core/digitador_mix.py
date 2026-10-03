@@ -47,48 +47,91 @@ class MixProcessor:
     def _detectar_popup_atencao(self):
         """
         Verifica se surgiu popup de Atenção / Seleção Inversa / Consinco na tela.
-        Retorna (True/False, tipo_deteccao).
+        Retorna (tem_popup: bool, tipo_popup: str).
+        Tipos retornados:
+        - "selecao_inversa": popup de divergência entre Seleção Inversa e Pulmão
+        - "limpeza_caracteres": popup solicitando limpeza de caracteres especiais / acentos na descrição
+        - "modal_generico (...)": outro popup de aviso do Consinco
+        - None: nenhum popup
         """
-        # 1. Checagem de título de janela modal ativa (Delphi / Consinco)
+        ocr = self._get_ocr()
+
+        # 1. Checagem prioritária de janela modal ativa em foco (Delphi / Consinco)
         try:
             import win32gui
             hwnd = win32gui.GetForegroundWindow()
             title = win32gui.GetWindowText(hwnd).strip()
-            if title in ["Atenção", "Atencao", "Aviso", "Mensagem"] or \
-               title.startswith("Atenção") or title.startswith("Atencao"):
-                return True, f"janela_modal ({title})"
-        except Exception:
-            pass
+            if title in ["Atenção", "Atencao", "Aviso", "Mensagem", "Erro", "Confirmação", "Atenção!"] or \
+               title.startswith("Atenção") or title.startswith("Atencao") or title.startswith("Aviso"):
+                
+                rect = win32gui.GetWindowRect(hwnd) # (left, top, right, bottom)
+                x1, y1, x2, y2 = rect
+                w_pop = max(1, x2 - x1)
+                h_pop = max(1, y2 - y1)
+                
+                # Se for janela modal de popup (e não a janela principal inteira do ERP)
+                texto_popup = ""
+                if 50 < w_pop < 1200 and 30 < h_pop < 800:
+                    pop_shot = pyautogui.screenshot(region=(max(0, x1), max(0, y1), w_pop, h_pop))
+                    pop_np = np.array(pop_shot)
+                    if ocr:
+                        res, _ = ocr(pop_np)
+                        if res:
+                            texto_popup = " ".join([item[1].upper() for item in res])
+                
+                # Classificação precisa pelo texto contido estritamente DENTRO da janela do popup
+                if ("SELECAO INVERSA" in texto_popup and "PULMAO" in texto_popup) or \
+                   ("NORMA DE SELECAO" in texto_popup) or \
+                   ("NAO PODE SER DIFERENTE" in texto_popup):
+                    return True, "selecao_inversa"
+                
+                if ("ACENTUACAO" in texto_popup or "ACENTUA" in texto_popup) or \
+                   ("CARACTERES ESPECIAIS" in texto_popup) or \
+                   ("DESEJA LIMPAR" in texto_popup):
+                    return True, "limpeza_caracteres"
+                
+                if not texto_popup:
+                    return True, f"modal_generico ({title})"
+                
+                return True, f"modal_generico ({title}: {texto_popup[:30]})"
+        except Exception as e:
+            print(f"[MixProcessor] Erro na verificação win32gui do popup: {e}")
 
-        # 2. Checagem visual com RapidOCR
+        # 2. Checagem visual com RapidOCR (restringindo à área do Consinco para NUNCA ler o log/menu do GAM)
         try:
-            ocr = self._get_ocr()
             if ocr:
-                screenshot = pyautogui.screenshot()
+                sw, sh = pyautogui.size()
+                # Lê apenas os 65% esquerdos da tela (onde o Consinco opera), excluindo a janela do GAM à direita
+                w_scan = int(sw * 0.65)
+                screenshot = pyautogui.screenshot(region=(0, 0, w_scan, sh))
                 screenshot_np = np.array(screenshot)
                 res, _ = ocr(screenshot_np)
                 if res:
                     textos = " ".join([item[1].upper() for item in res])
-                    if ("SELECAO INVERSA" in textos and "PULMAO" in textos) or \
+                    if ("SELECAO INVERSA" in textos and "PULMAO" in textos and "NORMA" in textos) or \
                        ("NORMA DE SELECAO" in textos) or \
-                       ("NAO PODE SER DIFERENTE" in textos) or \
-                       ("ATENCAO" in textos and "NORMA" in textos):
-                        return True, "ocr_texto_popup"
+                       ("NAO PODE SER DIFERENTE" in textos):
+                        return True, "selecao_inversa"
+                    if ("NAO E PERMITIDO O USO DE ACENTUACAO" in textos) or \
+                       ("DESEJA LIMPAR OS CARACTERES" in textos):
+                        return True, "limpeza_caracteres"
         except Exception as e:
             print(f"[MixProcessor] Erro na verificação OCR do popup: {e}")
 
-        # 3. Fallback de Template Matching com limiar rigoroso
+        # 3. Fallback de Template Matching com limiar rigoroso (apenas template completo de aviso de seleção inversa)
         try:
-            screenshot = pyautogui.screenshot()
-            screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-            for tmpl_path in ['captura_tela/popup_consinco.png', 'captura_tela/aviso.png', 'captura_tela/aviso_icone.png']:
-                if os.path.exists(tmpl_path):
-                    tmpl = cv2.imread(tmpl_path)
-                    if tmpl is not None:
-                        res = cv2.matchTemplate(screenshot_bgr, tmpl, cv2.TM_CCOEFF_NORMED)
-                        _, max_val, _, _ = cv2.minMaxLoc(res)
-                        if max_val >= 0.85:
-                            return True, f"template_{tmpl_path}"
+            tmpl_path = 'captura_tela/aviso.png'
+            if os.path.exists(tmpl_path):
+                tmpl = cv2.imread(tmpl_path)
+                if tmpl is not None:
+                    sw, sh = pyautogui.size()
+                    w_scan = int(sw * 0.65)
+                    screenshot = pyautogui.screenshot(region=(0, 0, w_scan, sh))
+                    screenshot_bgr = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+                    res = cv2.matchTemplate(screenshot_bgr, tmpl, cv2.TM_CCOEFF_NORMED)
+                    _, max_val, _, _ = cv2.minMaxLoc(res)
+                    if max_val >= 0.88:
+                        return True, "selecao_inversa"
         except Exception:
             pass
 
@@ -138,9 +181,12 @@ class MixProcessor:
         # 2. Verifica se o 2º popup de Atenção ainda está na tela
         tem_2o_pop, tipo_2o = self._detectar_popup_atencao()
         if tem_2o_pop:
-            print(f"[MixProcessor] 2º popup detectado ({tipo_2o}). Fechando com ALT+O...")
+            print(f"[MixProcessor] 2º popup detectado ({tipo_2o}). Fechando...")
             self._salvar_print_debug("02_segundo_popup_atencao", info_texto=f"2º popup detectado: {tipo_2o}")
-            pyautogui.hotkey('alt', 'o')
+            if tipo_2o == "limpeza_caracteres":
+                pyautogui.hotkey('alt', 's')
+            else:
+                pyautogui.hotkey('alt', 'o')
             time.sleep(0.5)
 
         self._salvar_print_debug("02_apos_fechar_popups", info_texto="Popups fechados, prestes a clicar na aba")
@@ -576,15 +622,15 @@ class MixProcessor:
             if update_callback: update_callback({'error': msg})
             return
 
-        # --- Início do ESC Listener (Emergência) ---
+        # --- Início do ESC/Space Listener (Emergência) ---
         def on_press(key):
-            if key == keyboard.Key.esc:
+            if key in (keyboard.Key.esc, keyboard.Key.space) or getattr(key, 'char', None) == ' ':
                 if stop_event: stop_event.set()
                 return False # Para o listener
         
         esc_listener = keyboard.Listener(on_press=on_press)
         esc_listener.start()
-        # --- Fim do ESC Listener ---
+        # --- Fim do ESC/Space Listener ---
 
         pos_empresa = self.coords.get('empresa_mix')
         if not pos_empresa:
@@ -932,12 +978,25 @@ class MixProcessor:
                 pyautogui.press('f4')
                 time.sleep(0.8)
                 
-                # Detecção e Tratamento Automatizado do Popup de Seleção Inversa / Atenção Consinco
+                # Detecção e Tratamento Automatizado dos Popups do Consinco
                 tem_popup, tipo_popup = self._detectar_popup_atencao()
                 if tem_popup:
-                    print(f"[MixProcessor] Popup detectado ({tipo_popup})! Executando tratamento de Seleção Inversa e Forma de Abastecimento...")
-                    self.tratar_popup_selecao_inversa_e_abastecimento(update_callback=update_callback, stop_event=stop_event)
-                    time.sleep(0.8)
+                    if tipo_popup == "selecao_inversa":
+                        print(f"[MixProcessor] Popup de SELEÇÃO INVERSA detectado! Executando tratamento de Seleção Inversa e Forma de Abastecimento...")
+                        self.tratar_popup_selecao_inversa_e_abastecimento(update_callback=update_callback, stop_event=stop_event)
+                        time.sleep(0.8)
+                    elif tipo_popup == "limpeza_caracteres":
+                        print(f"[MixProcessor] Popup de Limpeza de Acentuação/Caracteres detectado! Confirmando com Alt+S...")
+                        if update_callback:
+                            update_callback({'status': 'Confirmando limpeza de caracteres especiais (Alt+S)...'})
+                        self._salvar_print_debug("popup_acentuacao_detectado", info_texto="Popup de acentuação: enviando Alt+S")
+                        time.sleep(0.2)
+                        pyautogui.hotkey('alt', 's')
+                        time.sleep(0.8)
+                    else:
+                        print(f"[MixProcessor] Popup detectado ({tipo_popup}). Fechando com Alt+O...")
+                        pyautogui.hotkey('alt', 'o')
+                        time.sleep(0.5)
                 else:
                     time.sleep(0.4)
 

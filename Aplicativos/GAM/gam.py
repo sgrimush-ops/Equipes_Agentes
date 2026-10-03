@@ -9,6 +9,7 @@ import queue
 import time
 import pandas as pd
 import subprocess
+from pynput import keyboard
 
 # Adiciona o diretório atual ao sys.path para importações locais
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -154,7 +155,7 @@ class MacroAutomationApp:
 
         # Botão de pausa removido
 
-        self.btn_parar = tk.Button(ctrl_frame, text="PARAR", command=self.parar_sequencia, state="disabled", bg="#FF5252", fg="white", font=("Segoe UI", 10, "bold"), width=15)
+        self.btn_parar = tk.Button(ctrl_frame, text="PARAR (Espaço / ESC)", command=self.parar_sequencia, state="disabled", bg="#FF5252", fg="white", font=("Segoe UI", 10, "bold"), width=20)
         self.btn_parar.pack(side="left", padx=5)
 
         tk.Label(bottom_frame, text="Log de Execução:", font=("Segoe UI", 9, "bold"), bg="#f0f0f0").pack(anchor="w")
@@ -298,6 +299,21 @@ class MacroAutomationApp:
         self.is_running = True
         self.stop_event.clear()
         self.update_buttons_state()
+
+        # Inicia listener global de emergência (Barra de Espaço ou ESC)
+        def on_global_press(key):
+            if key in (keyboard.Key.esc, keyboard.Key.space) or getattr(key, 'char', None) == ' ':
+                if self.is_running:
+                    self.queue.put({'log': '>>> PARADA IMEDIATA SOLICITADA (Barra de Espaço / ESC)!'})
+                    self.parar_sequencia()
+                    return False
+
+        try:
+            self.global_listener = keyboard.Listener(on_press=on_global_press)
+            self.global_listener.daemon = True
+            self.global_listener.start()
+        except Exception as e:
+            print(f"Aviso ao iniciar listener global: {e}")
         
         t = threading.Thread(target=self.run_process_thread, args=(seq,))
         t.daemon = True
@@ -329,6 +345,13 @@ class MacroAutomationApp:
             self.queue.put({'log': "=== Todas as ações foram concluídas. ===", 'finished_sequence': True})
         except Exception as e:
             self.queue.put({'log': f"Erro Fatal na Thread: {str(e)}", 'finished_sequence': True})
+        finally:
+            if hasattr(self, 'global_listener') and self.global_listener:
+                try:
+                    self.global_listener.stop()
+                except Exception:
+                    pass
+                self.global_listener = None
 
     def process_queue(self):
         try:

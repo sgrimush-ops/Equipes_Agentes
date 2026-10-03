@@ -77,13 +77,13 @@ def main():
             headers={"Content-Type": "application/octet-stream"},
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             if resp.status == 200:
                 print(f"      -> [OK] Servidor interno atualizado e cálculo de ruptura disparado no servidor!")
             else:
                 print(f"      -> [!] Resposta do servidor: {resp.status}")
-    except urllib.error.URLError as e:
-        print(f"      -> [!] Servidor VM 192.168.50.211 offline ou não alcançável no momento: {e}")
+    except Exception as e:
+        print(f"      -> [!] Aviso ao sincronizar com servidor VM 192.168.50.211: {e}")
         print("         (Os arquivos locais já foram atualizados perfeitamente)")
 
     # 4. Executa os dashboards de ruptura no ambiente local

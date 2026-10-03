@@ -75,15 +75,15 @@ class InversaProcessor:
             if update_callback: update_callback({'error': msg})
             return
 
-        # --- Início do ESC Listener (Emergência) ---
+        # --- Início do ESC/Space Listener (Emergência) ---
         def on_press(key):
-            if key == keyboard.Key.esc:
+            if key in (keyboard.Key.esc, keyboard.Key.space) or getattr(key, 'char', None) == ' ':
                 if stop_event: stop_event.set()
                 return False 
         
         esc_listener = keyboard.Listener(on_press=on_press)
         esc_listener.start()
-        # --- Fim do ESC Listener ---
+        # --- Fim do ESC/Space Listener ---
 
         input_file = 'bd_entrada/inversa.xlsx'
         if not os.path.exists(input_file):
