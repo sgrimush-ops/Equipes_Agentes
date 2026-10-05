@@ -136,4 +136,11 @@ Ao automatizar grids com componentes de edição embutidos (`TDBGrid` / `TComboB
 6. **Varredura Dinâmica do Grid (Apanha vs Pulmão) para Identificação de Embalagem:**
    - Em grids logísticos do Consinco (*Espécie de Endereço*), a embalagem oficial do produto frequentemente está expressa na linha `APANHA` (ex: `CX 120`) e visualmente omitida ou herdada na linha `PULMAO`.
    - **Proibição de Valores Padrão Hardcoded:** Nunca assuma embalagens padrão (ex: `DP 60`). Realize uma varredura OCR completa na área do grid (`y: 670 a 750`) com regex `(CX|DP|UN|FD|PCT|PC|CJ|KG|LT)\s*\.?\s*\d+` abrangendo tanto Apanha quanto Pulmão. Isso assegura que o robô busque a embalagem real do produto no ComboBox (ex: `CX 120` em vez de falhar e selecionar `UN 1` por timeout).
+7. **Isolamento de OCR e Prevenção de Falsa Detecção de Popups:**
+   - Nunca capture a tela inteira (`pyautogui.screenshot()`) para fazer OCR buscando mensagens de alerta (`SELECAO INVERSA`, `PULMAO`, `ERRO`).
+   - A própria interface da ferramenta de automação (GAM, logs de execução) contém esses textos e causa auto-detecção em loop infinito.
+   - **Regra:** Restrinja a captura OCR estritamente às coordenadas da janela modal ativa (`win32gui.GetWindowRect(win32gui.GetForegroundWindow())`) ou à região central do ERP, ignorando totalmente a tela do robô.
+8. **Diferenciação Semântica de Popups Delphi ("Atenção"):**
+   - Nunca assuma que qualquer popup com o título "Atenção" seja Seleção Inversa. O Consinco usa o mesmo título para avisos de caracteres especiais na descrição completa, limites e avisos comuns.
+   - Leia o texto interno do popup antes de disparar correções: se for aviso de caracteres/acentos, confirme com `Enter` / `Alt+O` e continue; se for a pergunta de Seleção Inversa, execute o fluxo de abastecimento/pulmão.
 

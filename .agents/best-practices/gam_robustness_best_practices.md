@@ -52,6 +52,20 @@ Diferenciar ordens globais de ordens totais evita inativações acidentais em ce
 - **TI Global (Loja Vazia):** Inativa todas as lojas de varejo, mas **preserva** os CDs.
 - **TI Total (Código "CD"):** Inativa todas as lojas **e** todos os CDs.
 
+## 🎯 7. Isolamento de OCR e Prevenção de Falsa Seleção Inversa (Anti Auto-Detecção)
+Quando o robô faz OCR de tela cheia para buscar palavras como `SELECAO INVERSA` ou `PULMAO`, ele pode ler a sua própria interface (janela do GAM, logs, lista de ações).
+
+### Lição Aprendida:
+- **Regra:** Nunca capturar tela inteira para OCR de alertas. Isole a captura estritamente nas coordenadas da janela modal ativa (`win32gui.GetWindowRect(win32gui.GetForegroundWindow())`) ou na região central do ERP, ignorando totalmente a tela do GAM.
+
+## ⚠️ 8. Diferenciação Semântica de Popups Delphi ("Atenção")
+O Consinco utiliza a mesma janela com título "Atenção" para dezenas de mensagens diferentes (ex: caracteres especiais na descrição vs pergunta de seleção inversa).
+
+### Lição Aprendida:
+- **Regra:** Não assuma que "Atenção" significa Seleção Inversa. Leia o corpo do texto via OCR:
+  - Se for aviso de acentuação/caracteres especiais: confirme com `Enter` e prossiga normalmente.
+  - Se for *"Deseja configurar a seleção inversa?"*: entre no fluxo de correção de abastecimento/pulmão.
+
 ---
-*Manual atualizado para refletir a inteligência estratégica de logística.*
-*Data: 04/04/2026.*
+*Manual atualizado com lições de isolamento de visão computacional e resiliência de grid.*
+*Data: 03/10/2026.*

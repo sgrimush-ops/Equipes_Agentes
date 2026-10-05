@@ -78,6 +78,10 @@ Ao criar automações desktop ou protótipos em Python para interagir visualment
 7. **Limpeza Prévia Obrigatória com Backspace e Delete (Prevenção de `60100`):** Ao dar `Tab` saindo da Embalagem, o Consinco frequentemente preenche o Lastro com o multiplicador da embalagem (`60`). Antes de digitar qualquer número nos campos numéricos, envie `Backspace` (x4) e `Delete` (x4) para limpar o campo antes do `pyautogui.write()`.
 8. **Fechamento de Popups Modais em Sequência (`Alt + O`):** Feche popups modais de confirmação com `Alt + O` e sempre verifique com `win32gui` se há uma segunda janela modal de Atenção antes de prosseguir com a navegação de abas.
 9. **Varredura Dinâmica e Total do Grid para Identificação de Embalagem:** Em tabelas logísticas do Consinco (*Espécie de Endereço*), a embalagem pode estar explícita na linha `APANHA` e omitida na linha `PULMAO`. Nunca use valores padrão fixos (`DP 60`). Realize uma varredura OCR na faixa do grid com regex `(CX|DP|UN|FD|PCT|PC|CJ|KG|LT)\s*\.?\s*\d+` para garantir que o robô selecione no ComboBox a embalagem real do produto (ex: `CX 120`).
+10. **Isolamento de OCR e Prevenção de Falsa Detecção de Popups (Anti Auto-Detecção):**
+    Nunca execute OCR em tela cheia (`pyautogui.screenshot()`) buscando palavras-chave de alerta (`SELECAO INVERSA`, `PULMAO`, `ERRO`). O próprio GAM ou aplicativos de apoio exibem esses termos em seus menus e logs de status. O OCR global lê o próprio painel e dispara rotinas de tratamento de popup fantasmas em loop. Restrinja a captura OCR estritamente às coordenadas da janela modal ativa (`win32gui.GetWindowRect(win32gui.GetForegroundWindow())`) ou à região central do ERP, ignorando o painel do robô.
+11. **Diferenciação Semântica de Popups Delphi ("Atenção" vs "Seleção Inversa"):**
+    Nunca assuma que qualquer popup com o título "Atenção" seja um aviso de Seleção Inversa. O Consinco usa o mesmo título para avisos de caracteres especiais na Descrição Completa do Produto, limites de crédito e bloqueios. É obrigatório ler o corpo da mensagem via OCR: se for apenas aviso de acentuação/caracteres, envie `Enter` / `Alt+O` e continue o salvamento sem alterar abas; acione o fluxo de abastecimento apenas se o texto contiver explicitamente a pergunta de Seleção Inversa.
 
 # Regras de Dicionário, Nomes Oficiais e Governança de Dados Consinco
 
@@ -138,6 +142,15 @@ Na Zona SQL e ferramentas de apoio com IA:
    - O container externo (`.main-content`, `#view_*`, iframe container) deve ter altura travada (`calc(100vh - 64px)` ou `100%`) com `overflow: hidden`.
    - Apenas o elemento estritamente tabular (`.table-container` ou `tbody`) deve rolar (`overflow-y: auto`), mantendo o cabeçalho congelado (`position: sticky; top: 0; z-index: 10`).
    - Disponibilizar sempre atalho para abertura em tela cheia / nova guia (`window.open(..., '_blank')`).
+
+6. **Box de Exposição Compartilhada & Gravação em Lote no Módulo de Campanhas:**
+   O fluxo de compras para campanhas promocionais permite agrupar múltiplos produtos (da mesma família de sabores ou de fornecedores/famílias distintos que dividem a mesma ponta de gôndola ou ilha) em um único lote de exposição através do "Box de Aguardando Gravação". O comprador define a configuração física e volumes das 14 lojas uma única vez e persiste o lote atomicamente via endpoint `/api/campanhas/{campanha_id}/salvar-lote-exposicao`.
+
+7. **Sincronização e Ciclo de Vida do Pipeline de Ruptura (`query.parquet` -> Dashboards):**
+   O pipeline de extração de dados (`1-data_query.py` / `query.parquet`) e a geração dos relatórios estáticos de ruptura (`1-rp.py` -> comprador, loja, detalhado) devem ser orquestrados pelo backend FastAPI (`services/ruptura_service.py`), garantindo que a base de dados (`bdados/query.parquet`) e os dashboards HTML compilados em `static/ruptura/` reflitam sempre o timestamp exato do último processamento sem redundância de arquivos soltos.
+
+8. **Controle Estrito de Entradas em Formulários de Acesso:**
+   Campos de cadastro e solicitação de novo acesso (como Cargo/Função e Filial) nunca devem ser campos de texto livre (`<input type="text">`). Devem ser sempre `<select>` / dropdowns com as listas oficiais e fechadas (Baklizi: Lojas 1..18, CD 15, CD 16; Free/Misto: F1, F2, M1...) para impedir divergências de chaves e inconsistências de permissão no sistema.
 
 ---
 

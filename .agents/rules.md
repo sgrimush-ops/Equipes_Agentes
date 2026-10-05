@@ -73,6 +73,8 @@ Este documento contém as regras obrigatórias para a criação e manutenção d
 - **Skip Logic de Campo Já Correto (GAM):** Antes de QUALQUER operação de atribuição de campo em robô GAM (ex: atribuir Comprador, Filial, Condição de Pagamento), SEMPRE leia o valor atual do campo via clipboard (`Ctrl+A → Ctrl+C`). Se o valor já for o desejado, PULE a sequência de atribuição inteiramente. Isso evita escritas desnecessárias, distorções de auditoria e comportamentos inesperados em campos que o ERP consolida automaticamente ao salvar.
 - **Verificação de Comprador Pós-F3 (Supply):** No robô Supply, após salvar o pedido (`F3`), SEMPRE verifique o campo Comprador via clipboard **antes** de passar para a próxima loja. Se não for "SUPPLY", execute a correção com setas (`Up/Down`) + `F4`. A verificação deve usar coordenadas calibradas via `pynput.mouse.Listener` (nunca pyautogui) para evitar miss-clicks por DPI.
 - **Subprocess Sem Foco:** Em robôs, SEMPRE use `creationflags=subprocess.CREATE_NO_WINDOW` ao chamar subprocessos (ex: `clip.exe`). `shell=True` gera popups CMD que roubam foco e corrompem a automação.
+- **Isolamento de OCR e Anti-Detecção Falsa de Popups:** NUNCA execute OCR em tela cheia (`pyautogui.screenshot()`) buscando palavras-chave de alerta (`SELEÇÃO INVERSA`, `PULMÃO`, `ERRO`). O próprio GAM e logs exibem essas palavras e geram auto-detecção em loop. Isole a captura estritamente nas coordenadas da janela modal ativa do ERP via `win32gui.GetForegroundWindow()`.
+- **Diferenciação Semântica de Popups ("Atenção" vs "Seleção Inversa"):** Popups com o título "Atenção" no Consinco possuem múltiplos propósitos (ex: caracteres especiais na Descrição Completa). É obrigatório ler o texto interno do popup: se for aviso de caracteres/acentos, confirme com `Enter` e continue sem mexer nas abas; se for Seleção Inversa, execute o fluxo logístico.
 
 ## 9. Dashboard de Ruptura (Squad Varejo Insight)
 
@@ -90,10 +92,23 @@ Este módulo possui regras estruturais fixas para garantir a integridade das mé
     - O gráfico Plotly deve sempre iniciar com a barra **TOTAL GERAL** na primeira posição (extrema esquerda).
     - Botões de navegação: Manter obrigatoriamente os filtros "Totais Gerais" e "Só Compradores". O botão "Ver Todos" está permanentemente removido.
     - **Performance No-Server**: O arquivo final deve ser mantido abaixo de 10MB, utilizando a estratégia de embutir os dados em JSON e processar filtros via JavaScript no cliente.
+- **Orquestração de Pipeline:** O disparo dos scripts de compilação de ruptura (`1-rp.py` -> comprador, loja, detalhado) deve ser sincronizado com o `1-data_query.py` e centralizado no backend (`services/ruptura_service.py`), garantindo que os arquivos estáticos reflitam sempre a base mais recente.
+
 ## 10. Regras de SQL Consinco / Logística WMS e Var - F7
 
 - **Comparativo WMS vs ERP (LOG0085 Bypass):** Para conciliações de estoque sem bloqueio na `LOG0085`, cruze `MRL_PRODUTOEMPRESA` (`ESTQDEPOSITO`) com `MLO_ENDERECO` (`ESPECIEENDERECO = 'A'` apanha, `'P'` pulmão), apurando pendências em trânsito com `MLO_CARGARECPROD` e `MLO_CARGAEXPPROD`. Unifique a base de produtos com `FULL OUTER JOIN` em CTE materializada (`/*+ MATERIALIZE */`). Lembre-se: `ESTQGERENCIAL` não existe em `MRL_PRODUTOEMPRESA` (usar soma dos campos `QTDRESERVADA*`).
 - **Expurgo Dinâmico Multi-Termos (LT2):** Trate filtros de exclusão multi-palavras com `REGEXP_LIKE` + `TRANSLATE` (remoção de acentos) + `REPLACE` (remoção de espaços) e sentinela `0` / `'NENHUM'`.
 - **Listas LSx no Var - F7 (Prevenção Delphi):** Cadastre opções como constantes separadas por ponto-e-vírgula (`TODOS;ALINHADO;DIVERGENCIA...`) ou query com `CAST(COLUMN_VALUE AS VARCHAR2(50))` explícito para evitar truncamento em 3 caracteres.
+
+## 11. Padrões de Interface e Campanhas (App_Bak)
+
+- **Pesquisa Universal Inteligente:** Todo modal ou barra de pesquisa (inclusive `#modalAddProdutoCampanha`) deve suportar:
+    - Código numérico direto.
+    - Coringa `%` ou `*` (regex `.*`).
+    - Múltiplos termos separados por espaço (AND).
+    - Normalização NFD (sem acentos e case-insensitive).
+- **Box de Exposição Compartilhada:** Permitir seleção e empilhamento de múltiplos SKUs para configuração unificada da matriz de 14 lojas em campanhas promocionais, gravando em lote via backend.
+- **Zero Scroll Duplo:** Travar containers externos com `overflow: hidden` e permitir rolagem exclusivamente no corpo das tabelas (`overflow-y: auto`) com cabeçalho `position: sticky`.
+- **Dropdowns Controlados em Solicitações:** Restringir campos de Filial e Cargo a `<select>` para garantir integridade de dados.
 
 
