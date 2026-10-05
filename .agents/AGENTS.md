@@ -175,6 +175,18 @@ Na Zona SQL e ferramentas de apoio com IA:
       - **Para o Supply (`campanhas_supply`):** A campanha inativa **continua aparecendo** na listagem e histórico de avaliações com o badge `'INATIVA'`, permitindo conferência e auditoria.
       - **Para a Loja (`campanhas_loja`):** A campanha inativa **deixa de aparecer imediatamente**, prevenindo a montagem indevida de pontas de gôndola canceladas.
 
+13. **Deploy NUNCA Envia o Banco de Produção (`PUBLICAR_NO_SERVIDOR.py`):**
+    - O pacote de publicação deve conter apenas código (`api`, `static`, `services`, `ruptura`, `utils`, `server.py`, `.env`, `requirements.txt`, `.bat`). É **proibido** incluir `bdados/baklizi.db` ou qualquer `.db`, `.db-wal`, `.db-shm`, `.sqlite`.
+    - O endpoint `/api/admin/deploy` possui trava que ignora `bdados/*` e arquivos de banco. Nunca remover essa trava. Enviar o banco local sobrescreve pedidos, solicitações e campanhas reais criados no servidor (`192.168.50.211`) e pode corromper o SQLite em uso.
+
+14. **Toda Tabela SQLite com Coluna `id` Deve Ter `INTEGER PRIMARY KEY AUTOINCREMENT`:**
+    - Tabelas migradas via `pandas.to_sql` ficam com `"id" INTEGER` sem PK. Todo `INSERT` novo grava `id = NULL`, o frontend renderiza `onclick="aprovar(null)"` e o FastAPI retorna `int_parsing ... input: "null"` (aprovar/reprovar pedidos, solicitações de acesso etc.). `RETURNING id` também volta `NULL`.
+    - A função `reparar_ids_sqlite()` em `api/database.py` (executada no `init_db_schemas()` a cada start/deploy) preenche ids nulos e reconstrói essas tabelas com PK, preservando dados e índices. Ela ignora tabelas cujo `id` é texto/UUID (ex.: `campanhas`).
+    - Ao criar tabelas novas, sempre declarar `id INTEGER PRIMARY KEY AUTOINCREMENT` (SQLite) / `SERIAL PRIMARY KEY` (PostgreSQL). Nunca criar tabelas transacionais via `to_sql`.
+
+15. **Diagnóstico Rápido do Erro `Input should be a valid integer` / `[object Object]`:**
+    Quando aprovar/reprovar falhar com esse erro, a causa é o `id` nulo no banco (regra 14), não a senha ou o payload. Verifique primeiro `SELECT COUNT(*) FROM <tabela> WHERE id IS NULL` e o schema via `PRAGMA table_info`.
+
 ---
 
 # Permissões e Autonomia no Workspace `Equipes_Agentes`
