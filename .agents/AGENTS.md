@@ -152,10 +152,35 @@ Na Zona SQL e ferramentas de apoio com IA:
 8. **Controle Estrito de Entradas em Formulários de Acesso:**
    Campos de cadastro e solicitação de novo acesso (como Cargo/Função e Filial) nunca devem ser campos de texto livre (`<input type="text">`). Devem ser sempre `<select>` / dropdowns com as listas oficiais e fechadas (Baklizi: Lojas 1..18, CD 15, CD 16; Free/Misto: F1, F2, M1...) para impedir divergências de chaves e inconsistências de permissão no sistema.
 
+9. **Padrão Obrigatório de Seletor e Destaque de Linha em Tabelas (Row Highlighting):**
+   Em **todas as telas, relatórios analíticos, dashboards e tabelas** desenvolvidos no ecossistema:
+   - É mandatório implementar o **seletor interativo de linha** (`tr.linha-destacada` / `cursor: pointer` com evento `click`).
+   - Ao clicar em qualquer linha da tabela, a linha inteira deve receber destaque visual imediato e contínuo (fundo azul suave `#dbeafe` com barra/marcador lateral em azul royal `#2563eb` ou equivalente contrastante), facilitando a leitura e acompanhamento horizontal ao longo de múltiplas colunas.
+   - O clique deve transferir a seleção automaticamente ao escolher outra linha (ou desmarcar ao clicar na mesma linha).
+   - Manter contraste e legibilidade perfeita de badges, textos vermelhos/negativos e destaques específicos dentro da linha ativa.
+
+10. **Persistência Atômica do Fechamento Operacional de Supply em Lote (`supply-finalizar`):**
+    O fechamento de campanhas e transferências operacionais no Supply recebe a matriz completa de todas as lojas e itens em uma única requisição (`dados_fechamento`). É obrigatório executar a persistência de volumes e cálculo de caixas (`salvar_fechamento_supply_lote`), confronto em tempo real com o estoque físico do CD15 (`QUANTIDADE_DISPONIVEL` do `query.parquet`) e a gestão de pendências (`campanha_devolutivas`) de forma atômica e antes de alterar o status final da campanha (`finalizar_avaliacao_campanha`), prevenindo inconsistências de assinatura (`TypeError`), erros 500 e falhas no frontend.
+
+11. **Filtro Universal de Datas e Imunidade a Formatos ISO / Horários (`COALESCE(data_aprovacao, data_pedido)`):**
+    Em consultas de histórico e auditoria (pedidos, transferências, movimentações):
+    - **Soberania do Evento:** O filtro temporal deve incidir sobre a data efetiva do evento consultado (ex: `data_aprovacao` no Histórico de Pedidos Aprovados), usando `COALESCE(data_aprovacao, data_pedido)` como fallback seguro.
+    - **Prevenção da Armadilha Lexicográfica ISO (`'T'` vs `' '`):** Nunca comparar timestamps textuais usando strings com hora final `'23:59:59'` diretamente contra strings ISO (onde o caractere `'T'` [ASCII 84] é maior que o espaço `' '` [ASCII 32], o que causava descarte silencioso de todos os registros do próprio dia). Utilize `CAST(COALESCE(...) AS DATE)` no PostgreSQL e `substr(replace(COALESCE(...), 'T', ' '), 1, 10)` no SQLite.
+    - **Auto-Correção de Inversão:** Se o usuário informar acidentalmente `data_inicio > data_fim`, o backend e o frontend devem auto-corrigir via `min` e `max`, garantindo o retorno correto sem telas vazias.
+
+12. **Governança de Ciclo de Vida e Exclusão de Campanhas (Compras vs. Supply vs. Loja):**
+    - **Exclusão Estrita de Rascunho por Compras:** Usuários do perfil **Compras** só têm permissão para excluir permanentemente uma campanha se o status for estritamente `'RASCUNHO'`.
+    - **Inativação Pós-Envio ao Supply (`POST /api/campanhas/{id}/inativar`):** Após o envio da campanha para o Supply (status `'ENVIADA_SUPPLY'`, `'EM_AVALIACAO_SUPPLY'`, `'PENDENCIA_COMPRAS'`, `'ATIVA'`, `'FINALIZADA'`), o comprador não pode mais exclui-la, podendo exclusivamente **inativá-la** (`status = 'INATIVA'`).
+    - **Soberania de Visibilidade da Campanha Inativa:**
+      - **Para o Supply (`campanhas_supply`):** A campanha inativa **continua aparecendo** na listagem e histórico de avaliações com o badge `'INATIVA'`, permitindo conferência e auditoria.
+      - **Para a Loja (`campanhas_loja`):** A campanha inativa **deixa de aparecer imediatamente**, prevenindo a montagem indevida de pontas de gôndola canceladas.
+
 ---
 
 # Permissões e Autonomia no Workspace `Equipes_Agentes`
 
 - **Acesso Total e Sem Bloqueio:** O agente possui **acesso total** e **permissão contínua irrestrita** em todos os diretórios e arquivos dentro da pasta `Equipes_Agentes`.
 - **Execução Direta Sem Solicitar Confirmação:** Não é necessário solicitar aprovações ou confirmações prévias para ler, criar, editar arquivos, refatorar código ou executar scripts/comandos no terminal dentro de `Equipes_Agentes`. O agente deve agir com total autonomia e proatividade.
+
+
 
