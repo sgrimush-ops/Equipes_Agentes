@@ -187,6 +187,12 @@ Na Zona SQL e ferramentas de apoio com IA:
 15. **Diagnóstico Rápido do Erro `Input should be a valid integer` / `[object Object]`:**
     Quando aprovar/reprovar falhar com esse erro, a causa é o `id` nulo no banco (regra 14), não a senha ou o payload. Verifique primeiro `SELECT COUNT(*) FROM <tabela> WHERE id IS NULL` e o schema via `PRAGMA table_info`.
 
+16. **Remoção Segura de Duplicatas no SQLite (Uso do `rowid`):**
+    O SQLite pode permitir a existência de registros 100% idênticos em tabelas (até mesmo no nível hexadecimal) caso a constraint de `PRIMARY KEY` tenha sido ignorada ou violada em versões antigas. Nunca tente remover uma duplicata usando `WHERE username = 'nome'`, pois isso excluirá todos os clones. Utilize sempre a restrição pela pseudo-coluna interna `rowid`, seja apagando IDs específicos ou mantendo o `MAX(rowid)` no agrupamento.
+
+17. **Criação de Chamados/Chat Pró-Ativos por Administradores:**
+    Ao implementar funções para que Admins iniciem suporte direto a usuários (como clicando em um usuário no monitor), a requisição POST para criação do chamado deve incluir a propriedade `remetente` (o admin) mantendo o `username` como sendo o usuário-alvo. Isso acopla o chamado ao usuário para que ele seja alertado pelo *heartbeat* e veja a mensagem no seu "sininho", registrando corretamente que a mensagem inicial veio da Administração.
+
 ---
 
 # Permissões e Autonomia no Workspace `Equipes_Agentes`
@@ -196,3 +202,8 @@ Na Zona SQL e ferramentas de apoio com IA:
 
 
 
+
+# Regras de Programação JavaScript
+
+1. **Proibição de continue em loops orEach:**
+   Nunca utilize a instrução continue ou reak dentro de blocos orEach() no JavaScript, pois isso resultará em um SyntaxError: Illegal continue statement. Para interromper a iteração atual (simular continue), utilize obrigatoriamente a instrução eturn. Se precisar de controle total de loop com reak e continue, utilize o bloco or...of ou um or tradicional.
