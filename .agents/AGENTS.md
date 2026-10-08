@@ -207,3 +207,11 @@ Na Zona SQL e ferramentas de apoio com IA:
 
 1. **ProibiÃ§Ã£o de continue em loops orEach:**
    Nunca utilize a instruÃ§Ã£o continue ou reak dentro de blocos orEach() no JavaScript, pois isso resultarÃ¡ em um SyntaxError: Illegal continue statement. Para interromper a iteraÃ§Ã£o atual (simular continue), utilize obrigatoriamente a instruÃ§Ã£o eturn. Se precisar de controle total de loop com reak e continue, utilize o bloco or...of ou um or tradicional.
+
+# Aprendizados e Prevenção de Erros Críticos (Deploy e Backend)
+1. **Cuidado com Banco de Dados no Deploy:** NUNCA sobrescreva ou substitua o banco de dados do servidor de produção pelo banco local (ex: não inclua db.sqlite ou arquivos de banco no pacote do PUBLICAR_NO_SERVIDOR.py).
+2. **Injeção de Código JS via Terminal (PowerShell):** Evite adicionar blocos complexos de JavaScript usando Add-Content ou manipulações via terminal que contenham caracteres especiais como cifrões (\$). O PowerShell avalia cifrões em strings como variáveis, quebrando template literals do JS e causando SyntaxErrors graves no frontend.
+3. **Compatibilidade SQLite vs PostgreSQL:** O sistema em produção/desenvolvimento pode usar SQLite. Não utilize funções ou estruturas exclusivas do PostgreSQL, como SERIAL PRIMARY KEY (use INTEGER PRIMARY KEY AUTOINCREMENT), NOW() (use CURRENT_TIMESTAMP) e BTRIM() (use TRIM()). Esses comandos quebram o SQLAlchemy silenciosamente no SQLite.
+4. **Manutenção de Cargos e Listas Dinâmicas:** Todas as listagens de Cargo (Dropdowns no perfil e login) não devem ter elementos hardcoded (HTML fixo). A listagem deve ser sempre puxada dinamicamente da API para acompanhar as adições feitas na aba de 'Manutenção de Cargos'.
+
+5. **Arquitetura de Deploy (Delete Sync):** O sistema de deploy (PUBLICAR_NO_SERVIDOR.py e pi/admin.py) agora conta com exclusão sincronizada (Delete Sync) segura. Ele varre as pastas de código local, gera dinamicamente um manifest.json e o envia no pacote ZIP. O endpoint de deploy no servidor lê esse manifesto e deleta automaticamente scripts .py e .js (ausentes na lista) das pastas rastreadas, garantindo que código morto não acumule. Nunca remova ou corrompa essa lógica de manifesto. Sempre mantenha a trava que impede a exclusão de arquivos com extensões .db, .sqlite ou que estejam na pasta dados/.

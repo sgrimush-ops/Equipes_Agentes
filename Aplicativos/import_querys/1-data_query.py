@@ -11,7 +11,7 @@ data_hoje = datetime.now().strftime('%d_%m_%Y')
 
 # 1. Carregar os arquivos query txt do mesmo diretório
 arquivo_origem = os.path.join(base_dir, 'query.txt')
-df_query = pd.read_csv(arquivo_origem, sep=';')
+df_query = pd.read_csv(arquivo_origem, sep=';', encoding='latin1')
 
 # 2. Sanitizar e Salvar o resultado
 # REGRA ESTRUTURAL OBRIGATÓRIA: NUNCA alterar as vírgulas (,). O ponto (.) desconfigura planilhas Excel adjacentes que os visualizam, agindo localmente como milhar.
