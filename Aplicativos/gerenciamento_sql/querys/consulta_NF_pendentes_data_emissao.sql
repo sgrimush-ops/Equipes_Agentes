@@ -86,4 +86,21 @@ WHERE (NVL(TRIM(:LT1), '0') = '0' OR A.NROEMPRESA IN (#LT1))
         OR
         (NVL(SUBSTR(:LS2, 1, 1), 'N') = 'E' AND A.SITUACAO <> NVL(NULLIF(SUBSTR(:LS1, 1, 1), 'T'), 'I'))
       )
+  AND (
+        NVL(TRIM(:LS3), '0') IN ('0', 'TODOS', 'TODAS', '0 - TODOS', '0 - TODAS', '', ' TODAS AS REDES', 'TODAS AS REDES')
+        OR INSTR(UPPER(:LS3), 'TODA') > 0
+        OR EXISTS (
+              SELECT 1
+              FROM GE_REDEPESSOA RP
+              INNER JOIN GE_REDE R ON R.SEQREDE = RP.SEQREDE
+              WHERE RP.SEQPESSOA = A.SEQPESSOA
+                AND (
+                    UPPER(TRIM(R.DESCRICAO)) = UPPER(TRIM(:LS3))
+                    OR (
+                        INSTR(:LS3, ' - ') > 0
+                        AND TO_CHAR(R.SEQREDE) = TRIM(SUBSTR(:LS3, 1, INSTR(:LS3, ' - ') - 1))
+                    )
+                )
+        )
+  )
 ORDER BY A.DTAEMISSAO ASC, C.NOMEREDUZIDO ASC, A.NUMERONF ASC
