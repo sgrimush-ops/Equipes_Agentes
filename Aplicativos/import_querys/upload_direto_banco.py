@@ -22,7 +22,7 @@ def main():
     print("=" * 60)
     
     # 1. Copia para a pasta local do APP_Bak
-    app_bak_dir = os.path.join(os.path.dirname(base_dir), 'APP_Bak')
+    app_bak_dir = r"C:\Agente\APP_Bak" if os.path.exists(r"C:\Agente\APP_Bak") else os.path.join(os.path.dirname(base_dir), 'APP_Bak')
     app_bdados = os.path.join(app_bak_dir, 'bdados')
     os.makedirs(app_bdados, exist_ok=True)
     destino_local = os.path.join(app_bdados, 'query.parquet')
