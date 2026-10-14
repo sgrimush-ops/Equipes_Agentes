@@ -1,8 +1,9 @@
 """
 Commint_Push.py
 ---------------
-Script para realizar git add (incluindo exclusões), commit e push
-no repositório atual e em submódulos aninhados (ex: Aplicativos/APP_Bak).
+Script exclusivo para realizar git add, commit e push
+no repositório deste computador (Equipes_Agentes).
+Não possui comunicação nem vínculo com nenhum repositório externo.
 Mensagem automática com data/hora.
 """
 
@@ -19,7 +20,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 def get_repo_root() -> str:
-    """Identifica a raiz real do repositório Git dinamicamente."""
+    """Identifica a raiz real do repositório Git local dinamicamente."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     res = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
@@ -37,7 +38,7 @@ REPO = get_repo_root()
 
 
 def run(cmd: list[str], cwd: str | None = None) -> tuple[int, str, str]:
-    """Executa comando git dentro do diretório especificado ou raiz do repositório."""
+    """Executa comando git dentro da raiz do repositório local."""
     target_cwd = cwd or REPO
     result = subprocess.run(
         cmd, capture_output=True, text=True, encoding="utf-8", cwd=target_cwd
@@ -45,66 +46,19 @@ def run(cmd: list[str], cwd: str | None = None) -> tuple[int, str, str]:
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
-def find_submodules() -> list[str]:
-    """Descobre submódulos / sub-repositórios Git dentro do repositório principal."""
-    submodules = []
-    for root, dirs, _ in os.walk(REPO):
-        if os.path.abspath(root) == os.path.abspath(REPO):
-            continue
-        if ".git" in dirs:
-            submodules.append(root)
-            dirs.remove(".git")
-        # Evita descer excessivamente na árvore de diretórios
-        depth = os.path.relpath(root, REPO).count(os.sep)
-        if depth >= 3:
-            dirs.clear()
-    return submodules
-
-
-def sync_submodules(msg: str):
-    """Sincroniza submódulos/sub-repositórios antes de commitar na raiz."""
-    subs = find_submodules()
-    for sub in subs:
-        sub_rel = os.path.relpath(sub, REPO).replace("\\", "/")
-        code, out_status, _ = run(["git", "status", "--short"], cwd=sub)
-        has_sub_changes = bool(out_status)
-
-        if has_sub_changes:
-            print(f"\n📦 Submódulo detectado com alterações: {sub_rel}")
-            print(out_status)
-            run(["git", "add", "--all"], cwd=sub)
-            code_c, out_c, err_c = run(["git", "commit", "-m", msg], cwd=sub)
-            if code_c == 0:
-                print(f"✅ Commit realizado no submódulo {sub_rel}")
-            else:
-                print(f"⚠️ Aviso no commit do submódulo {sub_rel}: {err_c or out_c}")
-
-        # Verifica se há commits pendentes de push no submódulo
-        code_a, out_a, _ = run(["git", "rev-list", "@{u}..HEAD", "--count"], cwd=sub)
-        commits_ahead = int(out_a) if code_a == 0 and out_a.isdigit() else (1 if has_sub_changes else 0)
-
-        if commits_ahead > 0:
-            print(f"🚀 Enviando commits do submódulo {sub_rel} para o GitHub...")
-            code_p, out_p, err_p = run(["git", "push"], cwd=sub)
-            if code_p == 0:
-                print(f"✅ Push do submódulo {sub_rel} concluído com sucesso!")
-            else:
-                print(f"⚠️ Erro no push do submódulo {sub_rel}:\n{err_p or out_p}")
-
-
 def main():
-    print(f"📁 Raiz do Repositório Git: {REPO}\n")
+    print("=" * 60)
+    print("   SINCRONIZADOR GIT - REPOSITÓRIO LOCAL EQUIPES_AGENTES")
+    print("=" * 60)
+    print(f"📁 Raiz do Repositório: {REPO}\n")
     msg = f"Atualização automática - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
 
-    # 1. Sincroniza submódulos primeiro (evita 'modified content, untracked content' na raiz)
-    sync_submodules(msg)
-
-    # 2. Verifica alterações locais pendentes na raiz
+    # 1. Verifica alterações locais pendentes na raiz
     code, out_status, err_status = run(["git", "status", "--short"])
     has_changes = bool(out_status)
 
     if has_changes:
-        print("\n=== 📝 Alterações detectadas para commit ===")
+        print("=== 📝 Alterações detectadas para commit ===")
         print(out_status)
         print(f"\n💬 Mensagem do Commit: {msg}")
 
@@ -126,18 +80,18 @@ def main():
         else:
             print("ℹ️ Nenhuma alteração adicionada à área de stage.")
     else:
-        print("\nℹ️ Nenhuma alteração pendente para commit local.")
+        print("ℹ️ Nenhuma alteração de arquivo pendente para commit local.")
 
-    # 3. Verifica se há commits locais pendentes de envio (ahead)
+    # 2. Verifica se há commits locais pendentes de envio (ahead)
     code, out_ahead, _ = run(["git", "rev-list", "@{u}..HEAD", "--count"])
     commits_ahead = int(out_ahead) if code == 0 and out_ahead.isdigit() else (1 if has_changes else 0)
 
     if not has_changes and commits_ahead == 0:
-        print("\n🟢 O repositório local já está 100% atualizado e sincronizado com o GitHub.")
+        print("\n🟢 O repositório local já está 100% sincronizado com o GitHub.")
         return
 
-    # 4. Executa git push no repositório principal
-    print(f"\n🚀 Enviando commits para o GitHub...")
+    # 3. Executa git push exclusivamente no repositório Equipes_Agentes
+    print("\n🚀 Enviando commits para o repositório Equipes_Agentes no GitHub...")
     code, out, err = run(["git", "push"])
     if code != 0:
         print(f"❌ Erro no git push:\n{err or out}")
@@ -145,7 +99,7 @@ def main():
         sys.exit(code)
 
     print(f"✅ Push concluído com sucesso!\n{out or err}")
-    print("\n🎉 Commit e Push finalizados com êxito no GitHub!")
+    print("\n🎉 Repositório Equipes_Agentes sincronizado com êxito!")
 
 
 if __name__ == "__main__":
