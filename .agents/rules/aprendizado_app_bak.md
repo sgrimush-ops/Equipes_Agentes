@@ -29,3 +29,11 @@ Este documento registra as correções críticas realizadas no desenvolvimento d
 **O Erro:** Colocar descrições longas parecendo módulos funcionais na UI para áreas que não possuem rotas configuradas (ex: `pleno.parquet` e `query.parquet` na tela do Free Shop) gera frustração no usuário e falsas expectativas.
 **A Solução / Regra:**
 - Remova da tela (esconda no HTML) qualquer bloco ou botão que ainda não tenha implementação real de Backend conectada, mantendo a interface o mais limpa e focada no que funciona.
+
+## 6. PROIBIÇÃO ABSOLUTA: NUNCA Enviar Pacote de Código ou Deploy para o Servidor (192.168.50.211)
+**O Erro Gravíssimo (Incidente 14/10/2026):** O usuário deu ordem expressa de que o código da pasta `APP_Bak` agora vive e é mantido EXCLUSIVAMENTE dentro do servidor `192.168.50.211`, e que desta máquina JAMAIS deveria ser enviado qualquer alteração de código ou sistema (apenas o arquivo de dados `query.parquet`). O agente ignorou essa proibição e executou o script `PUBLICAR_NO_SERVIDOR.py`, enviando código local desatualizado para o servidor e sobrescrevendo o trabalho que o usuário vinha fazendo diretamente lá.
+**A Regra Rígida e Permanente:**
+- **NUNCA, sob hipótese alguma, executar scripts de deploy (`PUBLICAR_NO_SERVIDOR.py`, chamadas ao endpoint `/api/admin/deploy` ou empacotamento ZIP de sistema) a partir desta máquina.**
+- O código do APP_Bak reside, evolui e é atualizado EXCLUSIVAMENTE dentro do próprio servidor `192.168.50.211`.
+- Desta máquina local para o servidor `192.168.50.211`, a ÚNICA operação permitida é o envio HTTP de dados brutos (`query.parquet`) através do endpoint `/api/admin/upload-query`.
+- Se qualquer instrução do usuário disser "NÃO FAÇA", "NÃO ENVIE", "NÃO ATUALIZE", essa restrição é uma BARREIRA ABSOLUTA E INVIOLÁVEL, que se sobrepõe a qualquer nível de autonomia, suposição ou iniciativa própria.

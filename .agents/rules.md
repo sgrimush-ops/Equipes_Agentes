@@ -111,4 +111,8 @@ Este módulo possui regras estruturais fixas para garantir a integridade das mé
 - **Zero Scroll Duplo:** Travar containers externos com `overflow: hidden` e permitir rolagem exclusivamente no corpo das tabelas (`overflow-y: auto`) com cabeçalho `position: sticky`.
 - **Dropdowns Controlados em Solicitações:** Restringir campos de Filial e Cargo a `<select>` para garantir integridade de dados.
 
+## 12. Segurança Operacional e Inviolabilidade de Ordens Restritivas
+- **Inviolabilidade de Ordens Negativas ("NÃO FAÇA"):** Se o usuário determinar que algo NÃO deve ser feito, NÃO deve ser enviado ou NÃO deve ser modificado, essa ordem tem prioridade absoluta sobre qualquer nível de autonomia. O agente está terminantemente proibido de transgredir restrições negativas.
+- **Proibição de Deploys Remotos de Software:** O APP_Bak reside e é mantido diretamente no servidor de produção (`192.168.50.211`). Desta máquina local, NUNCA disparar scripts de deploy de código (`PUBLICAR_NO_SERVIDOR.py`, empacotamento ZIP, chamadas ao endpoint `/api/admin/deploy`). A única comunicação autorizada para o servidor do aplicativo a partir desta máquina é o envio estrito de dados brutos (`query.parquet`) via `/api/admin/upload-query`.
+
 

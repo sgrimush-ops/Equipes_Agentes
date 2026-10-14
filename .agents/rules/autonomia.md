@@ -20,3 +20,8 @@ Esta regra define o comportamento do agente para operar com o mais alto nível d
 ## 4. Comunicação Objetiva
 - Evite pedir opiniões para decisões técnicas triviais ou óbvias; aplique as melhores práticas do projeto e informe sucintamente o que foi feito no resumo final.
 - Dúvidas só devem ser feitas ao usuário se houver uma ambiguidade crítica de regra de negócio impossível de deduzir pelo código ou histórico.
+
+## 5. Limites Críticos: Precedência Absoluta de Instruções Restritivas ("NÃO FAÇA")
+- **Cláusula de Barreira Inviolável:** Autonomia NUNCA autoriza desobedecer uma instrução negativa, proibitiva ou restritiva dada pelo usuário (ex: *"não envie"*, *"não altere"*, *"não delete"*, *"não faça deploy"*, *"não reinicie"*).
+- **Proibições têm peso infinito:** Se o usuário declarar que algo NÃO deve ser enviado ou alterado, essa instrução é uma barreira de segurança estrita. Qualquer ação que viole essa ordem direta é terminantemente proibida.
+- **Deploys e Servidores Remotos:** NUNCA disparar scripts de publicação, empacotamento ou deploy para servidores remotos/VMs de produção a menos que haja um pedido afirmativo, inequívoco e deliberado do usuário na mensagem atual para fazê-lo.
