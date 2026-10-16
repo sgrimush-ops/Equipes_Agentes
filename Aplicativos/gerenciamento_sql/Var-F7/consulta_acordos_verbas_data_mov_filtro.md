@@ -35,7 +35,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `TOTAL_PARCELAS`: total de parcelas geradas/programadas.
 - `PARCELAS_PAGAS`: total de parcelas liquidadas.
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
-- `VALOR_PAG_REGISTRADO`: valor monetário da última operação financeira vinculada ao operador.
+- `VALOR_PAG_REGISTRADO`: soma de todos os lançamentos/baixas operacionais registrados para a parcela (`FI_TITOPERACAO.VLROPERACAO`), respeitando o filtro de usuários (`:LT2`) ou somando a totalidade quitada da parcela quando `:LT2 = '0'`.
 - `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação registrada (`USUARIO - DD/MM/YYYY HH24.MI.SS`).
 
 ## Variáveis para cadastrar em Var - F7 (9 Variáveis)
