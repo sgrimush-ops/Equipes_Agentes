@@ -21,21 +21,18 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `ESPECIE_TITULO`: sigla da espécie do título financeiro vinculado (ex: `DEVREC`, `VERBA`, `ACORDO`, `ACRPRE`, etc.).
 - `ABERTO_QUITADO`: status financeiro atual ('Quitado', 'Aberto', 'Sem Título').
 - `TIPO_ACORDO`: modalidade do acordo ('VERBA EXTRA', 'SELL-OUT', 'SELL-IN').
-- `CODIGO_PRODUTO`: código do item vinculado (`A.SEQPRODUTO`).
-- `QTD_UTILIZADA_VERBA`: quantidade utilizada/abatida da verba.
 - `DATA_FINAL_VERBA`: data de vigência final da verba formatada (`DD/MM/YYYY`).
 - `VENCIMENTO_EM_ABERTO`: menor data de vencimento com saldo pendente (`DD/MM/YYYY`).
 - `ULTIMO_RECEBIMENTO`: data da quitação ou última alteração (`DD/MM/YYYY`).
 - `NUMERO_NF`: número do documento fiscal.
 - `NUMERO_PEDIDO_SUPRIMENTO`: número do pedido de compra/suprimento.
-- `VALOR_ACORDO`: valor total bruto do acordo (`R$ 0.000,00`).
-- `VLR_FIN_VENCIDO`: valor vencido em aberto (`R$ 0.000,00`).
-- `VLR_JA_QUITADO`: valor financeiro acumulado quitado (`R$ 0.000,00`).
-- `VALOR_UTILIZADO_PRODUTO`: valor abatido em produtos (`R$ 0.000,00`).
+- `VALOR_ACORDO`: valor total bruto do acordo (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de cada acordo para evitar duplicações na soma de relatórios e planilhas.
+- `VLR_FIN_VENCIDO`: valor vencido em aberto (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de cada acordo.
+- `VLR_JA_QUITADO`: valor financeiro acumulado quitado (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de cada acordo.
 - `TOTAL_PARCELAS`: total de parcelas geradas/programadas.
 - `PARCELAS_PAGAS`: total de parcelas liquidadas.
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
-- `VALOR_PAG_REGISTRADO`: soma de todos os lançamentos/baixas operacionais registrados para a parcela (`FI_TITOPERACAO.VLROPERACAO`), respeitando o filtro de usuários (`:LT2`) ou somando a totalidade quitada da parcela quando `:LT2 = '0'`.
+- `VALOR_PAG_REGISTRADO`: soma das baixas/quentações operacionais efetivas registradas para a parcela (`FI_TITOPERACAO.VLROPERACAO` com `CODOPERACAO != 16`) com expurgo estrito de cancelados (`TRIM(USUCANCELOU) IS NULL`). A operação 16 (Inclusão de Títulos) nunca gera valor financeiro de pagamento, exibindo `R$ 0,00` para títulos que ainda estão em aberto e só possuem o lançamento.
 - `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação registrada (`USUARIO - DD/MM/YYYY HH24.MI.SS`).
 
 ## Variáveis para cadastrar em Var - F7 (9 Variáveis)
@@ -43,7 +40,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 | Variável | Tipo | Descrição na Tela | Valor Padrão | Instrução p/ o Usuário |
 | :--- | :--- | :--- | :--- | :--- |
 | **`LT1`** | Literal | Lojas | `1,2,3,4,5,6,7,8,11,12,13,14,15,16,17,18,21,50,900` | `0` para todas ou lojas separadas por vírgula |
-| **`LT2`** | Literal | Usuarios da Manutenção | `0` | `0` para todos ou logins separados por vírgula |
+| **`LT2`** | Literal | Usuarios da Manutenção | `0` | `0` para todos (não duplica mais independente do usuário) ou logins específicos |
 | **`LT3`** | Literal | Código Fornecedor | `0` | `0` para todos ou códigos de fornecedores separados por vírgula |
 | **`NR1`** | Numérico | Expurgar CANCELADO | `2` | `2` para expurgar cancelados ou `0` para todos |
 | **`DT1`** | Data | Data Inicial Lançamento | `01/01/2026` | Início do período |

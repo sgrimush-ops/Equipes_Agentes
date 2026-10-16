@@ -100,7 +100,7 @@ SELECT * FROM (
             FROM MSU_ACORDOPROMOC A
             INNER JOIN FI_TITOPERACAO TOA
                 ON TOA.NROPROCESSO = A.SEQPROCESSO
-               AND TOA.USUCANCELOU IS NULL
+               AND TRIM(TOA.USUCANCELOU) IS NULL
             INNER JOIN FI_TITULO T
                 ON T.SEQTITULO = TOA.SEQTITULO
                AND T.NROEMPRESA = A.NROEMPRESA
@@ -150,27 +150,48 @@ SELECT * FROM (
         )
     ),
 
-    CTE_OPERACOES_TITULO AS (
+    CTE_OPERACOES_RAW AS (
         SELECT /*+ MATERIALIZE */
             O.SEQTITULO,
-            MAX(O.DTAOPERACAO) AS MAX_DTAOPERACAO,
-            MAX(NVL(O.DTAHORAALTERACAO, O.DTAALTERACAO)) AS MAX_DTAHORAALTERACAO,
-            MAX(O.USUALTERACAO) KEEP (
-                DENSE_RANK LAST 
-                ORDER BY NVL(O.DTAHORAALTERACAO, O.DTAALTERACAO) NULLS FIRST, O.SEQTITOPERACAO
-            ) AS USUALTERACAO,
-            SUM(NVL(O.VLROPERACAO, 0)) AS VLROPERACAO
+            O.SEQTITOPERACAO,
+            O.CODOPERACAO,
+            O.DTAOPERACAO,
+            NVL(O.DTAHORAALTERACAO, O.DTAALTERACAO) AS DTAALTERACAO_EFETIVA,
+            O.USUALTERACAO,
+            NVL(O.VLROPERACAO, 0) AS VLROPERACAO,
+            COUNT(
+                CASE 
+                    WHEN O.CODOPERACAO != 16 
+                    THEN 1 
+                END
+            ) OVER (PARTITION BY O.SEQTITULO) AS QTD_OUTRAS_OPS
         FROM FI_TITOPERACAO O
         INNER JOIN CTE_TITULOS_ACORDO TA
             ON TA.SEQTITULO = O.SEQTITULO
-        WHERE O.OPCANCELADA IS NULL
-          AND O.USUCANCELOU IS NULL
-          AND (
-                NVL(TRIM(:LT2), '0') IN ('0', 'TODOS', '')
-                OR INSTR(',' || UPPER(REPLACE(:LT2, ' ', '')) || ',', ',' || UPPER(TRIM(O.USUALTERACAO)) || ',') > 0
-              )
+        WHERE (O.OPCANCELADA IS NULL OR TRIM(O.OPCANCELADA) = 'N')
+          AND TRIM(O.USUCANCELOU) IS NULL
+    ),
+
+    CTE_OPERACOES_TITULO AS (
+        SELECT /*+ MATERIALIZE */
+            R.SEQTITULO,
+            MAX(R.DTAOPERACAO) AS MAX_DTAOPERACAO,
+            MAX(R.DTAALTERACAO_EFETIVA) AS MAX_DTAHORAALTERACAO,
+            MAX(R.USUALTERACAO) KEEP (
+                DENSE_RANK LAST 
+                ORDER BY R.DTAALTERACAO_EFETIVA NULLS FIRST, R.SEQTITOPERACAO
+            ) AS USUALTERACAO,
+            SUM(
+                CASE 
+                    WHEN R.CODOPERACAO != 16 
+                    THEN R.VLROPERACAO 
+                    ELSE 0 
+                END
+            ) AS VLROPERACAO
+        FROM CTE_OPERACOES_RAW R
+        WHERE (R.QTD_OUTRAS_OPS = 0 OR R.CODOPERACAO != 16)
         GROUP BY
-            O.SEQTITULO
+            R.SEQTITULO
     ),
 
     CTE_TITULOS_GLOBAL AS (
@@ -243,21 +264,6 @@ SELECT * FROM (
             C.APELIDO,
             MAX(A.STATUS) AS STATUS,
             A.TIPOACORDO,
-            A.SEQPRODUTO,
-
-            NVL(
-                (
-                    SELECT SUM(VC.QTDUTILIZADAVERBA)
-                    FROM MRLV_VERBACONSUMIDA VC
-                    WHERE VC.APPORIGEM = 2
-                      AND VC.STATUSVERBA != 'R'
-                      AND VC.NROACORDO = A.NROACORDO
-                      AND VC.NROEMPRESAACORDO = A.NROEMPRESA
-                      AND VC.SEQPRODUTO = A.SEQPRODUTO
-                ),
-                MAX(A.QTDUTILIZADAVERBA)
-            ) AS QTDUTILIZADAVERBA,
-
             A.DTAFINALVERBA,
             NVL(TG.DTAVENCIMENTO, RG.MIN_DTAVENCIMENTO_ABERTO) AS DTAVENCIMENTO,
             NVL(TG.DTAQUITACAO, TG.DTA_ULTIMA_ALTERACAO) AS ULTIMO_RECEBIMENTO,
@@ -298,19 +304,6 @@ SELECT * FROM (
             A.VLRACORDO AS RAW_VLRACORDO,
             NVL(RG.GLOBAL_VLR_QUITADO, 0) AS RAW_VLRQUITADO,
 
-            NVL(
-                (
-                    SELECT SUM(VC.VLRUTILIZADOVERBA)
-                    FROM MRLV_VERBACONSUMIDA VC
-                    WHERE VC.APPORIGEM = 2
-                      AND VC.STATUSVERBA != 'R'
-                      AND VC.NROACORDO = A.NROACORDO
-                      AND VC.NROEMPRESAACORDO = A.NROEMPRESA
-                      AND VC.SEQPRODUTO = A.SEQPRODUTO
-                ),
-                MAX(A.VLRUTILPROD)
-            ) AS VLRUTILPROD,
-
             GREATEST(
                 NVL(
                     (
@@ -343,15 +336,6 @@ SELECT * FROM (
                 -
                 NVL(RG.TITULOS_QUITADOS, 0)
             ) AS PARCELAS_PENDENTES,
-
-            CASE
-                WHEN A.SEQPRODUTO IS NOT NULL
-                 AND NVL(MAX(A.VLRUTILPROD), 0) > 0
-                THEN
-                    NVL(MAX(A.VLRUTILPROD), 0)
-                ELSE
-                    A.VLRACORDO
-            END AS PROD_PESO,
 
             TG.USU_ULTIMA_ALTERACAO,
             TG.DTA_ULTIMA_ALTERACAO,
@@ -451,7 +435,6 @@ SELECT * FROM (
             A.DTAEMISSAO,
             C.APELIDO,
             A.TIPOACORDO,
-            A.SEQPRODUTO,
             A.DTAFINALVERBA,
             A.NROPEDIDOSUPRIM,
             A.VLRACORDO
@@ -464,15 +447,8 @@ SELECT * FROM (
             MAX(RAW_VLRQUITADO) AS ACORDO_RAW_QUITADO,
             MAX(RAW_VLRFINVENCIDO) AS ACORDO_RAW_VENCIDO,
             MAX(RAW_VLRFINAVENCER) AS ACORDO_RAW_AVENCER,
-            SUM(PROD_PESO) AS ACORDO_SUM_PESO,
-
             GREATEST(
-                CASE
-                    WHEN COUNT(DISTINCT SEQPRODUTO) > 1
-                     AND SUM(PROD_PESO) > 0
-                    THEN SUM(PROD_PESO)
-                    ELSE MAX(RAW_VLRACORDO)
-                END,
+                MAX(RAW_VLRACORDO),
                 NVL(MAX(RAW_VLRQUITADO), 0)
                 + NVL(MAX(RAW_VLRFINVENCIDO), 0)
                 + NVL(MAX(RAW_VLRFINAVENCER), 0),
@@ -490,7 +466,6 @@ SELECT * FROM (
             H.NROEMPRESA,
             H.NROACORDO,
             H.ACORDO_VLR_TOTAL AS VLR_TOTAL_ACORDO,
-            H.ACORDO_SUM_PESO,
 
             CASE
                 WHEN NVL(H.ACORDO_RAW_QUITADO, 0) > 0
@@ -529,8 +504,6 @@ SELECT * FROM (
             B.APELIDO,
             B.STATUS,
             B.TIPOACORDO,
-            B.SEQPRODUTO,
-            B.QTDUTILIZADAVERBA,
             B.DTAFINALVERBA,
             B.DTAVENCIMENTO,
             B.ULTIMO_RECEBIMENTO,
@@ -542,36 +515,9 @@ SELECT * FROM (
 
             F.VLR_TOTAL_ACORDO AS VLRACORDO,
             F.ACORDO_VLR_QUITADO AS CALC_VLRQUITADO,
+            F.ACORDO_VLR_ABERTO AS CALC_VLR_EM_ABERTO,
+            F.ACORDO_VLR_VENCIDO AS CALC_VLRFINVENCIDO,
 
-            CASE
-                WHEN F.ACORDO_SUM_PESO > 0
-                THEN
-                    ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
-                    -
-                    ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
-                ELSE F.ACORDO_VLR_ABERTO
-            END AS CALC_VLR_EM_ABERTO,
-
-            LEAST(
-                CASE
-                    WHEN F.ACORDO_SUM_PESO > 0
-                    THEN
-                        ROUND(F.VLR_TOTAL_ACORDO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
-                        -
-                        ROUND(F.ACORDO_VLR_QUITADO * (B.PROD_PESO / F.ACORDO_SUM_PESO), 2)
-                    ELSE F.ACORDO_VLR_ABERTO
-                END,
-                CASE
-                    WHEN F.ACORDO_SUM_PESO > 0
-                    THEN ROUND(
-                        F.ACORDO_VLR_VENCIDO * (B.PROD_PESO / F.ACORDO_SUM_PESO),
-                        2
-                    )
-                    ELSE F.ACORDO_VLR_VENCIDO
-                END
-            ) AS CALC_VLRFINVENCIDO,
-
-            B.VLRUTILPROD,
             B.TOTAL_PARCELAS,
             B.PARCELAS_PAGAS,
             B.PARCELAS_PENDENTES,
@@ -600,8 +546,6 @@ SELECT * FROM (
             APELIDO,
             STATUS,
             TIPOACORDO,
-            SEQPRODUTO,
-            QTDUTILIZADAVERBA,
             DTAFINALVERBA,
             DTAVENCIMENTO,
             ULTIMO_RECEBIMENTO,
@@ -615,7 +559,6 @@ SELECT * FROM (
             VLRACORDO,
             CALC_VLR_EM_ABERTO AS VLR_EM_ABERTO,
             CALC_VLRQUITADO AS VLR_JA_QUITADO,
-            VLRUTILPROD,
 
             TOTAL_PARCELAS,
             PARCELAS_PAGAS,
@@ -656,7 +599,11 @@ SELECT * FROM (
 
     CTE_CLASSIFICADA AS (
         SELECT /*+ MATERIALIZE */
-            C.*
+            C.*,
+            ROW_NUMBER() OVER (
+                PARTITION BY C.NROEMPRESA, C.NROACORDO
+                ORDER BY NVL(C.NROPARCELA, 1), NVL(C.SEQTITULO, 0)
+            ) AS RN_ACORDO
         FROM CTE_CLASSIFICADA_PRE C
         WHERE (
             NVL(TRIM(:LS2), '0 - TODOS') IN ('0 - TODOS', 'TODOS', '', '0')
@@ -684,7 +631,6 @@ SELECT * FROM (
         SELECT
             NVL(SUM(VLRACORDO), 0) AS TOTAL_VLRACORDO,
             NVL(SUM(VLRFINVENCIDO), 0) AS TOTAL_VLRFINVENCIDO,
-            NVL(SUM(VLRUTILPROD), 0) AS TOTAL_VLRUTILPROD,
             NVL(SUM(VLR_JA_QUITADO), 0) AS TOTAL_VLR_QUITADO,
             NVL(SUM(VLR_ULTIMA_OPERACAO), 0) AS TOTAL_VLR_OPERACAO
         FROM (
@@ -693,7 +639,6 @@ SELECT * FROM (
                 NROEMPRESA,
                 MAX(VLRACORDO) AS VLRACORDO,
                 MAX(VLRFINVENCIDO) AS VLRFINVENCIDO,
-                MAX(VLRUTILPROD) AS VLRUTILPROD,
                 MAX(VLR_JA_QUITADO) AS VLR_JA_QUITADO,
                 SUM(VLR_PARCELA_OPERACAO) AS VLR_ULTIMA_OPERACAO
             FROM (
@@ -703,7 +648,6 @@ SELECT * FROM (
                     NVL(SEQTITULO, 0) AS SEQTITULO,
                     MAX(VLRACORDO) AS VLRACORDO,
                     MAX(VLRFINVENCIDO) AS VLRFINVENCIDO,
-                    MAX(VLRUTILPROD) AS VLRUTILPROD,
                     MAX(VLR_JA_QUITADO) AS VLR_JA_QUITADO,
                     MAX(VLR_ULTIMA_OPERACAO) AS VLR_PARCELA_OPERACAO
                 FROM CTE_CLASSIFICADA
@@ -741,7 +685,6 @@ SELECT * FROM (
         SELECT
             V.TOTAL_VLRACORDO,
             V.TOTAL_VLRFINVENCIDO,
-            V.TOTAL_VLRUTILPROD,
             V.TOTAL_VLR_QUITADO,
             V.TOTAL_VLR_OPERACAO,
             P.TOTAL_PARC_GERADAS,
@@ -766,8 +709,6 @@ SELECT * FROM (
         ESPECIE_TITULO,
         ABERTO_QUITADO,
         TIPO_ACORDO,
-        CODIGO_PRODUTO,
-        QTD_UTILIZADA_VERBA,
         DATA_FINAL_VERBA,
         VENCIMENTO_EM_ABERTO,
         ULTIMO_RECEBIMENTO,
@@ -776,7 +717,6 @@ SELECT * FROM (
         VALOR_ACORDO,
         VLR_FIN_VENCIDO,
         VLR_JA_QUITADO,
-        VALOR_UTILIZADO_PRODUTO,
         TOTAL_PARCELAS,
         PARCELAS_PAGAS,
         PARCELAS_PENDENTES,
@@ -801,17 +741,26 @@ SELECT * FROM (
             NVL(X.ESPECIE_TITULO, 'ACORDO') AS ESPECIE_TITULO,
             NVL(X.ABERTO_QUITADO, 'Sem Título') AS ABERTO_QUITADO,
             CASE WHEN X.TIPOACORDO = 1 THEN 'VERBA EXTRA' WHEN X.TIPOACORDO = 2 THEN 'SELL-OUT' WHEN X.TIPOACORDO = 3 THEN 'SELL-IN' END AS TIPO_ACORDO,
-            TO_CHAR(X.SEQPRODUTO) AS CODIGO_PRODUTO,
-            TO_CHAR(X.QTDUTILIZADAVERBA) AS QTD_UTILIZADA_VERBA,
             TO_CHAR(X.DTAFINALVERBA, 'DD/MM/YYYY') AS DATA_FINAL_VERBA,
             TO_CHAR(X.VENCIMENTO_EM_ABERTO, 'DD/MM/YYYY') AS VENCIMENTO_EM_ABERTO,
             TO_CHAR(NVL(X.ULTIMO_RECEBIMENTO, X.DTA_ULTIMA_ALTERACAO), 'DD/MM/YYYY') AS ULTIMO_RECEBIMENTO,
             X.NUMERONF AS NUMERO_NF,
             TO_CHAR(X.NROPEDIDOSUPRIM) AS NUMERO_PEDIDO_SUPRIMENTO,
-            'R$ ' || TO_CHAR(NVL(X.VLRACORDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_ACORDO,
-            'R$ ' || TO_CHAR(NVL(X.VLRFINVENCIDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_FIN_VENCIDO,
-            'R$ ' || TO_CHAR(NVL(X.VLR_JA_QUITADO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_JA_QUITADO,
-            'R$ ' || TO_CHAR(NVL(X.VLRUTILPROD, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_UTILIZADO_PRODUTO,
+            CASE
+                WHEN X.RN_ACORDO = 1
+                THEN 'R$ ' || TO_CHAR(NVL(X.VLRACORDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''')
+                ELSE NULL
+            END AS VALOR_ACORDO,
+            CASE
+                WHEN X.RN_ACORDO = 1
+                THEN 'R$ ' || TO_CHAR(NVL(X.VLRFINVENCIDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''')
+                ELSE NULL
+            END AS VLR_FIN_VENCIDO,
+            CASE
+                WHEN X.RN_ACORDO = 1
+                THEN 'R$ ' || TO_CHAR(NVL(X.VLR_JA_QUITADO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''')
+                ELSE NULL
+            END AS VLR_JA_QUITADO,
             TO_CHAR(X.TOTAL_PARCELAS) AS TOTAL_PARCELAS,
             TO_CHAR(X.PARCELAS_PAGAS) AS PARCELAS_PAGAS,
             TO_CHAR(X.PARCELAS_PENDENTES) AS PARCELAS_PENDENTES,
@@ -839,8 +788,6 @@ SELECT * FROM (
             NULL AS ESPECIE_TITULO,
             NULL AS ABERTO_QUITADO,
             NULL AS TIPO_ACORDO,
-            NULL AS CODIGO_PRODUTO,
-            NULL AS QTD_UTILIZADA_VERBA,
             NULL AS DATA_FINAL_VERBA,
             NULL AS VENCIMENTO_EM_ABERTO,
             NULL AS ULTIMO_RECEBIMENTO,
@@ -849,7 +796,6 @@ SELECT * FROM (
             'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRACORDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_ACORDO,
             'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRFINVENCIDO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_FIN_VENCIDO,
             'R$ ' || TO_CHAR(NVL(T.TOTAL_VLR_QUITADO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VLR_JA_QUITADO,
-            'R$ ' || TO_CHAR(NVL(T.TOTAL_VLRUTILPROD, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_UTILIZADO_PRODUTO,
             TO_CHAR(T.TOTAL_PARC_GERADAS) AS TOTAL_PARCELAS,
             TO_CHAR(T.TOTAL_PARC_PAGAS) AS PARCELAS_PAGAS,
             TO_CHAR(T.TOTAL_PARC_PENDENTES) AS PARCELAS_PENDENTES,
