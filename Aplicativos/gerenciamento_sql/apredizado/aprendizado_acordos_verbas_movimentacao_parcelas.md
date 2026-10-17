@@ -94,19 +94,23 @@ Quando o usuário solicita um relatório de movimentação financeira no períod
 
 ---
 
-## 3. Desduplicação de Operações em `FI_TITOPERACAO` (Operação 16 - Inclusão de Títulos)
+## 3. Desduplicação de Operações em `FI_TITOPERACAO` (Operações 16 e 18 - Inclusão e Lançamentos Duplicadores)
 
-### ❌ O Problema da Duplicação por Usuário
-A tabela `FI_TITOPERACAO` do Totvs Consinco grava a **Operação 16 (`Incl Títulos`)** com o valor nominal do título no momento da criação do contas a pagar/receber. Posteriormente, liquidações e baixas geram novas operações na mesma tabela.
+### ❌ O Problema da Duplicação por Usuário e Operação
+A tabela `FI_TITOPERACAO` do Totvs Consinco grava operações estruturais de lançamento inicial e contrapartidas técnicas:
+- **Operação 16 (`Incl Títulos`)**: gravada com o valor nominal do título no momento da criação do contas a pagar/receber.
+- **Operação 18**: gravada como lançamento complementar/ajuste/espelho de movimentação que também carrega o valor nominal ou duplicado do título.
 
-Inicialmente, para evitar a soma de `Inclusão + Baixa`, filtrava-se apenas usuárias da quitação (ex: `VERIDI`, `DEBCO`). Porém, essa abordagem falhou criticamente quando:
-1. Um mesmo operador (ativo ou inativo) realizou a inclusão E a quitação do título.
-2. Ao filtrar por esse usuário, ambas as operações passavam, somando a Inclusão (R$ 3.571,43) + a Quitação (R$ 3.571,43) = R$ 7.142,86 (duplicado).
-3. Títulos quitados por outros operadores ficavam de fora.
+Posteriormente, quitações, liquidações e baixas financeiras geram novas operações na mesma tabela (ex: compensações, baixas bancárias).
 
-### ✅ A Solução Definitiva em 2 CTEs
+Se o SQL tentar somar as operações sem tratamento ou tentar filtrar por usuário:
+1. **Filtro por usuário falha:** Se o operador realizou a inclusão (operação 16/18) e outro a quitação, ou se o mesmo usuário fez ambos, somar todas as linhas gera `Inclusão (R$ 3.571,43) + Operação 18 (R$ 3.571,43) + Baixa (R$ 3.571,43)`, multiplicando indevidamente o valor pago.
+2. **Duplicação de Valores:** A operação 18, quando somada junto às operações normais de baixa, duplica ou infla o valor total pago do acordo/título.
+3. **Falsa Quitação em Títulos Abertos:** Se a operação 16 ou 18 for tratada como pagamento, um título 100% em aberto exibiria `VALOR_PAG_REGISTRADO` preenchido com o valor nominal, simulando uma liquidação que nunca ocorreu.
 
-1. **`CTE_OPERACOES_RAW`**: Conta analiticamente quantas operações **diferentes de 16 e não canceladas** existem para cada título:
+### ✅ A Solução Definitiva em 2 CTEs (Expurgo Coordenado de 16 e 18)
+
+1. **`CTE_OPERACOES_RAW`**: Conta analiticamente quantas operações **efetivas de liquidação/baixa (diferentes de 16 e 18 e não canceladas)** existem para cada título:
    ```sql
    CTE_OPERACOES_RAW AS (
        SELECT /*+ MATERIALIZE */
@@ -119,7 +123,7 @@ Inicialmente, para evitar a soma de `Inclusão + Baixa`, filtrava-se apenas usu�
            NVL(O.VLROPERACAO, 0) AS VLROPERACAO,
            COUNT(
                CASE 
-                   WHEN O.CODOPERACAO != 16 
+                   WHEN O.CODOPERACAO NOT IN (16, 18) 
                    THEN 1 
                END
            ) OVER (PARTITION BY O.SEQTITULO) AS QTD_OUTRAS_OPS
@@ -131,10 +135,10 @@ Inicialmente, para evitar a soma de `Inclusão + Baixa`, filtrava-se apenas usu�
    )
    ```
 
-2. **`CTE_OPERACOES_TITULO`**: Filtra e agrega os valores com as seguintes regras de negócio:
-   - **Se já existem outras operações (`QTD_OUTRAS_OPS > 0`)**: a Operação 16 é **completamente expurgada**. Sobram apenas as baixas/quentações.
-   - **Se NÃO existem outras operações (`QTD_OUTRAS_OPS = 0`)**: a Operação 16 é **mantida** para trazer a auditoria de quem lançou (`MAGE`, `ROLIVA`) e quando foi lançado.
-   - **Regra de Ouro do Pagamento Registrado:** a Operação 16 NUNCA é um pagamento! Portanto, o `SUM` só soma quando `CODOPERACAO != 16`. Um título em aberto que só tem lançamento exibe `R$ 0,00` em `VALOR_PAG_REGISTRADO`, nunca o valor nominal do título!
+2. **`CTE_OPERACOES_TITULO`**: Filtra e agrega os valores com as seguintes regras de negócio imutáveis:
+   - **Se já existem operações de quitação/baixa (`QTD_OUTRAS_OPS > 0`)**: As operações 16 e 18 são **completamente expurgadas** (`R.CODOPERACAO NOT IN (16, 18)`). Sobram apenas as baixas operacionais legítimas.
+   - **Se NÃO existem operações de quitação (`QTD_OUTRAS_OPS = 0`)**: As linhas de lançamento (16/18) são **mantidas** no `WHERE` para capturar a auditoria de quem lançou/criou o título (`USUALTERACAO`) e o respectivo timestamp.
+   - **Regra de Ouro do Pagamento Registrado:** As operações 16 e 18 NUNCA representam pagamento! Portanto, o `SUM` soma exclusivamente valores quando `R.CODOPERACAO NOT IN (16, 18)`. Títulos que ainda estão em aberto e só possuem lançamento inicial exibem rigorosamente `R$ 0,00` em `VALOR_PAG_REGISTRADO`.
 
    ```sql
    CTE_OPERACOES_TITULO AS (
@@ -148,13 +152,13 @@ Inicialmente, para evitar a soma de `Inclusão + Baixa`, filtrava-se apenas usu�
            ) AS USUALTERACAO,
            SUM(
                CASE 
-                   WHEN R.CODOPERACAO != 16 
+                   WHEN R.CODOPERACAO NOT IN (16, 18) 
                    THEN R.VLROPERACAO 
                    ELSE 0 
                END
            ) AS VLROPERACAO
        FROM CTE_OPERACOES_RAW R
-       WHERE (R.QTD_OUTRAS_OPS = 0 OR R.CODOPERACAO != 16)
+       WHERE (R.QTD_OUTRAS_OPS = 0 OR R.CODOPERACAO NOT IN (16, 18))
        GROUP BY
            R.SEQTITULO
    )
@@ -173,4 +177,4 @@ Antes de entregar qualquer query SQL para o ERP Totvs Consinco:
 - [x] Todas as colunas do `UNION ALL` estão alinhadas 1-para-1 em quantidade, ordem e tipo.
 - [x] Todos os parênteses estão balanceados.
 - [x] Colunas globais de acordo preenchidas exclusivamente na primeira parcela (`RN_ACORDO = 1`) para fechar soma de Excel.
-- [x] Operação 16 de `FI_TITOPERACAO` expurgada quando houver baixas, e com valor financeiro zerado para pagamentos registrados em títulos abertos.
+- [x] Operações 16 e 18 de `FI_TITOPERACAO` expurgadas quando houver baixas, e com valor financeiro zerado para pagamentos registrados em títulos abertos.

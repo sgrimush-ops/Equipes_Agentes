@@ -154,7 +154,7 @@ SELECT * FROM (
             NVL(O.VLROPERACAO, 0) AS VLROPERACAO,
             COUNT(
                 CASE 
-                    WHEN O.CODOPERACAO != 16 
+                    WHEN O.CODOPERACAO NOT IN (16, 18) 
                     THEN 1 
                 END
             ) OVER (PARTITION BY O.SEQTITULO) AS QTD_OUTRAS_OPS
@@ -176,13 +176,13 @@ SELECT * FROM (
             ) AS USUALTERACAO,
             SUM(
                 CASE 
-                    WHEN R.CODOPERACAO != 16 
+                    WHEN R.CODOPERACAO NOT IN (16, 18) 
                     THEN R.VLROPERACAO 
                     ELSE 0 
                 END
             ) AS VLROPERACAO
         FROM CTE_OPERACOES_RAW R
-        WHERE (R.QTD_OUTRAS_OPS = 0 OR R.CODOPERACAO != 16)
+        WHERE (R.QTD_OUTRAS_OPS = 0 OR R.CODOPERACAO NOT IN (16, 18))
         GROUP BY
             R.SEQTITULO
     ),

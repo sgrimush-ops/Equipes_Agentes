@@ -32,7 +32,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `TOTAL_PARCELAS`: total de parcelas geradas/programadas.
 - `PARCELAS_PAGAS`: total de parcelas liquidadas.
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
-- `VALOR_PAG_REGISTRADO`: soma das baixas/quentações operacionais efetivas registradas para a parcela (`FI_TITOPERACAO.VLROPERACAO` com `CODOPERACAO != 16`) com expurgo estrito de cancelados (`TRIM(USUCANCELOU) IS NULL`). A operação 16 (Inclusão de Títulos) nunca gera valor financeiro de pagamento, exibindo `R$ 0,00` para títulos que ainda estão em aberto e só possuem o lançamento.
+- `VALOR_PAG_REGISTRADO`: soma das baixas/quentações operacionais efetivas registradas para a parcela (`FI_TITOPERACAO.VLROPERACAO` com `CODOPERACAO NOT IN (16, 18)`) com expurgo estrito de cancelados (`TRIM(USUCANCELOU) IS NULL`). As operações 16 (Inclusão de Títulos) e 18 nunca geram valor financeiro de pagamento/duplicação, sendo expurgadas da soma e das operações ativas quando houver outras operações registradas, exibindo `R$ 0,00` para títulos em aberto que só possuem tais lançamentos.
 - `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação registrada (`USUARIO - DD/MM/YYYY HH24.MI.SS`).
 
 ## Variáveis para cadastrar em Var - F7 (9 Variáveis)
