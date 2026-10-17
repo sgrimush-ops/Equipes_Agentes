@@ -1,4 +1,5 @@
 import os
+import re
 import math
 import json
 from pathlib import Path
@@ -523,31 +524,36 @@ def processar_calculos():
     print("      DEFINIÇÃO DO ESCOPO DE PROCESSAMENTO")
     print("="*50)
     print("[1] - Todas as Lojas (Geral - exceto CDs)")
-    print("[2] - Loja Específica (Processamento Exclusivo)")
+    print("[2] - Loja(s) Específica(s) (Processamento Exclusivo)")
     print("="*50)
 
     while True:
         opcao_escopo = input("-> Digite a opção escolhida (1 ou 2): ").strip()
         if opcao_escopo in ['1', '2']:
             break
-        print("x Opção inválida. Digite 1 para Todas as Lojas ou 2 para Loja Específica.")
+        print("x Opção inválida. Digite 1 para Todas as Lojas ou 2 para Loja(s) Específica(s).")
 
-    loja_especifica = None
+    lojas_selecionadas = []
     if opcao_escopo == '2':
         while True:
-            loja_input = input("-> Digite o número da Loja a ser processada (ex: 14, 18): ").strip()
-            if loja_input.isdigit() and int(loja_input) > 0:
-                loja_especifica = int(loja_input)
+            loja_input = input("-> Digite o número da(s) Loja(s) a ser(em) processada(s) (ex: 01, 02, 03 ou 14, 18): ").strip()
+            # Extrai todos os números digitados (aceita '01, 02, 03', '1 2 3', '14; 18', etc.)
+            lojas_encontradas = [int(num) for num in re.findall(r'\d+', loja_input) if int(num) > 0]
+            # Remove duplicados preservando a ordem
+            lojas_selecionadas = list(dict.fromkeys(lojas_encontradas))
+            if lojas_selecionadas:
                 break
-            print("x Número de loja inválido. Digite um número inteiro maior que 0.")
+            print("x Nenhuma loja válida identificada. Digite números inteiros maiores que 0 (ex: 01, 02, 03 ou 14, 18).")
 
-        print(f"\n=> Filtrando o banco de dados exclusivamente para a Loja {loja_especifica}...")
+        lojas_formatadas = [f"{l:02d}" if l < 10 else str(l) for l in lojas_selecionadas]
+        lojas_str = ", ".join(lojas_formatadas)
+        print(f"\n=> Filtrando o banco de dados exclusivamente para a(s) Loja(s): {lojas_str} ({len(lojas_selecionadas)} loja(s) selecionada(s))...")
         df['CODIGO_EMPRESA_INT'] = pd.to_numeric(df['CODIGO_EMPRESA'], errors='coerce').fillna(-1).astype(int)
-        df = df[df['CODIGO_EMPRESA_INT'] == loja_especifica].copy()
+        df = df[df['CODIGO_EMPRESA_INT'].isin(lojas_selecionadas)].copy()
         df = df.drop(columns=['CODIGO_EMPRESA_INT'])
-        print(f"=> Total de registros carregados para a Loja {loja_especifica}: {len(df)} linhas.")
+        print(f"=> Total de registros carregados para a(s) Loja(s) {lojas_str}: {len(df)} linhas.")
         if df.empty:
-            print(f"[ERRO] Não foram encontrados registros para a Loja {loja_especifica} no arquivo query.parquet.")
+            print(f"[ERRO] Não foram encontrados registros para a(s) Loja(s) {lojas_str} no arquivo query.parquet.")
             return
     else:
         print("\n=> Processando todas as lojas da rede (exceto CDs)...")

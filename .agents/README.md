@@ -24,7 +24,7 @@ A pasta `.agents` centraliza toda a inteligência do projeto, facilitando manute
 - `.agents/memory/` → kernel.py, seed_memory.py
 - `.agents/logs/` → janitor_log.txt
 - `.agents/configs/` → playwright.config.json
-- `.agents/best-practices/` → gam_robustness_best_practices.md
+- `.agents/best-practices/` → gam_robustness_best_practices.md, apoio_e_min_max_best_practices.md
 - `.agents/workflows/` → Equipes_agentes.md
 - `.agents/memory_db/` → chroma.sqlite3
 

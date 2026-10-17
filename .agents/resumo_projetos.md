@@ -75,9 +75,11 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
 
 ## 14. min_e_max
 * **Propósito:** Cálculo e parametrização de estoques mínimos e máximos da rede.
-* **Principais Arquivos:** `acao_ajustar_estoque.py`, `acao_preparar_manual_supply.py`.
+* **Principais Arquivos:** `1-min_max.py`, `acao_ajustar_estoque.py`, `acao_preparar_manual_supply.py`.
 * **Funcionamento:** Lógica para garantir a fluidez do abastecimento baseando-se em vendas e coberturas.
 * **Regra Crítica (Min/Max):** As colunas de Min/Max no Consinco são **baseadas em CAIXAS** (unidade de embalagem), não em unidades avulsas. Ao comparar estoque disponível (em unidades) com Min/Max, SEMPRE converta para a mesma unidade multiplicando Min/Max pelo fator da embalagem (`EMBL_COMPRA`). Nunca compare unidades vs caixas diretamente.
+* **Filtro Multi-Lojas e Formatação:** Entrada de lojas suporta múltiplos formatos e zeros à esquerda (ex: `01, 02, 03`). A extração utiliza Regex numérico e deduplicação de inteiros, com filtragem via `.isin()`.
+* **Opção de Relatório Recomendada:** O padrão operacional foca em `[1] APENAS sugestões para AUMENTAR`, prevenindo rupturas imediatas de gôndola.
 
 ## 15. ProjetoBak_Sincronizador
 * **Propósito:** Plataforma web Streamlit multi-perfil para gestão de pedidos de mix por fornecedores/representantes, pedidos internos de consumo/CD para filiais, campanhas de exposição e aprovação centralizada de compras/supply.
@@ -86,6 +88,16 @@ Este documento serve como referência rápida para o sistema de agentes sobre os
   - **Catálogo Analítico (`query.parquet`):** Filtragem estrita por `CODIGO_EMPRESA` antes de deduplicar, garantindo que produtos inativos para a filial não sejam exibidos com estoque 0.
   - **Tabela `consumo` & "Lista Consumo":** Gestão de materiais de consumo com validação rígida de código único, exportações formatadas em Excel (`.xlsx`) e PDF (`.pdf` via ReportLab com repetição de cabeçalho) e sincronização atômica contínua.
   - **Módulo de Campanhas de Exposição:** Workflow ponta a ponta Compras -> Supply -> Loja física com cubagem por bandeja e confronto de ruptura com CD15.
+
+## 16. Apoio (Painel Unificado de Apoio Operacional)
+* **Propósito:** Hub gráfico desktop (Tkinter moderno com identidade visual do GAM) para orquestração da cadeia de suprimentos e execução simplificada de pipelines.
+* **Principais Arquivos:** `app_apoio.py`, `iniciar_apoio.bat`, `README.md`.
+* **Funcionalidades Principais:**
+  - **1º Botão (Importação de Dados):** Executa `Aplicativos/import_querys/1-data_query.py` com streaming assíncrono de logs em tempo real (`PYTHONUNBUFFERED=1`).
+  - **2º Botão (Cálculo de Mínimo e Máximo):** Executa `Aplicativos/min_e_max/1-min_max.py` com diálogo modal para seleção de lojas e filtros (`[1] Aumentar (Recomendado)`). Ao término, abre automaticamente a planilha de digitação de pedidos (`GAM/bd_saida/digitar.xlsx`) e o relatório de ajuste (`ajustepp.xlsx`).
+  - **3º Botão (Capacidade):** Abre diretamente a planilha `Aplicativos/min_e_max/capacidade.xlsx` no Excel.
+  - **4º Botão (Handover GAM):** Dispara `Aplicativos/GAM/gam.py` em processo desacoplado (`DETACHED_PROCESS`) e fecha a janela do Painel de Apoio com encerramento limpo.
+  - **Console Interativo Bidirecional:** Captura de prompts interativos com barra de envio de comandos ao stdin do processo em execução.
 
 ---
 > **Nota de Contexto:** Estes projetos seguem `rules.md` e `AGENTS.md` deste ecossistema (usam Pandas, SQLAlchemy, PostgreSQL, ReportLab, Parquet e automação via GAM).
