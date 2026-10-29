@@ -73,6 +73,21 @@ Durante a refatoração e otimização da consulta `A.Comparativo_Fornecedor_Tot
 
 ---
 
+---
+
+## Contexto do Erro 5: Referência a Alias no Próprio SELECT (ORA-00904) e Ponto e Vírgula no Parser Consinco (Erro nº 0)
+1. **ORA-00904 por Referência a Alias no Mesmo SELECT:**
+   - **Erro:** Ao definir `TO_CHAR(X.NROEMPRESA) AS CODIGO_EMPRESA` na lista do `SELECT`, tentou-se usar `X.CODIGO_EMPRESA` em uma cláusula `CASE` subsequente no mesmo nível da projeção. O Oracle disparou `ORA-00904: "X"."CODIGO_EMPRESA": invalid identifier`.
+   - **Causa Raiz:** O escopo do `SELECT` não enxerga aliases definidos na mesma projeção durante a compilação de expressões. Aliases de saída só existem nas camadas externas da query.
+   - **Solução:** Referenciar a coluna real da CTE ou tabela (`X.NROEMPRESA`), nunca o alias de exibição.
+
+2. **Erro nº: 0 na Posição X por Ponto e Vírgula (`;`):**
+   - **Erro:** Uso de ponto e vírgula dentro de funções textuais como `LISTAGG(R.DESCRICAO, '; ')` ou no fim do comando SQL causou erro de sintaxe imediato no aplicativo Consulta Criação do Consinco.
+   - **Causa Raiz:** O parser do Consinco (PowerBuilder/Delphi) quebra a instrução SQL no primeiro caractere `;` que encontrar, mesmo dentro de literais de string com aspas.
+   - **Solução:** Banir o uso de ponto e vírgula em scripts do Consinco. Usar vírgula `, ` ou outro delimitador.
+
+---
+
 ## Lição Aprendida (Protocolo de Segurança)
 Sempre que for criar ou modificar uma query SQL para o ERP Consinco neste repositório:
 1. **Consultar o Dicionário:** Verifique obrigatoriamente o arquivo `Aplicativos/gerenciamento_sql/dicionario_consinco.json` para validar nomes de colunas e chaves de join.
@@ -84,6 +99,10 @@ Sempre que for criar ou modificar uma query SQL para o ERP Consinco neste reposi
 7. **SELECT Fantasma em CTEs (Bypass do Validador):** Como o SGI Consinco exige que a query inicie por `SELECT` (rejeitando queries com `WITH`), envolva sempre consultas que utilizem CTEs na estrutura `SELECT * FROM ( WITH ... SELECT ... )`.
 8. **Variáveis Bind vs. Macros Hash:** Prefira variáveis bind (`:LS1`, `:LT1`, `:NR1`) em vez de macros hash (`#LS1`), especialmente ao processá-las em funções de texto (`SUBSTR`, `INSTR`), prevenindo o erro `ORA-00907` na substituição literal de texto sem aspas.
 9. **Conversão Explícita de Numéricos (`TO_NUMBER`):** Variáveis bind do Consinco são passadas como texto (`CHAR`). Ao compará-las com colunas de IDs/sequenciais numéricos no Oracle ou em blocos `CASE WHEN`, utilize obrigatoriamente **`TO_NUMBER(:NR1)`** para evitar o erro de incompatibilidade de tipos **`ORA-00932`**.
+10. **Zero Ponto e Vírgula (`;`):** Nunca insira `;` no código SQL para o Consinco, nem no final nem em strings literais (`LISTAGG`), pois o parser do sistema interpreta o caractere como término antecipado do comando.
+11. **Nunca Referenciar Aliases no Mesmo SELECT:** Ao compor colunas calculadas ou cláusulas `CASE` no `SELECT`, use sempre as colunas originais da tabela/CTE (`X.NROEMPRESA`), nunca o alias definido na mesma linha/bloco (`X.CODIGO_EMPRESA`), evitando `ORA-00904`.
+12. **Diferença de Schemas em Acordos (`MSUV_` vs `MSU_`):** A view `MSUV_ACORDOPROMOC` possui a coluna `STATUS` (numérica). A tabela física `MSU_ACORDOPROMOC` possui `STATUSACORDO` e `SITUACAOACORDO`. Chamar `A.STATUS` na tabela física gera `ORA-00904`.
 
 ## Regra de Ouro
 > "Na dúvida entre a experiência externa e o dicionário local, o dicionário local é a verdade absoluta."
+

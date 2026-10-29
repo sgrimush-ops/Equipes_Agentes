@@ -3,6 +3,7 @@ SELECT * FROM (
         SELECT /*+ MATERIALIZE */ DISTINCT
             NROACORDO,
             NROEMPRESA,
+            NROEMPRESA_TITULO,
             SEQTITULO,
             OBRIGDIREITO,
             ABERTOQUITADO,
@@ -14,6 +15,7 @@ SELECT * FROM (
             SELECT
                 TR.NROACORDO,
                 NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA) AS NROEMPRESA,
+                T.NROEMPRESA AS NROEMPRESA_TITULO,
                 T.SEQTITULO,
                 T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
@@ -24,7 +26,6 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOTITULORECEB TR
                 ON TR.LINKERP = T.SEQTITULO
-               AND T.NROEMPRESA = NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA)
             WHERE T.SITUACAO != 'C'
 
             UNION
@@ -32,6 +33,7 @@ SELECT * FROM (
             SELECT
                 TR.NROACORDO,
                 NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA) AS NROEMPRESA,
+                T.NROEMPRESA AS NROEMPRESA_TITULO,
                 T.SEQTITULO,
                 T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
@@ -43,7 +45,6 @@ SELECT * FROM (
             INNER JOIN MSU_ACORDOTITULORECEB TR
                 ON TR.NUMERONF = T.NRODOCUMENTO
                AND TR.SEQPESSOA = T.SEQPESSOA
-               AND T.NROEMPRESA = NVL(TR.NROEMPRACORDOPROMOC, T.NROEMPRESA)
             WHERE T.SITUACAO != 'C'
               AND T.OBRIGDIREITO = 'D'
 
@@ -52,6 +53,7 @@ SELECT * FROM (
             SELECT
                 CC.NROACORDO,
                 NVL(CC.NROEMPRESAACORDO, T.NROEMPRESA) AS NROEMPRESA,
+                T.NROEMPRESA AS NROEMPRESA_TITULO,
                 T.SEQTITULO,
                 T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
@@ -62,7 +64,6 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_CCACORDOPROMOC CC
                 ON CC.SEQTITULO = T.SEQTITULO
-               AND T.NROEMPRESA = NVL(CC.NROEMPRESAACORDO, T.NROEMPRESA)
             WHERE CC.SEQTITULO IS NOT NULL
               AND T.SITUACAO != 'C'
 
@@ -71,6 +72,7 @@ SELECT * FROM (
             SELECT
                 CD.NROACORDO,
                 NVL(CD.NROEMPRESA, T.NROEMPRESA) AS NROEMPRESA,
+                T.NROEMPRESA AS NROEMPRESA_TITULO,
                 T.SEQTITULO,
                 T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
@@ -81,7 +83,6 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_CCDIVIDA CD
                 ON CD.SEQTITULO = T.SEQTITULO
-               AND T.NROEMPRESA = NVL(CD.NROEMPRESA, T.NROEMPRESA)
             WHERE CD.SEQTITULO IS NOT NULL
               AND T.SITUACAO != 'C'
 
@@ -90,6 +91,7 @@ SELECT * FROM (
             SELECT
                 A.NROACORDO,
                 A.NROEMPRESA,
+                T.NROEMPRESA AS NROEMPRESA_TITULO,
                 T.SEQTITULO,
                 T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
@@ -103,14 +105,15 @@ SELECT * FROM (
                AND TRIM(TOA.USUCANCELOU) IS NULL
             INNER JOIN FI_TITULO T
                 ON T.SEQTITULO = TOA.SEQTITULO
-               AND T.NROEMPRESA = A.NROEMPRESA
             WHERE T.SITUACAO != 'C'
+              AND A.SEQPROCESSO IS NOT NULL
 
             UNION
 
             SELECT
                 A.NROACORDO,
                 A.NROEMPRESA,
+                T.NROEMPRESA AS NROEMPRESA_TITULO,
                 T.SEQTITULO,
                 T.OBRIGDIREITO,
                 T.ABERTOQUITADO,
@@ -121,11 +124,22 @@ SELECT * FROM (
             FROM FI_TITULO T
             INNER JOIN MSU_ACORDOPROMOC A
                 ON A.SEQFORNECEDOR = T.SEQPESSOA
-               AND T.NROEMPRESA = A.NROEMPRESA
                AND (
-                    T.NRODOCUMENTO = A.NROACORDO
+                    T.NROEMPRESA = A.NROEMPRESA
+                    OR (
+                        A.NROEMPRESA IN (1, 15, 50, 900)
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM MSU_ACORDOPROMOC A_LOCAL
+                            WHERE A_LOCAL.NROEMPRESA = T.NROEMPRESA
+                              AND A_LOCAL.NROACORDO = T.NROTITULO
+                        )
+                    )
+               )
+               AND (
+                    T.NRODOCUMENTO = TO_CHAR(A.NROACORDO)
                     OR T.NROTITULO = A.NROACORDO
-                    OR (A.SEQPROCESSO IS NOT NULL AND (T.NRODOCUMENTO = A.SEQPROCESSO OR T.NROTITULO = A.SEQPROCESSO))
+                    OR (A.SEQPROCESSO IS NOT NULL AND (T.NRODOCUMENTO = TO_CHAR(A.SEQPROCESSO) OR T.NROTITULO = A.SEQPROCESSO))
                )
             WHERE T.SITUACAO != 'C'
               AND T.OBRIGDIREITO = 'D'
@@ -198,6 +212,7 @@ SELECT * FROM (
         SELECT /*+ MATERIALIZE */
             TA.NROACORDO,
             TA.NROEMPRESA,
+            TA.NROEMPRESA_TITULO,
             TA.SEQTITULO,
             DENSE_RANK() OVER (
                 PARTITION BY TA.NROACORDO, TA.NROEMPRESA 
@@ -254,6 +269,7 @@ SELECT * FROM (
             A.NROEMPRESA,
             A.NROACORDO,
             TG.SEQTITULO,
+            TG.NROEMPRESA_TITULO,
             TG.NROPARCELA,
             TG.QTDPARCELA,
             AC.SEQPROCESSO,
@@ -360,6 +376,7 @@ SELECT * FROM (
         WHERE (
                 NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', '')
                 OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || TO_CHAR(A.NROEMPRESA) || ',') > 0
+                OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || TO_CHAR(TG.NROEMPRESA_TITULO) || ',') > 0
               )
           AND (
                 NVL(TO_NUMBER(:NR1), 0) = 0
@@ -413,6 +430,7 @@ SELECT * FROM (
             A.NROEMPRESA,
             A.NROACORDO,
             TG.SEQTITULO,
+            TG.NROEMPRESA_TITULO,
             TG.NROPARCELA,
             TG.QTDPARCELA,
             TG.DTAVENCIMENTO,
@@ -494,6 +512,7 @@ SELECT * FROM (
             B.NROEMPRESA,
             B.NROACORDO,
             B.SEQTITULO,
+            B.NROEMPRESA_TITULO,
             B.NROPARCELA,
             B.QTDPARCELA,
             B.SEQPROCESSO,
@@ -536,6 +555,7 @@ SELECT * FROM (
             NROEMPRESA,
             NROACORDO,
             SEQTITULO,
+            NROEMPRESA_TITULO,
             NROPARCELA,
             QTDPARCELA,
             SEQPROCESSO,
@@ -765,6 +785,7 @@ SELECT * FROM (
             TO_CHAR(X.PARCELAS_PAGAS) AS PARCELAS_PAGAS,
             TO_CHAR(X.PARCELAS_PENDENTES) AS PARCELAS_PENDENTES,
             'R$ ' || TO_CHAR(NVL(X.VLR_ULTIMA_OPERACAO, 0), 'FM999G999G990D00', 'NLS_NUMERIC_CHARACTERS='',.''') AS VALOR_PAG_REGISTRADO,
+            CASE WHEN X.NROEMPRESA_TITULO IS NOT NULL AND X.NROEMPRESA_TITULO != X.NROEMPRESA THEN '[Lj ' || TO_CHAR(X.NROEMPRESA_TITULO) || '] ' ELSE '' END ||
             CASE WHEN X.USU_ULTIMA_ALTERACAO IS NOT NULL AND X.DTA_ULTIMA_ALTERACAO IS NOT NULL THEN X.USU_ULTIMA_ALTERACAO || ' - ' || TO_CHAR(X.DTA_ULTIMA_ALTERACAO, 'DD/MM/YYYY HH24.MI.SS') || CASE WHEN X.NROPARCELA IS NOT NULL THEN ' (Parc. ' || TO_CHAR(X.NROPARCELA) || NVL('/' || TO_CHAR(X.QTDPARCELA), '') || ')' ELSE '' END WHEN X.USU_ULTIMA_ALTERACAO IS NOT NULL THEN X.USU_ULTIMA_ALTERACAO || CASE WHEN X.NROPARCELA IS NOT NULL THEN ' (Parc. ' || TO_CHAR(X.NROPARCELA) || NVL('/' || TO_CHAR(X.QTDPARCELA), '') || ')' ELSE '' END WHEN X.DTA_ULTIMA_ALTERACAO IS NOT NULL THEN TO_CHAR(X.DTA_ULTIMA_ALTERACAO, 'DD/MM/YYYY HH24.MI.SS') ELSE NULL END AS USUARIO_DATA_HORA_ALTERACAO
         FROM CTE_CLASSIFICADA X
 

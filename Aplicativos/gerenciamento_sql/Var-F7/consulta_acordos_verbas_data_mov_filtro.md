@@ -4,7 +4,7 @@
 - Arquivo SQL: [Aplicativos/gerenciamento_sql/querys/consulta_acordos_verbas_data_mov_filtro.sql](../querys/consulta_acordos_verbas_data_mov_filtro.sql)
 
 ## Objetivo
-Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) que tiveram **movimentação ou atualização de quitação no período de :DT1 a :DT2**, com filtros por **Lojas (`:LT1`)**, **Usuários da Manutenção (`:LT2`)**, **Códigos fornecedores (`:LT3`)**, **Expurgo de Cancelados (`:NR1`)**, **Comprador (`:LS1`)**, **Situação Financeira (`:LS2`)** e **Rede de Fornecedores (`:LS3`)**, unificando títulos financeiros vinculados (`FI_TITULO` / `FI_TITOPERACAO`), exibindo a **Espécie do Título (`ESPECIE_TITULO` - ex: DEVREC, VERBA, ACORDO)**, rateio por item sem dízimas, totais gerais consolidados e auditoria com usuário e data/hora da última movimentação financeira.
+Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) que tiveram **movimentação ou atualização de quitação no período de :DT1 a :DT2**, com filtros por **Lojas (`:LT1`)**, **Usuários da Manutenção (`:LT2`)**, **Códigos fornecedores (`:LT3`)**, **Expurgo de Cancelados (`:NR1`)**, **Comprador (`:LS1`)**, **Situação Financeira (`:LS2`)** e **Rede de Fornecedores (`:LS3`)**, unificando títulos financeiros vinculados (`FI_TITULO` / `FI_TITOPERACAO`) inclusive em operações **interempresas** (ex: acordos negociados na Matriz/CD 15 ou 50 com títulos emitidos/baixados nas lojas filiais como Loja 3), exibindo a **Espécie do Título (`ESPECIE_TITULO` - ex: DEVREC, VERBA, ACORDO)**, rateio por item sem dízimas, totais gerais consolidados e auditoria com usuário, identificador de loja quando interempresa (`[Lj X]`) e data/hora da última movimentação financeira.
 
 ## Colunas Retornadas
 - `CODIGO_EMPRESA`: código da empresa/loja do acordo (`A.NROEMPRESA`).
@@ -33,7 +33,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `PARCELAS_PAGAS`: total de parcelas liquidadas.
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
 - `VALOR_PAG_REGISTRADO`: soma das baixas/quentações operacionais efetivas registradas para a parcela (`FI_TITOPERACAO.VLROPERACAO` com `CODOPERACAO NOT IN (16, 18)`) com expurgo estrito de cancelados (`TRIM(USUCANCELOU) IS NULL`). As operações 16 (Inclusão de Títulos) e 18 nunca geram valor financeiro de pagamento/duplicação, sendo expurgadas da soma e das operações ativas quando houver outras operações registradas, exibindo `R$ 0,00` para títulos em aberto que só possuem tais lançamentos.
-- `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação registrada (`USUARIO - DD/MM/YYYY HH24.MI.SS`).
+- `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação registrada, com prefixo `[Lj X]` indicando a filial quando o título tiver sido baixado em loja diferente da empresa do acordo (`[Lj 3] USUARIO - DD/MM/YYYY HH24.MI.SS`).
 
 ## Variáveis para cadastrar em Var - F7 (9 Variáveis)
 

@@ -55,6 +55,24 @@ Este documento consolida as regras de ouro, as causas raízes de erros do Oracle
 
 ---
 
+### ❌ Erro 5: `ORA-00904: "X"."COLUNA": invalid identifier` por Uso de Alias no Próprio SELECT
+- **Causa Raiz:** Tentar usar um alias recém-definido no `SELECT` (ex: `TO_CHAR(X.NROEMPRESA) AS CODIGO_EMPRESA`) dentro de outra expressão da mesma lista de projeção (ex: `CASE WHEN ... X.CODIGO_EMPRESA != ...`). O Oracle compila a projeção antes de disponibilizar os aliases no escopo da query, logo `X.CODIGO_EMPRESA` não existe na tabela/CTE `X`.
+- **✅ Solução Obrigatória:** Sempre referenciar o nome original da coluna que pertence à CTE/tabela subjacente (`X.NROEMPRESA`), nunca o alias de exibição.
+
+---
+
+### ❌ Erro 6: `Erro nº: 0 na Posição X` (Parser Consinco / PowerBuilder) por Ponto e Vírgula (`;`)
+- **Causa Raiz:** O analisador léxico do Consinco / Consulta Criação interpreta qualquer caractere `;` como o terminador do comando SQL. Se houver `;` inclusive dentro de literais de texto (como `LISTAGG(..., '; ')`), o parser trunca o SQL e envia apenas a primeira metade ao Oracle, resultando em erro imediato de sintaxe.
+- **✅ Solução Obrigatória:** Nunca incluir `;` no script Consinco, nem no final da query, nem dentro de strings (usar vírgula `, ` ou outro delimitador).
+
+---
+
+### ❌ Erro 7: `ORA-00904: "A"."STATUS": invalid identifier` em `MSU_ACORDOPROMOC`
+- **Causa Raiz:** Confundir a view `MSUV_ACORDOPROMOC` com a tabela física `MSU_ACORDOPROMOC`. A view possui a coluna `STATUS` (numérica: 1-Aprovado, 2-Cancelado, etc.). A tabela física possui as colunas `STATUSACORDO` ('A', 'R') e `SITUACAOACORDO` ('C'). Fazer `A.STATUS` sobre a tabela física gera ORA-00904.
+- **✅ Solução Obrigatória:** Utilizar `MSUV_ACORDOPROMOC` para obter o status comercial padrão numérico, ou utilizar `STATUSACORDO`/`SITUACAOACORDO` caso a leitura seja na tabela física.
+
+---
+
 ## 2. Arquitetura de Granularidade por Parcela vs Totais Globais
 
 Quando o usuário solicita um relatório de movimentação financeira no período (`:DT1` a `:DT2`):
@@ -178,3 +196,65 @@ Antes de entregar qualquer query SQL para o ERP Totvs Consinco:
 - [x] Todos os parênteses estão balanceados.
 - [x] Colunas globais de acordo preenchidas exclusivamente na primeira parcela (`RN_ACORDO = 1`) para fechar soma de Excel.
 - [x] Operações 16 e 18 de `FI_TITOPERACAO` expurgadas quando houver baixas, e com valor financeiro zerado para pagamentos registrados em títulos abertos.
+- [x] Acordos cross-company cobertos: ligação por `SEQPROCESSO`, auditoria `[Lj X]` e filtro de lojas `:LT1` avaliando tanto a matriz quanto a loja da baixa do título.
+- [x] Zero uso de aliases de coluna em expressões do mesmo `SELECT` (prevenindo ORA-00904).
+- [x] Zero ponto e vírgula (`;`) no script todo.
+
+---
+
+## 5. Arquitetura Cross-Company / Intercompany (Contratos na Matriz e Títulos Baixados na Filial)
+
+### ❌ O Problema do Descompasso Entre Contrato e Liquidação Financeira
+Em redes de varejo centralizadas (compras via CD 15 ou CD 50/900):
+1. **Acordo Comercial Registrado na Matriz:** Grandes acordos de fornecedores (como Sell-In Ambev/BEES ou bonificações corporativas) são firmados e cadastrados centralizadamente na empresa compradora (`MSU_ACORDOPROMOC.NROEMPRESA = 15`).
+2. **Títulos Emitidos e Quitados na Loja Física:** Os títulos a receber no Contas a Receber (`FI_TITULO`) correspondentes são emitidos, faturados e quitados diretamente no CNPJ da loja física que recebeu ou comercializou as mercadorias (ex: Loja 3).
+3. **Causa do "Sumiço" em Relatórios:** Se a query exigir estritamente `T.NROEMPRESA = A.NROEMPRESA` em todas as junções de título, as quitações ocorridas nas lojas físicas nunca casam com o acordo da matriz. O contrato na Loja 15 aparenta ter R$ 0,00 baixados no período selecionado, sendo eliminado pelo filtro de movimentação (`TG.TEVE_MOV_QUITACAO_PERIODO = 1`).
+
+### ✅ Solução Homologada
+
+1. **Ligação Flexível por Processo Corporativo (`SEQPROCESSO`):**
+   Na CTE `CTE_TITULOS_ACORDO`, permite-se a junção entre o título da filial e o contrato da matriz se o acordo foi registrado em empresas centralizadoras (1, 15, 50, 900) e casar via número do processo:
+   ```sql
+   INNER JOIN MSU_ACORDOPROMOC A
+       ON (
+            T.NROEMPRESA = A.NROEMPRESA
+            OR (
+                A.NROEMPRESA IN (1, 15, 50, 900)
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM MSU_ACORDOPROMOC A_LOCAL
+                    WHERE A_LOCAL.NROEMPRESA = T.NROEMPRESA
+                      AND A_LOCAL.NROACORDO = T.NROTITULO
+                )
+            )
+       )
+      AND (
+            T.NRODOCUMENTO = TO_CHAR(A.NROACORDO)
+            OR T.NROTITULO = A.NROACORDO
+            OR (A.SEQPROCESSO IS NOT NULL AND (T.NRODOCUMENTO = TO_CHAR(A.SEQPROCESSO) OR T.NROTITULO = A.SEQPROCESSO))
+      )
+   ```
+
+2. **Preservação de Dupla Chave de Empresa:**
+   - `NROEMPRESA`: Empresa dona do contrato comercial (ex: 15).
+   - `NROEMPRESA_TITULO`: Empresa onde o título financeiro foi emitido e liquidado (ex: 3).
+
+3. **Filtro de Lojas (`:LT1`) Blindado:**
+   O filtro de lojas deve validar tanto se a matriz foi selecionada quanto se a filial da baixa do título foi selecionada:
+   ```sql
+   WHERE (
+       NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', '')
+       OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || TO_CHAR(A.NROEMPRESA) || ',') > 0
+       OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || TO_CHAR(TG.NROEMPRESA_TITULO) || ',') > 0
+   )
+   ```
+
+4. **Auditoria Visual com Tag `[Lj X]`:**
+   Quando a loja que baixou o título for diferente da loja dona do contrato comercial, prefixar a tag `[Lj X]` na coluna de auditoria (`USUARIO_DATA_HORA_ALTERACAO`):
+   ```sql
+   CASE WHEN X.NROEMPRESA_TITULO IS NOT NULL AND X.NROEMPRESA_TITULO != X.NROEMPRESA
+        THEN '[Lj ' || TO_CHAR(X.NROEMPRESA_TITULO) || '] '
+        ELSE ''
+   END || ...
+   ```
+
