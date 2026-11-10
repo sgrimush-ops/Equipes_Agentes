@@ -258,3 +258,130 @@ Em redes de varejo centralizadas (compras via CD 15 ou CD 50/900):
    END || ...
    ```
 
+
+---
+
+## 6. Governança de Expurgo de Cancelados (:NR1 = 2) e Desacoplamento Financeiro
+
+### ❌ O Problema do 'Sumiço' Silencioso dos Acordos Cancelados
+Ao tentar listar ou auditar acordos cancelados no período comercial informado na tela (:DT1 a :DT2):
+1. **Muro do INNER JOIN e da Quitação:** A tabela de acordos (MSUV_ACORDOPROMOC A) cruzava via INNER JOIN com CTE_TITULOS_GLOBAL TG e exigia TG.TEVE_MOV_QUITACAO_PERIODO = 1. Como acordos cancelados não foram quitados no período (não possuem DTAQUITACAO recente nem baixa), 99% dos cancelados eram descartados por efeito colateral antes de atingir o filtro de status.
+2. **Inexistência de Títulos Financeiros Ativos:** Ao cancelar um acordo no ERP Totvs Consinco, ou o título financeiro nunca é gerado, ou os títulos correspondentes em FI_TITULO recebem a situação 'C' (Cancelado). A subquery de títulos descartava com WHERE T.SITUACAO != 'C', e o INNER JOIN subsequente eliminava o acordo inteiro.
+3. **Conflito de Índices no Combobox :LS2:** O seletor de tela possuía a opção 4 - CANCELADO, enquanto a cláusula SQL tratava o dígito inicial 4 como 'Sem Título' e esperava 5 para 'Cancelado'.
+
+### ✅ Solução Homologada e Blindada
+
+1. **Transformação para LEFT JOIN com Títulos e Resumos:**
+   Permite que acordos que não possuem títulos em contas a pagar/receber (ou cujos títulos foram cancelados/estornados) continuem fluindo para o resultado final:
+   `sql
+   LEFT JOIN CTE_TITULOS_GLOBAL TG
+       ON TG.NROACORDO = A.NROACORDO
+      AND TG.NROEMPRESA = A.NROEMPRESA
+      AND (
+           TG.TEVE_MOV_QUITACAO_PERIODO = 1
+           OR TRUNC(A.DTAEMISSAO) BETWEEN :DT1 AND :DT2
+      )
+   LEFT JOIN CTE_ACORDO_RESUMO_GLOBAL RG
+       ON RG.NROACORDO = A.NROACORDO
+      AND RG.NROEMPRESA = A.NROEMPRESA
+   `
+
+2. **Expurgo Exclusivo no Parâmetro :NR1 = 2:**
+   Quando o usuário passa :NR1 = 0, a query **não expurga nada** e traz tanto ativos quanto cancelados. O expurgo só é ativado se for passado explicitamente o código 2:
+   `sql
+   AND (
+       NVL(TO_NUMBER(:NR1), 0) != 2
+       OR A.STATUS != 2
+   )
+   `
+
+3. **Filtro Semântico Robusto para :LS2 (Situação Financeira):**
+   Uso de INSTR(UPPER(:LS2), 'CANCEL') > 0 como prioridade, desvinculando de números fixos e permitindo que o usuário filtre especificamente por cancelados quando desejar:
+   `sql
+   WHERE (
+       NVL(TRIM(:LS2), '0 - TODOS') IN ('0 - TODOS', 'TODOS', '', '0')
+       OR (
+           INSTR(UPPER(:LS2), 'CANCEL') > 0
+           AND C.STATUS_ACORDO = 'Cancelado'
+       )
+       OR ...
+   )
+   `
+
+4. **Cobertura Temporal Dupla (Emissão/Alteração + Quitação):**
+   Garante que acordos emitidos ou alterados no intervalo :DT1 a :DT2 apareçam mesmo que ainda não tenham quitação financeira:
+   `sql
+   AND (
+       (A.DTAEMISSAO IS NOT NULL AND TRUNC(A.DTAEMISSAO) BETWEEN :DT1 AND :DT2)
+       OR (AC.DTAALTERACAO IS NOT NULL AND TRUNC(AC.DTAALTERACAO) BETWEEN :DT1 AND :DT2)
+       OR NVL(TG.TEVE_MOV_QUITACAO_PERIODO, 0) = 1
+   )
+   `
+
+---
+
+## 7. Captura do Responsável pelo Acordo / Fornecedor (Campo de Tela 'Responsável (fornecedor)')
+
+### Contexto de Negócio e Rastreamento de Auditoria
+Na tela **Manutenção de Acordos Promocionais** do Totvs Consinco, há o campo **'Responsável (fornecedor)'**, onde o comprador ou operador insere o nome da pessoa de contato no fornecedor responsável pela negociação ou autorização do pagamento/verba (ex: 'EDUARDO').
+
+### Mapeamento Técnico no Banco de Dados
+- **Tabela:** MSU_ACORDOPROMOC
+- **Coluna Canônica Oficial:** RESPACORDONOME (VARCHAR2)
+- **Projeção no Relatório SQL:** RESPONSAVEL_FORNECEDOR
+- **Posicionamento:** Imediatamente após a coluna FORNECEDOR e antes de DESCRICAO_ACORDO.
+- **Alinhamento em Totais:** No bloco TOTAL GERAL -> do UNION ALL, projetar estritamente NULL AS RESPONSAVEL_FORNECEDOR para manter a paridade posicional e tipagem de colunas.
+
+---
+
+## 8. CTE Materializada Exclusiva para Acordos e Baixas do Tipo 'ACRJBP'
+
+### Contexto e Necessidade de Isolamento
+Determinados acordos comerciais pertencem à modalidade **ACRJBP** (Joint Business Plan). Para atender a relatórios executivos que demandam a identificação imediata dos valores brutos e das baixas financeiras associadas especificamente a esse tipo de acordo, sem comprometer ou duplicar os dados das demais modalidades (comercial, marketing,Sell-Out, Sell-In, etc.):
+
+### Padrão Arquitetural Homologado (CTE_ACORDO_ACRJBP)
+1. **CTE Materializada Dedicada:**
+   Isola em memória RAM (/*+ MATERIALIZE */) o filtro estrito de acordos/títulos do tipo ACRJBP (validando CODESPECIE = 'ACRJBP', descrição em MAC_TIPOACORDO, código de tipo em MSU_ACORDOPROMOC ou descrição textual do acordo).
+2. **Junção Não Invasiva (LEFT JOIN):**
+   A CTE principal (CTE_VALORES_BRUTOS) cruza com CTE_ACORDO_ACRJBP via LEFT JOIN pela tríade (NROEMPRESA, NROACORDO, SEQTITULO).
+   - Se o acordo/parcela for ACRJBP, os valores são preenchidos nas duas colunas.
+   - Se pertencer a qualquer outro tipo, as colunas retornam NULL (em branco).
+3. **Novas Colunas Projetadas:**
+   - **VALOR_ACORDO_ACRJBP:** Exibe o valor total do contrato ACRJBP (preenchido exclusivamente na parcela 1 via RN_ACORDO = 1 para não duplicar somatórios).
+   - **VALOR_BAIXA_ACRJBP:** Exibe o valor registrado de liquidação/baixa financeira referente àquela parcela/acordo.
+4. **Espelhamento no Rodapé:**
+   Ambas as colunas possuem seus somatórios consolidados no bloco TOTAL GERAL -> do UNION ALL, garantindo fechamento contábil e conformidade estrita de tipagem (33 colunas alinhadas).
+
+
+---
+
+## 9. Prevenção de `ORA-00904: invalid identifier` em CTEs Encadeadas
+
+### Causa Raiz
+Ao encadear múltiplas CTEs (ex: `CTE_TITULOS_GLOBAL` -> `CTE_ACORDO_ACRJBP`), se uma CTE referenciar uma coluna da anterior usando um nome que foi renomeado no SELECT anterior (ex: `TA.CODESPECIE AS ESPECIE_TITULO`), o Oracle não enxerga o nome original `CODESPECIE` no escopo da CTE consumidora:
+- Tentar fazer `WHERE TG.CODESPECIE = 'ACRJBP'` disparava `ORA-00904: "TG"."CODESPECIE": invalid identifier`.
+
+### Solução Homologada
+1. **Projeção Dupla Preventiva:** Na CTE de origem, projetar tanto a coluna original quanto o alias amigável:
+   `TA.CODESPECIE, TA.CODESPECIE AS ESPECIE_TITULO,`
+2. **Blindagem de Referência:** Nas CTEs dependentes, utilizar `NVL(TG.ESPECIE_TITULO, TG.CODESPECIE) = 'ACRJBP'`, eliminando qualquer possibilidade de erro de identificador.
+
+
+---
+
+## 10. Segregação Mútua Exclusiva de Colunas de Tipos Específicos (Evitar Duplicidade de Valores)
+
+### Contexto
+Quando criamos colunas dedicadas para um tipo específico de acordo (ex: `VALOR_ACORDO_ACRJBP` e `VALOR_BAIXA_ACRJBP`), se o valor do acordo continuar sendo projetado na coluna genérica (`VALOR_ACORDO`), a mesma linha exibirá o valor repetido em ambas as colunas e o somatório do `TOTAL GERAL ->` duplicará o valor daquele contrato.
+
+### Regra de Ouro da Segregação
+1. **Na Linha de Detalhe:**
+   - Se for acordo padrão: o valor sai em `VALOR_ACORDO` e `VALOR_ACORDO_ACRJBP` fica `NULL`.
+   - Se for ACRJBP: o valor sai exclusivamente em `VALOR_ACORDO_ACRJBP`, e `VALOR_ACORDO` fica `NULL`.
+2. **Nas Baixas Financeiras:**
+   - Baixas de acordos normais saem em `VALOR_PAG_REGISTRADO`.
+   - Baixas de ACRJBP saem exclusivamente em `VALOR_BAIXA_ACRJBP`.
+3. **No `TOTAL GERAL ->`:**
+   - `TOTAL_VLRACORDO` soma apenas onde `NVL(VLR_ACORDO_ACRJBP, 0) = 0`.
+   - `TOTAL_VLR_ACORDO_ACRJBP` soma os contratos ACRJBP.
+   - Assim, a soma das duas colunas bate 100% com o faturamento contábil total sem qualquer centavo duplicado.

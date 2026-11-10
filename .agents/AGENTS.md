@@ -64,6 +64,25 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 15. **Status de Suprimento: Prevalência do Status do Item (`STATUSITEM`) sobre a Capa (`SITUACAOPED`):**
     Em relatórios de pedidos de compra e suprimentos (`MSU_PEDIDOSUPRIM` / `MSU_PSITEMRECEBER`), a capa do pedido (`SITUACAOPED`) frequentemente permanece `'A'` (Aberto) mesmo quando itens individuais são cancelados. Para apurar cortes, cancelamentos e pendências reais de produtos, baseie-se exclusivamente no status da linha do item (`MSU_PSITEMRECEBER.STATUSITEM`) e na relação entre `QUANTIDADE_PEDIDA` e `QUANTIDADE_ATENDIDA` (`MSU_PSITEMRECEBIDO`), tratando `ATEND_PARC` para entregas incompletas e `NÃO_ATENDIDO` para quantidade zero após a data limite.
 
+16. **Expurgo Exclusivo de Cancelados via Bind (`:NR1 = 2`) e Desacoplamento Financeiro via `LEFT JOIN`:**
+    Em consultas de contratos e acordos comerciais (`MSUV_ACORDOPROMOC`) cruzados com financeiro (`FI_TITULO` / `CTE_TITULOS_GLOBAL`):
+    - **Proibição de `INNER JOIN` Restritivo:** Nunca cruze acordos comerciais com títulos financeiros via `INNER JOIN` associado estritamente à movimentação de quitação (`TEVE_MOV_QUITACAO_PERIODO = 1`), pois acordos cancelados muitas vezes não possuem títulos gerados ou foram liquidados sem quitação no período, gerando descarte silencioso e não intencional dos dados.
+    - **Cruzamento Seguro com `LEFT JOIN`:** Utilize sempre `LEFT JOIN` com a base de títulos, permitindo que acordos cancelados ou sem financeiro continuem visíveis.
+    - **Governança Estrita do `:NR1`:** O expurgo de registros cancelados deve ser prerrogativa estrita e exclusiva da variável de tela (`NVL(TO_NUMBER(:NR1), 0) != 2 OR A.STATUS != 2`). Quando `:NR1 = 0`, a consulta deve trazer obrigatoriamente tanto ativos quanto cancelados.
+    - **Cobertura Temporal Ampla (`:DT1` e `:DT2`):** O filtro de período comercial deve aceitar a data de emissão/alteração do contrato (`TRUNC(A.DTAEMISSAO) BETWEEN :DT1 AND :DT2 OR TRUNC(AC.DTAALTERACAO) BETWEEN :DT1 AND :DT2`) além da movimentação de quitação (`TEVE_MOV_QUITACAO_PERIODO = 1`), garantindo a captura de todos os acordos emitidos ou cancelados na janela selecionada.
+    - **Mapeamento Semântico Robusto em `:LS2`:** Ao ler seletores de situação financeira (`:LS2`), use sempre busca semântica (`INSTR(UPPER(:LS2), 'CANCEL') > 0`) para blindar contra variações de índice numérico (ex: `4 - CANCELADO` vs `5 - CANCELADO`).
+
+17. **Limite Físico de 32 KB (32.767 Bytes) do Campo de Comandos (`TMemo` Delphi / Consinco):**
+    O editor de texto da tela **Consulta Criação / Consulta Executar** do Totvs Consinco utiliza um componente Win32 padrão (`TMemo` Delphi) com capacidade máxima rígida de **32.767 caracteres (32 KB)**. Se o script SQL ultrapassar esse limite com as quebras de linha Windows (`CRLF`), o sistema trunca silenciosamente o texto nos 32.767 bytes ao colar, cortando o final da query e gerando o erro fatal:
+    *"A consulta deve terminar com um comando SELECT. Verifique!"*.
+    - **Solução Obrigatória:** Otimizar o código SQL evitando recuos/indentações excessivos (máximo 4 a 6 espaços), compactando cláusulas de projeção repetitivas e listas `IN (...)` para garantir que o tamanho final com `CRLF` fique sempre **abaixo de 28.000 bytes** (margem segura de no mínimo 4 KB).
+
+18. **Segregação Mútua Exclusiva de Colunas Especializadas (Anti-Duplicidade de Faturamento):**
+    Ao criar colunas exclusivas para modalidades específicas de contrato (ex: `VALOR_ACORDO_ACRJBP` e `VALOR_BAIXA_ACRJBP`), é mandatório aplicar exclusividade mútua na coluna genérica (`VALOR_ACORDO` e `VALOR_PAG_REGISTRADO`) via `CASE WHEN NVL(VLR_ACORDO_ACRJBP, 0) = 0 THEN ... ELSE NULL END`. Nos blocos de fechamento (`TOTAL GERAL ->`), aplique o mesmo filtro de exclusão no somatório (`NVL(SUM(CASE WHEN NVL(VLR_ACORDO_ACRJBP, 0) = 0 THEN VLRACORDO ELSE 0 END), 0)`), impedindo que o mesmo contrato seja computado duas vezes na mesma linha ou duplique o faturamento no rodapé.
+
+19. **Imunidade de Identificador em CTEs Encadeadas (`ORA-00904`):**
+    Ao encadear CTEs materializadas onde uma consome a outra, nunca confie exclusivamente em aliases renomeados (`TA.CODESPECIE AS ESPECIE_TITULO`). Projete sempre a coluna com seu nome original e com o alias (`TA.CODESPECIE, TA.CODESPECIE AS ESPECIE_TITULO`), blindando a CTE consumidora contra `ORA-00904: invalid identifier`.
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

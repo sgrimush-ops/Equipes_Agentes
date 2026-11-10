@@ -12,6 +12,7 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `NUMERO_PROCESSO`: sequencial do processo vinculado (`AC.SEQPROCESSO`).
 - `CODIGO_FORNECEDOR`: código do fornecedor (`B.SEQPESSOA`).
 - `FORNECEDOR`: razão social do fornecedor (ou `'TOTAL GERAL ->'` no rodapé).
+- `RESPONSAVEL_FORNECEDOR`: nome do responsável pelo pagamento/acordo informado pelo usuário na tela (`AC.RESPACORDONOME` - ex: 'EDUARDO').
 - `DESCRICAO_ACORDO`: descrição textual do acordo (`A.DESCACORDO`).
 - `DATA_EMISSAO`: data de emissão formatada (`DD/MM/YYYY`).
 - `COMPRADOR`: apelido ou nome do comprador (`C.APELIDO`).
@@ -26,13 +27,15 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 - `ULTIMO_RECEBIMENTO`: data da quitação ou última alteração (`DD/MM/YYYY`).
 - `NUMERO_NF`: número do documento fiscal.
 - `NUMERO_PEDIDO_SUPRIMENTO`: número do pedido de compra/suprimento.
-- `VALOR_ACORDO`: valor total bruto do acordo (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de cada acordo para evitar duplicações na soma de relatórios e planilhas.
+- `VALOR_ACORDO`: valor total bruto do acordo (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de acordos padrão. Quando o contrato for do tipo `ACRJBP`, esta coluna permanece em branco (`NULL`), evitando duplicidade com a coluna `VALOR_ACORDO_ACRJBP`.
 - `VLR_FIN_VENCIDO`: valor vencido em aberto (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de cada acordo.
 - `VLR_JA_QUITADO`: valor financeiro acumulado quitado (`R$ 0.000,00`), preenchido exclusivamente na primeira linha/parcela de cada acordo.
 - `TOTAL_PARCELAS`: total de parcelas geradas/programadas.
 - `PARCELAS_PAGAS`: total de parcelas liquidadas.
 - `PARCELAS_PENDENTES`: total de parcelas pendentes.
-- `VALOR_PAG_REGISTRADO`: soma das baixas/quentações operacionais efetivas registradas para a parcela (`FI_TITOPERACAO.VLROPERACAO` com `CODOPERACAO NOT IN (16, 18)`) com expurgo estrito de cancelados (`TRIM(USUCANCELOU) IS NULL`). As operações 16 (Inclusão de Títulos) e 18 nunca geram valor financeiro de pagamento/duplicação, sendo expurgadas da soma e das operações ativas quando houver outras operações registradas, exibindo `R$ 0,00` para títulos em aberto que só possuem tais lançamentos.
+- `VALOR_PAG_REGISTRADO`: soma das baixas/quentações operacionais efetivas registradas para a parcela padrão (`FI_TITOPERACAO.VLROPERACAO` com `CODOPERACAO NOT IN (16, 18)`). Quando a baixa for de contrato `ACRJBP`, este valor vai exclusivamente para `VALOR_BAIXA_ACRJBP`, exibindo `R$ 0,00` nesta coluna para evitar repetição.
+- `VALOR_ACORDO_ACRJBP`: valor total do acordo alimentado com exclusividade mútua quando o acordo for do tipo ou espécie `ACRJBP` (preenchido apenas na linha 1 do acordo).
+- `VALOR_BAIXA_ACRJBP`: valor registrado de baixa do financeiro correspondente à parcela/acordo exclusivamente para o tipo `ACRJBP`.
 - `USUARIO_DATA_HORA_ALTERACAO`: usuário e data/hora da última movimentação registrada, com prefixo `[Lj X]` indicando a filial quando o título tiver sido baixado em loja diferente da empresa do acordo (`[Lj 3] USUARIO - DD/MM/YYYY HH24.MI.SS`).
 
 ## Variáveis para cadastrar em Var - F7 (9 Variáveis)
@@ -42,11 +45,11 @@ Listar acordos comerciais e verbas (`MSUV_ACORDOPROMOC` / `MSU_ACORDOPROMOC`) qu
 | **`LT1`** | Literal | Lojas | `1,2,3,4,5,6,7,8,11,12,13,14,15,16,17,18,21,50,900` | `0` para todas ou lojas separadas por vírgula |
 | **`LT2`** | Literal | Usuarios da Manutenção | `0` | `0` para todos (não duplica mais independente do usuário) ou logins específicos |
 | **`LT3`** | Literal | Código Fornecedor | `0` | `0` para todos ou códigos de fornecedores separados por vírgula |
-| **`NR1`** | Numérico | Expurgar CANCELADO | `2` | `2` para expurgar cancelados ou `0` para todos |
-| **`DT1`** | Data | Data Inicial Lançamento | `01/01/2026` | Início do período |
-| **`DT2`** | Data | Data Final Lançamento | `09/09/2026` | Fim do período |
+| **`NR1`** | Numérico | Expurgar CANCELADO | `0` | Digite `2` para expurgar cancelados ou `0` para trazer todos (cancelados e ativos) |
+| **`DT1`** | Data | Data Inicial Lançamento | `01/01/2026` | Início do período (emissão do acordo ou quitação) |
+| **`DT2`** | Data | Data Final Lançamento | `09/09/2026` | Fim do período (emissão do acordo ou quitação) |
 | **`LS1`** | Lista | Comprador | `0 - TODOS` | Seleção de Comprador |
-| **`LS2`** | Lista | Situação Financeira | `0 - TODOS` | `1 - QUITADO`, `2 - ABERTO`, etc. |
+| **`LS2`** | Lista | Situação Financeira | `0 - TODOS` | `0 - TODOS`, `1 - QUITADO`, `2 - ABERTO`, `3 - SEM TITULO`, `4 - CANCELADO` |
 | **`LS3`** | Lista | Rede Fornecedores | ` TODAS AS REDES` | Selecione a Rede (`GE_REDE`) desejada ou mantenha ` TODAS AS REDES` |
 
 ---
