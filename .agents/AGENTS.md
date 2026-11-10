@@ -14,7 +14,8 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
    - **Solução Obrigatória:** Para usar CTEs e ao mesmo tempo passar pelo validador, você deve envelopar a query inteira com um `SELECT` fantasma externo.
    - *Estrutura Correta*:
      ```sql
-     SELECT * FROM (
+     SELECT *
+     FROM (
          WITH CTE_EXEMPLO AS (
              SELECT /*+ MATERIALIZE */ ...
          )
@@ -63,7 +64,6 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 15. **Status de Suprimento: Prevalência do Status do Item (`STATUSITEM`) sobre a Capa (`SITUACAOPED`):**
     Em relatórios de pedidos de compra e suprimentos (`MSU_PEDIDOSUPRIM` / `MSU_PSITEMRECEBER`), a capa do pedido (`SITUACAOPED`) frequentemente permanece `'A'` (Aberto) mesmo quando itens individuais são cancelados. Para apurar cortes, cancelamentos e pendências reais de produtos, baseie-se exclusivamente no status da linha do item (`MSU_PSITEMRECEBER.STATUSITEM`) e na relação entre `QUANTIDADE_PEDIDA` e `QUANTIDADE_ATENDIDA` (`MSU_PSITEMRECEBIDO`), tratando `ATEND_PARC` para entregas incompletas e `NÃO_ATENDIDO` para quantidade zero após a data limite.
 
-
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco
@@ -83,6 +83,8 @@ Ao criar automações desktop ou protótipos em Python para interagir visualment
 11. **Diferenciação Semântica de Popups Delphi ("Atenção" vs "Seleção Inversa"):**
     Nunca assuma que qualquer popup com o título "Atenção" seja um aviso de Seleção Inversa. O Consinco usa o mesmo título para avisos de caracteres especiais na Descrição Completa do Produto, limites de crédito e bloqueios. É obrigatório ler o corpo da mensagem via OCR: se for apenas aviso de acentuação/caracteres, envie `Enter` / `Alt+O` e continue o salvamento sem alterar abas; acione o fluxo de abastecimento apenas se o texto contiver explicitamente a pergunta de Seleção Inversa.
 
+---
+
 # Regras de Dicionário, Nomes Oficiais e Governança de Dados Consinco
 
 1. **Proibição Absoluta de Nomes Inventados / Informais:**
@@ -96,8 +98,8 @@ Ao criar automações desktop ou protótipos em Python para interagir visualment
    - Preços de Venda: `MRL_PRODEMPSEG`.
    - Pontas de Gôndola / Ilhas: `MRL_PONTOEXTRA`, `MRL_PONTOEXTRAPRODUTO`, `MRL_PONTOEXTRAPRODUTOEMPRESA`.
 2. **Visualização no Simulador Zona SQL:**
-   - Na aba **`📚 Dicionário`**: manter as 7.111 tabelas e 126.636 colunas oficiais para busca e consulta de arquitetura.
-   - Na aba **`📁 Tabelas`**: exibir estritamente as tabelas oficiais que possuem dados reais populados (`row_count > 0`), ocultando tabelas vazias e internas.
+   - Na aba **Dicionário**: manter as 7.111 tabelas e 126.636 colunas oficiais para busca e consulta de arquitetura.
+   - Na aba **Tabelas**: exibir estritamente as tabelas oficiais que possuem dados reais populados (`row_count > 0`), ocultando tabelas vazias e internas.
 
 ---
 
@@ -200,18 +202,34 @@ Na Zona SQL e ferramentas de apoio com IA:
 - **Acesso Total e Sem Bloqueio:** O agente possui **acesso total** e **permissão contínua irrestrita** em todos os diretórios e arquivos dentro da pasta `Equipes_Agentes`.
 - **Execução Direta Sem Solicitar Confirmação:** Não é necessário solicitar aprovações ou confirmações prévias para ler, criar, editar arquivos, refatorar código ou executar scripts/comandos no terminal dentro de `Equipes_Agentes`. O agente deve agir com total autonomia e proatividade.
 
-
-
+---
 
 # Regras de Programação JavaScript
 
-1. **Proibição de continue em loops orEach:**
-   Nunca utilize a instrução continue ou reak dentro de blocos orEach() no JavaScript, pois isso resultará em um SyntaxError: Illegal continue statement. Para interromper a iteração atual (simular continue), utilize obrigatoriamente a instrução eturn. Se precisar de controle total de loop com reak e continue, utilize o bloco or...of ou um or tradicional.
+1. **Proibição de `continue` em loops `forEach`:**
+   Nunca utilize a instrução `continue` ou `break` dentro de blocos `.forEach()` no JavaScript, pois isso resultará em um `SyntaxError: Illegal continue statement`. Para interromper a iteração atual (simular continue), utilize obrigatoriamente a instrução `return`. Se precisar de controle total de loop com `break` e `continue`, utilize o bloco `for...of` ou um `for` tradicional.
 
-# Aprendizados e Preven��o de Erros Cr�ticos (Deploy e Backend)
-1. **Cuidado com Banco de Dados no Deploy:** NUNCA sobrescreva ou substitua o banco de dados do servidor de produ��o pelo banco local (ex: n�o inclua db.sqlite ou arquivos de banco no pacote do PUBLICAR_NO_SERVIDOR.py).
-2. **Inje��o de C�digo JS via Terminal (PowerShell):** Evite adicionar blocos complexos de JavaScript usando Add-Content ou manipula��es via terminal que contenham caracteres especiais como cifr�es (\$). O PowerShell avalia cifr�es em strings como vari�veis, quebrando template literals do JS e causando SyntaxErrors graves no frontend.
-3. **Compatibilidade SQLite vs PostgreSQL:** O sistema em produ��o/desenvolvimento pode usar SQLite. N�o utilize fun��es ou estruturas exclusivas do PostgreSQL, como SERIAL PRIMARY KEY (use INTEGER PRIMARY KEY AUTOINCREMENT), NOW() (use CURRENT_TIMESTAMP) e BTRIM() (use TRIM()). Esses comandos quebram o SQLAlchemy silenciosamente no SQLite.
-4. **Manuten��o de Cargos e Listas Din�micas:** Todas as listagens de Cargo (Dropdowns no perfil e login) n�o devem ter elementos hardcoded (HTML fixo). A listagem deve ser sempre puxada dinamicamente da API para acompanhar as adi��es feitas na aba de 'Manuten��o de Cargos'.
+---
 
-5. **Arquitetura de Deploy (Delete Sync):** O sistema de deploy (PUBLICAR_NO_SERVIDOR.py e pi/admin.py) agora conta com exclus�o sincronizada (Delete Sync) segura. Ele varre as pastas de c�digo local, gera dinamicamente um manifest.json e o envia no pacote ZIP. O endpoint de deploy no servidor l� esse manifesto e deleta automaticamente scripts .py e .js (ausentes na lista) das pastas rastreadas, garantindo que c�digo morto n�o acumule. Nunca remova ou corrompa essa l�gica de manifesto. Sempre mantenha a trava que impede a exclus�o de arquivos com extens�es .db, .sqlite ou que estejam na pasta dados/.
+# Aprendizados e Prevenção de Erros Críticos (Deploy e Backend)
+
+1. **Cuidado com Banco de Dados no Deploy:** NUNCA sobrescreva ou substitua o banco de dados do servidor de produção pelo banco local (ex: não inclua `db.sqlite` ou arquivos de banco no pacote do `PUBLICAR_NO_SERVIDOR.py`).
+2. **Injeção de Código JS via Terminal (PowerShell):** Evite adicionar blocos complexos de JavaScript usando `Add-Content` ou manipulações via terminal que contenham caracteres especiais como cifrões (`$`). O PowerShell avalia cifrões em strings como variáveis, quebrando template literals do JS e causando SyntaxErrors graves no frontend.
+3. **Compatibilidade SQLite vs PostgreSQL:** O sistema em produção/desenvolvimento pode usar SQLite. Não utilize funções ou estruturas exclusivas do PostgreSQL, como `SERIAL PRIMARY KEY` (use `INTEGER PRIMARY KEY AUTOINCREMENT`), `NOW()` (use `CURRENT_TIMESTAMP`) e `BTRIM()` (use `TRIM()`). Esses comandos quebram o SQLAlchemy silenciosamente no SQLite.
+4. **Manutenção de Cargos e Listas Dinâmicas:** Todas as listagens de Cargo (Dropdowns no perfil e login) não devem ter elementos hardcoded (HTML fixo). A listagem deve ser sempre puxada dinamicamente da API para acompanhar as adições feitas na aba de 'Manutenção de Cargos'.
+5. **Arquitetura de Deploy (Delete Sync):** O sistema de deploy (`PUBLICAR_NO_SERVIDOR.py` e `api/admin.py`) agora conta com exclusão sincronizada (Delete Sync) segura. Ele varre as pastas de código local, gera dinamicamente um `manifest.json` e o envia no pacote ZIP. O endpoint de deploy no servidor lê esse manifesto e deleta automaticamente scripts `.py` e `.js` (ausentes na lista) das pastas rastreadas, garantindo que código morto não acumule. Nunca remova ou corrompa essa lógica de manifesto. Sempre mantenha a trava que impede a exclusão de arquivos com extensões `.db`, `.sqlite` ou que estejam na pasta `bdados/`.
+---
+
+# Padrões Críticos de Codificação de Arquivos e Prevenção de Falhas de Parser
+
+1. **Codificação Estrita UTF-8 sem BOM em Todas as Modificações:**
+   - Todos os arquivos de configuração, diretrizes, skills e documentação do workspace (`.agents/*.md`, `*.json`, `*.yaml`, `*.py`) devem ser lidos, criados e gravados estritamente em **UTF-8 puro (sem BOM)**.
+   - Em manipulações com Python, declare obrigatoriamente `encoding='utf-8'` nas operações `open()`, `Path.read_text()` e `Path.write_text()`.
+   - É expressamente proibido utilizar `utf-8-sig` (BOM) ou codificações legadas do Windows (`cp1252`, `latin1`, `utf-16`), pois elas quebram o analisador sintático nativo do Antigravity.
+
+2. **Proibição de Comandos PowerShell com `Out-File` Padrão ou `Add-Content` sem Encoding:**
+   - Nunca utilize `>` ou `Out-File` sem o parâmetro `-Encoding utf8`, pois o PowerShell 5.1 grava por padrão em `Unicode (UTF-16 LE)` e corrompe o carregamento das regras dos agentes.
+   - Ao gerar arquivos textuais via terminal, utilize `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` ou scripts Python dedicados.
+
+3. **Imunidade a Caracteres Ocultos de Controle e Sequências ANSI:**
+   - Ao persistir ou editar arquivos de diretrizes (`AGENTS.md` e `SKILL.md`), remova previamente quaisquer caracteres de controle invisíveis (`\x00` a `\x1F`, como `\x08` [backspace] ou `\x0c` [form feed]) e códigos de escape de cores de terminal. O conteúdo deve ser texto simples e legível.
