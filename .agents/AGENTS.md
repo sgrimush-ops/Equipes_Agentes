@@ -83,6 +83,12 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 19. **Imunidade de Identificador em CTEs Encadeadas (`ORA-00904`):**
     Ao encadear CTEs materializadas onde uma consome a outra, nunca confie exclusivamente em aliases renomeados (`TA.CODESPECIE AS ESPECIE_TITULO`). Projete sempre a coluna com seu nome original e com o alias (`TA.CODESPECIE, TA.CODESPECIE AS ESPECIE_TITULO`), blindando a CTE consumidora contra `ORA-00904: invalid identifier`.
 
+20. **Títulos Centralizados de Acordos Comerciais na Matriz (`T.NROEMPRESA IN (1, 3, 15, 50, 900)`) e Blindagem por Valor Exato:**
+    Ao cruzar acordos comerciais rateados por filial (`MSUV_ACORDOPROMOC`) com o contas a receber (`FI_TITULO`), o ERP Totvs Consinco frequentemente gera as duplicatas centralizadas na Loja 3 (Matriz/Centralizadora), mantendo o número do acordo (`T.NROTITULO = A.NROACORDO`), porém gravando `T.NROEMPRESA = 3`:
+    - **Amarração Cross-Company:** Nunca restrinja o cruzamento estritamente a `T.NROEMPRESA = A.NROEMPRESA`. Permita empresas centralizadoras (`T.NROEMPRESA IN (1, 3, 15, 50, 900)`).
+    - **Anti-Ambiguidade por Valor Exato:** Como filiais distintas podem compartilhar o mesmo número sequencial de acordo (ex: Acordo nº 36 na Loja 5 e na Loja 8), desfaça a ambiguidade exigindo paridade nominal matemática (`ABS(NVL(T.VLRORIGINAL, 0) - NVL(A.VLRACORDO, 0)) < 0.05` ou via `MSU_ACORDOPROMOCPARCELA`), impedindo multiplicação cartesiana de linhas.
+    - **Auditoria Ativa de Cancelados (`T.SITUACAO != 'C'`):** Títulos cancelados no financeiro devem ser rigorosamente desconsiderados (`T.SITUACAO != 'C'`). Se o acordo comercial permanecer ativo/concluído e o título estiver cancelado, o relatório deve apontar legitimamente `'Sem Título'`, operando como instrumento ativo de auditoria contábil para identificar títulos cancelados indevidamente ou pendentes de reemissão.
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

@@ -120,6 +120,19 @@ SELECT * FROM (
                AND (
                     T.NROEMPRESA = A.NROEMPRESA
                     OR (
+                        T.NROEMPRESA IN (1, 3, 15, 50, 900)
+                        AND (
+                            ABS(NVL(T.VLRORIGINAL, 0) - NVL(A.VLRACORDO, 0)) < 0.05
+                            OR EXISTS (
+                                SELECT 1
+                                FROM MSU_ACORDOPROMOCPARCELA P
+                                WHERE P.NROACORDO = A.NROACORDO
+                                  AND P.NROEMPRESA = A.NROEMPRESA
+                                  AND ABS(NVL(T.VLRORIGINAL, 0) - NVL(P.VALORPARCELA, 0)) < 0.05
+                            )
+                        )
+                    )
+                    OR (
                         A.NROEMPRESA IN (1, 15, 50, 900)
                         AND NOT EXISTS (
                             SELECT 1
