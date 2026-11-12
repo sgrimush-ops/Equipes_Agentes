@@ -127,3 +127,25 @@ Por que um acordo sem título exibiu a situação `'Financeiro'`?
   ```
   Logo, qualquer acordo com pelo menos 1 parcela prevista é considerado comercialmente integrado ao fluxo financeiro, cabendo à coluna `DIREITO_OBRIGACAO` e `ABERTO_QUITADO` apontar se os títulos físicos realmente existem no Contas a Receber (`FI_TITULO`).
 
+---
+
+## 6. Hierarquia de Registro de Usuário (`PRIORIDADE_OP`) e Rastreio de Cancelamentos (`CTE_AUDIT_CANC`)
+
+### O Problema do Campo de Usuário em Branco ou Omissão de Cancelamento
+Quando o setor Financeiro cancelava uma operação de baixa (`FI_TITOPERACAO.OPCANCELADA = 'S'` ou `USUCANCELOU IS NOT NULL`) ou cancelava o próprio título (`FI_TITULO.SITUACAO = 'C'`):
+1. **Em Títulos Ativos com Baixa Cancelada:** O filtro anterior (`WHERE TRIM(O.USUCANCELOU) IS NULL`) descartava a operação cancelada, fazendo o relatório ocultar quem realizou o cancelamento ou perder o vínculo no período quando o acordo havia sido emitido em mês anterior.
+2. **Em Acordos com Título Cancelado (`Sem Título`):** Como `CTE_TITULOS_ACORDO` filtra `T.SITUACAO != 'C'` para proteger os valores financeiros (mantendo `VLR_JA_QUITADO = R$ 0,00` e `VALOR_PAG_REGISTRADO = R$ 0,00`), a coluna `USUARIO_DATA_HORA_ALTERACAO` ficava completamente vazia (`NULL`).
+3. **Em Acordos de Sell-In por Pedido (ex: `ACORDO REF. PEDIDO: 16/136299/L`):** Acordos concluídos diretamente pela entrada das Notas Fiscais em `MSU_ACORDOTITULORECEB` sem geração de duplicata avulsa de Direito em `FI_TITULO` também ficavam sem informação de usuário.
+
+### A Solução Homologada em 3 Camadas (Sem Alterar o Financeiro)
+1. **Hierarquia `PRIORIDADE_OP` em `CTE_OPERACOES_RAW` / `CTE_OPERACOES_TITULO`:**
+   * **`PRIORIDADE_OP = 3` (Manutenção Ativa):** Operações `CODOPERACAO NOT IN (16, 18)` não canceladas. São as **únicas** que somam em `VLROPERACAO` (`VALOR_PAG_REGISTRADO`).
+   * **`PRIORIDADE_OP = 2` (Operação Cancelada):** Soma `0` no financeiro e projeta `NVL(TRIM(O.USUCANCELOU), TRIM(O.USUALTERACAO)) || ' (CANC)'` com `GREATEST(NVL(O.DTAHORAALTERACAO, O.DTAALTERACAO), NVL(O.DTACANCELOU, ...))` quando não há outra manutenção ativa.
+   * **`PRIORIDADE_OP = 1` (Inclusão do Título):** Operações `16` e `18` ativas; exibe o usuário criador do título apenas quando não houve manutenção nem cancelamento posterior.
+2. **CTE Dedicada `CTE_AUDIT_CANC` para Linhas `Sem Título`:**
+   * Busca títulos/operações cancelados via número do acordo/processo, via `FI_TITOPERACAO.NROPROCESSO = A.SEQPROCESSO` e via `MSU_ACORDOTITULORECEB.LINKERP`, preenchendo `[Lj X] USUARIO (CANC) - DD/MM/YYYY HH24.MI.SS (Parc. 1/1)` exclusivamente na coluna `USUARIO_DATA_HORA_ALTERACAO`.
+3. **Fallback para a Tabela `MSU_ACORDOPROMOC` e Prevenção de `ORA-00979`:**
+   * Caso o acordo nunca tenha gerado registro em `FI_TITULO` (como em Sell-In liquidado em NF), faz fallback para `COALESCE(AC.USUALTERACAO, AC.USUEXPFINANCEIRO, AC.USUAPROVREPROV, AC.USUINCLUSAO)` e respectiva data.
+   * No `GROUP BY` da `CTE_VALORES_BRUTOS`, as colunas `TG.USU_ULTIMA_ALTERACAO`, `CA.USU_CANC`, `TG.DTA_ULTIMA_ALTERACAO`, `CA.DTA_CANC`, `TG.NROEMPRESA_TITULO` e `CA.NROEMPRESA_CANC` devem ser declaradas individualmente para evitar `ORA-00979: not a GROUP BY expression` ao combiná-las com `MAX(AC....)` dentro do `COALESCE`.
+
+
