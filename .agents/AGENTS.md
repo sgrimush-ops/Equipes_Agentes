@@ -106,6 +106,18 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
 23. **Filtros Numéricos com Operadores Relacionais Dinâmicos em Binds Literais (`:LT2`, `:LT3` para `>=x`, `>x`, `<=x`, `<x`, `=x`):**
     Em consultas de giro e auditoria de estoque (como Dias Sem Venda `DIAS_SEM_VDA` em `:LT2` e Dias Sem Entrada `DIAS_SEM_ENT` em `:LT3`), utilize variáveis literais (`LTx`) avaliadas no `WHERE` externo com `TRIM(:LTx)` e extração numérica via `TO_NUMBER(REGEXP_REPLACE(:LTx, '[^0-9-]', ''))` para suportar simultaneamente operadores `>=`, `>`, `<=`, `<`, `=`, número exato ou campo vazio sem erro de conversão no Oracle.
 
+24. **Troco Solidário no PDV: Fonte Primária Exclusiva (`CONSINCOMONITOR.TB_DOCTOTROCOSOLIDARIO`) e Prevenção de Duplicidade com Tesouraria:**
+    Para apurar valores arrecadados e rankear Operadoras de Caixa em campanhas de **Troco Solidário**:
+    - **Fonte Única e Tempo Real:** Consulte exclusivamente `CONSINCOMONITOR.TB_DOCTOTROCOSOLIDARIO TS` unida pela PK `(NROEMPRESA, NROCHECKOUT, SEQDOCTO)` com `CONSINCOMONITOR.TB_DOCTO D` (`D.DTAMOVIMENTO`, `D.COO`, e `D.SEQUSUARIO` = Operadora em `CONSINCO.GE_USUARIO.SEQUSUARIO`) e `CONSINCOMONITOR.TB_DOCTOPAGTO P` (`SUM(NVL(P.VLRTOTAL, NVL(P.VALOR, 0)))` com `NVL(P.STATUS, 'A') != 'C`), expurgando estornos via `LEFT JOIN CONSINCOMONITOR.TB_DOCTOESTORNO EST ... WHERE EST.SEQDOCTO IS NULL`. A instituição beneficiada é obtida por `TS.SEQPESSOA = CONSINCO.GE_PESSOA.SEQPESSOA` (`NOMERAZAO`).
+    - **Proibição de `UNION` com `FI_TSMOVENTRADAOUTROSOPER`:** Nunca una `TB_DOCTOTROCOSOLIDARIO` com `CONSINCO.FI_TSMOVENTRADAOUTROSOPER` (Tesouraria Outras Entradas), pois o ERP replica o movimento do PDV para a Tesouraria após o fechamento com `NROCUPOM` nulo/agrupado, duplicando os valores arrecadados de cada operadora.
+    - **Prevenção de `ORA-00904` em `TB_DOCTO`:** Na tabela real `CONSINCOMONITOR.TB_DOCTO`, utilize estritamente `TS.NROEMPRESA` / `D.NROEMPRESA` (a coluna `NROEMPRESAERP` existe apenas na staging `MONX_DOCTO` e gera `ORA-00904` no schema `CONSINCOMONITOR`).
+
+25. **Rastreio de Múltiplas NFs Referenciadas em Devoluções (`:LT1` via `HAVING` + Fronteira Numérica `REGEXP_LIKE`):**
+    Em consultas de notas de devolução (`MLFV_BASENFE` + `MFLV_BASEDFITEM`, `CGO IN (802, 860)`), onde as NFs de entrada originais ficam referenciadas no texto de `OBSERVACAO` (`Ref. NF: 423533...`):
+    - **Filtro no `HAVING` (Preservação da Soma dos Itens):** Aplique o filtro `:LT1` na cláusula `HAVING` sobre `MAX(COALESCE(NULLIF(TRIM(I.OBSERVACAO), ''), NULLIF(TRIM(N.OBSERVACAOLF), '')))` (e nunca no `WHERE` direto de `I.OBSERVACAO`), evitando que itens da mesma nota sem texto de observação sejam amputados do `SUM(I.VLRITEM)`.
+    - **Isolamento de Número Inteiro por Vírgula:** Utilize `TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|'))` combinado com fronteiras `(^|[^0-9])(...)([^0-9]|$)` no `REGEXP_LIKE` (para `OBSERVACAO`) e `INSTR` (para `N.NUMERONF`), permitindo buscar múltiplas NFs separadas por vírgula sem falsos positivos em valores monetários ou números parciais.
+    - **Investigação Fornecedor vs. Transportadora:** Quando o usuário investigar se uma mercadoria foi devolvida contra o fornecedor ou contra a transportadora, oriente a usar `:NR1 = 0` e `:LS1 = ' TODAS AS REDES'` com os números das NFs em `:LT1`, pois devoluções contra a transportadora são emitidas no `SEQPESSOA` da transportadora.
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

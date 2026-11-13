@@ -28,3 +28,19 @@ Para garantir isso:
 
 ## 5. Inclusão da Empresa Atacado (21) nas Compras
 Ao mapear as regras de *Compras ao Fornecedor*, é necessário incluir a empresa `21` (que representa operações por Atacado). Garanta que ela esteja listada nos filtros `IN (..., 21, ...)` tanto para as notas de Entrada (Compras) quanto para as de Devolução/Trocas. Não se esqueça de validar se a regra também deve ou não ser aplicada a Vendas ou Estoque, dependendo da necessidade de negócio.
+
+## 6. Rastreio de NFs de Origem Referenciadas em Devoluções (`CGO 802, 860`) via `:LT1` (Fornecedor vs. Transportadora)
+Em consultas de notas de devolução (`consulta_devolucao_compra.sql` sobre `MLFV_BASENFE` + `MFLV_BASEDFITEM`), a nota fiscal de compra original é destacada no campo `OBSERVACAO` (`MAX(COALESCE(NULLIF(TRIM(I.OBSERVACAO), ''), NULLIF(TRIM(N.OBSERVACAOLF), '')))`), por exemplo: `Ref. NF: 423545, Série 1, de 30/05/2026...`.
+- **Filtro Multi-NFs no `HAVING` (Preservação da Soma dos Itens):** Para filtrar múltiplos números de NFs separados por vírgula em `:LT1` sem descartar linhas de itens da mesma nota que estejam com `I.OBSERVACAO` nulo (o que distorceria o `SUM(I.VLRITEM)`), aplique o filtro obrigatoriamente na cláusula **`HAVING`** da CTE agrupada por nota (`DADOS_NF`), combinando busca exata em `N.NUMERONF` (`INSTR`) e busca por palavra/número inteiro na observação agregada (`REGEXP_LIKE` com fronteiras `(^|[^0-9])(...)([^0-9]|$)`):
+  ```sql
+  HAVING (
+      NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', 'TODAS', '')
+      OR INSTR('|' || TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|')) || '|', '|' || TO_CHAR(N.NUMERONF) || '|') > 0
+      OR REGEXP_LIKE(
+          MAX(COALESCE(NULLIF(TRIM(I.OBSERVACAO), ''), NULLIF(TRIM(N.OBSERVACAOLF), ''))),
+          '(^|[^0-9])(' || TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|')) || ')([^0-9]|$)'
+      )
+  )
+  ```
+- **Devolução contra Fornecedor vs. Transportadora:** Quando o usuário investigar se uma NF de entrada foi devolvida contra o próprio fornecedor ou contra a transportadora (sinistro/avaria/falta), oriente sempre a informar **`NR1 = 0` (Todos os fornecedores)** e **`LS1 =  TODAS AS REDES`**, preenchendo apenas os números das NFs originais em **`LT1`** (ex: `423533, 423534`). Caso a nota de devolução tenha sido emitida contra a transportadora, o `N.SEQPESSOA` da devolução será o código da transportadora e não o do fornecedor original.
+

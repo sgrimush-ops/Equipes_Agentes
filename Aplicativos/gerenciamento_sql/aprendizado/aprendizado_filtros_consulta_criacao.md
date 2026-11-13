@@ -107,3 +107,9 @@ WHERE B.NROEMPRESA IN (#LT1)
   )
 ```
 - Isso permite que um unico campo `LTx` aceite qualquer operador relacional sem precisar de duas variaveis separadas (operador + valor) e sem gerar erro quando deixado em branco.
+
+## Padrao homologado para busca de multiplos numeros de NF (separados por virgula) dentro de texto livre (`OBSERVACAO`) e `NUMERONF` via `LT1`
+- Quando o usuario precisar pesquisar varias NFs separadas por virgula (ex: `423533, 423534`) que podem estar referenciadas dentro do campo textual `OBSERVACAO` (ex: `Ref. NF: 423533, Série 1...`) ou na propria coluna `N.NUMERONF`:
+  1. Converta a lista digitada em `:LT1` em uma expressao regular limpa de espacos e virgulas extras com `TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|'))`.
+  2. Delimite a expressao regular com fronteiras nao-numericas `(^|[^0-9])(...)([^0-9]|$)` para garantir que `423` nao de falso positivo em `423533` ou em valores monetarios.
+  3. Se a `OBSERVACAO` vier de nivel de item (`I.OBSERVACAO`) em uma CTE agrupada por nota (`GROUP BY N.SEQNF...`), aplique o filtro no **`HAVING`** sobre o `MAX(...)` para nao amputar itens sem observacao do somatorio financeiro da nota.

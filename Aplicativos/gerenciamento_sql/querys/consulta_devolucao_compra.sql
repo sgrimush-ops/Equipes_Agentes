@@ -41,6 +41,14 @@ WITH DADOS_NF AS (
         N.SEQPESSOA,
         F.NOMERAZAO,
         N.DTAEMISSAO
+    HAVING (
+        NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', 'TODAS', '')
+        OR INSTR('|' || TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|')) || '|', '|' || TO_CHAR(N.NUMERONF) || '|') > 0
+        OR REGEXP_LIKE(
+            MAX(COALESCE(NULLIF(TRIM(I.OBSERVACAO), ''), NULLIF(TRIM(N.OBSERVACAOLF), ''))),
+            '(^|[^0-9])(' || TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|')) || ')([^0-9]|$)'
+        )
+    )
 ), PRODUTOS_NF AS (
     SELECT /*+ MATERIALIZE */
         I.SEQNF,
