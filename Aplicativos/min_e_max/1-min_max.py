@@ -6,6 +6,28 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 
+# Função auxiliar para carregar o Rank ABC de produtos
+def carregar_rank_abc_lookup():
+    rank_path = Path(__file__).parent / 'rankeador_abc_produtos.parquet'
+    rank_lookup = {}
+    if rank_path.exists():
+        try:
+            df_rank = pd.read_parquet(rank_path)
+            df_rank.columns = df_rank.columns.astype(str).str.strip()
+            col_seq = 'SEQCODIGO' if 'SEQCODIGO' in df_rank.columns else ('CODIGO_PRODUTO' if 'CODIGO_PRODUTO' in df_rank.columns else None)
+            if col_seq and 'RANK' in df_rank.columns:
+                seq_series = pd.to_numeric(df_rank[col_seq], errors='coerce').fillna(-1).astype(int)
+                rank_series = df_rank['RANK'].astype(str).str.strip().str.upper()
+                for seq_val, r_val in zip(seq_series, rank_series):
+                    if seq_val > 0 and r_val in ('A', 'B', 'C'):
+                        rank_lookup[seq_val] = r_val
+            print(f"Sucesso: {len(rank_lookup)} produtos mapeados com visibilidade ABC de '{rank_path.name}'.")
+        except Exception as e:
+            print(f"Erro ao carregar '{rank_path.name}': {e}")
+    else:
+        print(f"[AVISO] Arquivo '{rank_path.name}' não encontrado. Coluna RANK ficará vazia.")
+    return rank_lookup
+
 # Função para converter arquivo intermediário para Excel
 def converter_para_csv(arquivo_parquet=None):
     """
@@ -48,6 +70,10 @@ def converter_para_csv(arquivo_parquet=None):
     # Ordena se possível
     if 'CODIGO_PRODUTO' in df.columns and 'EMPRESA' in df.columns:
         df = df.sort_values(by=['CODIGO_PRODUTO', 'EMPRESA'], ascending=[True, True])
+
+    if 'CODIGO_PRODUTO' in df.columns:
+        rank_lookup = carregar_rank_abc_lookup()
+        df['RANK'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int).map(rank_lookup)
     
     arquivo_saida = Path('ajustepp.xlsx')
     try:
@@ -102,7 +128,9 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
         regras_loja = lojas_especiais_lookup.get(str(codigo_empresa), {})
 
     min_piso_unitario = float(regras_loja.get('min_piso_unitario', 5.0))
+    max_piso_unitario = int(regras_loja.get('max_piso_unitario', 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)))
     reducao_dias_seg = int(regras_loja.get('reducao_dias_seguranca', 0))
+    min_dias_seg_floor = int(regras_loja.get('min_dias_seguranca_floor', 1))
     pct_diferenca = float(regras_loja.get('pct_diferenca_alvo', 0.35))
     fator_diff = pct_diferenca / max(0.01, (1.0 - pct_diferenca))
 
@@ -112,8 +140,8 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     if dias_seguranca_lookup:
         dias_seguranca_padrao = dias_seguranca_lookup.get(dept, 5)
 
-    # Aplica redução de dias para lojas em tratamento especial (ex: loja 14 em reforma)
-    dias_seguranca = max(1, dias_seguranca_padrao - reducao_dias_seg)
+    # Aplica redução de dias para lojas em tratamento especial (ex: lojas 4 e 14 em reforma)
+    dias_seguranca = max(min_dias_seg_floor, dias_seguranca_padrao - reducao_dias_seg)
     minimo_dias = dias_seguranca * venda_media
 
     # 2. Definir o piso mínimo do produto (Regras 4 e 10 / Regra Loja Especial)
@@ -164,7 +192,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     if pe_max > 0 or pe_min > 0:
         ideal_min = math.ceil(min_floor_or_sales)
         if embalagem == 1:
-            piso_max_pe = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+            piso_max_pe = max_piso_unitario
             ideal_max = max(piso_max_pe, ideal_min + math.ceil(fator_diff * ideal_min))
         else:
             ideal_max = ideal_min + max(1, math.ceil((fator_diff * ideal_min) / embalagem)) * embalagem
@@ -180,7 +208,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
                 min_novo = max_novo - max(1, K_target)
                 if min_novo < min_floor:
                     min_novo = math.ceil(min_floor)
-                    piso_max_pe = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+                    piso_max_pe = max_piso_unitario
                     max_novo = max(piso_max_pe, min_novo + math.ceil(fator_diff * min_novo))
             else:
                 K_target = int(round((pct_diferenca * max_novo) / embalagem))
@@ -215,7 +243,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
             else:
                 min_novo = math.ceil(min_floor)
                 if embalagem == 1:
-                    piso_max_pe = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+                    piso_max_pe = max_piso_unitario
                     max_novo = max(piso_max_pe, min_novo + 1)
                 else:
                     max_novo = min_novo + embalagem
@@ -264,7 +292,7 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
             min_novo = math.ceil(min_floor_or_sales)
             if embalagem == 1:
                 target_diff = math.ceil(fator_diff * min_novo)
-                piso_max_calc = 10 if min_piso_unitario >= 5 else int(min_piso_unitario * 2)
+                piso_max_calc = max_piso_unitario
                 max_novo = max(piso_max_calc, min_novo + max(1, target_diff))
             else:
                 target_diff = fator_diff * min_novo
@@ -697,7 +725,7 @@ def processar_calculos():
     else:
         print(f"[AVISO] Arquivo '{dias_seguranca_path.name}' não encontrado. O padrão de 5 dias será adotado.")
 
-    # Carregar lojas_especiais.json para lookup de regras customizadas por loja (ex: Loja 14)
+    # Carregar lojas_especiais.json para lookup de regras customizadas por loja (ex: Lojas 4 e 14)
     lojas_especiais_path = Path(__file__).parent / 'lojas_especiais.json'
     lojas_especiais_lookup = {}
     if lojas_especiais_path.exists():
@@ -706,9 +734,12 @@ def processar_calculos():
                 lojas_especiais_lookup = json.load(f)
             print(f"Sucesso: {len(lojas_especiais_lookup)} lojas com regras especiais mapeadas de '{lojas_especiais_path.name}'.")
             for l_id, r_info in lojas_especiais_lookup.items():
-                print(f"  -> Loja {l_id}: {r_info.get('descricao', 'Regra customizada')} (Piso unitário: {r_info.get('min_piso_unitario', 5)} un, Redução seg: -{r_info.get('reducao_dias_seguranca', 0)} dias, Alvo: {r_info.get('pct_diferenca_alvo', 0.35)*100:.0f}%)")
+                print(f"  -> Loja {l_id}: {r_info.get('descricao', 'Regra customizada')} (Piso unitário: {r_info.get('min_piso_unitario', 5)} un, Máx piso: {r_info.get('max_piso_unitario', 10)} un, Redução seg: -{r_info.get('reducao_dias_seguranca', 0)} dias, Alvo: {r_info.get('pct_diferenca_alvo', 0.35)*100:.0f}%)")
         except Exception as e:
             print(f"Erro ao carregar lojas_especiais.json: {e}")
+
+    # Carregar rankeador_abc_produtos.parquet para identificar visibilidade A, B, C na coluna RANK
+    rank_lookup = carregar_rank_abc_lookup()
     
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
@@ -912,6 +943,23 @@ def processar_calculos():
         print(f"=> Sem duplicidade (itens que já possuíam projeção no cálculo mantiveram a recomendação principal). Total unificado: {len(df_export)} itens.")
     else:
         print("=> Nenhum item com divergência de embalagem pendente encontrado na base.")
+
+    # Adiciona a coluna RANK (visibilidade A, B, C a partir de rankeador_abc_produtos.parquet)
+    if 'CODIGO_PRODUTO' in df_export.columns:
+        df_export['RANK'] = (
+            pd.to_numeric(df_export['CODIGO_PRODUTO'], errors='coerce')
+            .fillna(-1)
+            .astype(int)
+            .map(rank_lookup)
+        )
+        # Posiciona RANK logo após DESCRICAO_PRODUTO (ou ao final se DESCRICAO_PRODUTO não existir)
+        cols_atuais = [c for c in df_export.columns if c != 'RANK']
+        if 'DESCRICAO_PRODUTO' in cols_atuais:
+            idx_desc = cols_atuais.index('DESCRICAO_PRODUTO') + 1
+            cols_atuais.insert(idx_desc, 'RANK')
+        else:
+            cols_atuais.append('RANK')
+        df_export = df_export[cols_atuais]
         
     # Ordena pelo código do produto e depois pela empresa
     if 'CODIGO_PRODUTO' in df_export.columns and 'EMPRESA' in df_export.columns:

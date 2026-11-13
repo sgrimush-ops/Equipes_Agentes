@@ -92,3 +92,18 @@ WHERE B.NROEMPRESA IN (#LT1)
 ## Regra de ouro homologada para comprador
 - Em filtro por comprador no Consinco, adotar como padrao fixo a lista textual no formato `codigo - apelido`, retornando um texto unico, e extrair apenas o codigo dentro do SQL principal para comparar com `MAP_FAMDIVISAO.SEQCOMPRADOR`.
 - Nao substituir esse padrao por digitacao manual do nome, lista apenas numerica, ou comparacao textual direta por nome/apelido quando o requisito for filtro de comprador.
+
+## Padrao homologado para filtros numericos com operadores relacionais via `LTx` (`>=`, `>`, `<=`, `<`, `=`)
+- Quando o usuario precisar filtrar colunas calculadas como **Dias Sem Venda (`DIAS_SEM_VDA`)** ou **Dias Sem Entrada (`DIAS_SEM_ENT`)** aceitando expressoes como `>=30`, `>60`, `<=15`, `<10`, `=45` ou numero puro (`30`), utilize variaveis literais (`:LT2`, `:LT3`) no `WHERE` externo da subquery:
+```sql
+  AND (
+    TRIM(:LT3) IS NULL
+    OR ( TRIM(:LT3) LIKE '>%'  AND TRIM(:LT3) NOT LIKE '>=%' AND DIAS_SEM_ENT >  TO_NUMBER(REGEXP_REPLACE(:LT3, '[^0-9-]', '')) )
+    OR ( TRIM(:LT3) LIKE '<%'  AND TRIM(:LT3) NOT LIKE '<=%' AND DIAS_SEM_ENT <  TO_NUMBER(REGEXP_REPLACE(:LT3, '[^0-9-]', '')) )
+    OR ( TRIM(:LT3) LIKE '=%'  AND DIAS_SEM_ENT =  TO_NUMBER(REGEXP_REPLACE(:LT3, '[^0-9-]', '')) )
+    OR ( TRIM(:LT3) LIKE '>=%' AND DIAS_SEM_ENT >= TO_NUMBER(REGEXP_REPLACE(:LT3, '[^0-9-]', '')) )
+    OR ( TRIM(:LT3) LIKE '<=%' AND DIAS_SEM_ENT <= TO_NUMBER(REGEXP_REPLACE(:LT3, '[^0-9-]', '')) )
+    OR ( TRIM(:LT3) NOT LIKE '<%' AND TRIM(:LT3) NOT LIKE '>%' AND TRIM(:LT3) NOT LIKE '=%' AND DIAS_SEM_ENT = TO_NUMBER(REGEXP_REPLACE(:LT3, '[^0-9-]', '')) )
+  )
+```
+- Isso permite que um unico campo `LTx` aceite qualquer operador relacional sem precisar de duas variaveis separadas (operador + valor) e sem gerar erro quando deixado em branco.

@@ -1,4 +1,20 @@
 {
+  "1": {
+    "descricao": "Loja 1 em reforma - reducao preventiva de estoque sem risco de ruptura",
+    "min_piso_unitario": 2,
+    "max_piso_unitario": 6,
+    "reducao_dias_seguranca": 2,
+    "min_dias_seguranca_floor": 1,
+    "pct_diferenca_alvo": 0.40
+  },
+  "4": {
+    "descricao": "Loja 4 em reforma - reducao preventiva de estoque sem risco de ruptura",
+    "min_piso_unitario": 3,
+    "max_piso_unitario": 6,
+    "reducao_dias_seguranca": 2,
+    "min_dias_seguranca_floor": 1,
+    "pct_diferenca_alvo": 0.40
+  },
   "14": {
     "descricao": "Loja 14 em reforma - reducao preventiva de estoque sem risco de ruptura",
     "min_piso_unitario": 2,

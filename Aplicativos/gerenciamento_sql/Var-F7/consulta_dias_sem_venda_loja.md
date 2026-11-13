@@ -16,6 +16,7 @@ Consulta otimizada com CTEs materializadas (`/*+ MATERIALIZE */`) para auditar p
 | **`NR1`** | Numérico | Dias de Carência Cadastro Novo | `60` | Define a janela (em dias) para tratar produtos recém-cadastrados sem venda (se vazio, assume `60`). |
 | **`LT1`** | Texto | Código das Empresas / Lojas | `1,2,3,4,5,6,7,8,11,12,13,14,15,17,18` | Lista de lojas separadas por vírgula. |
 | **`LT2`** | Texto | Filtro de Dias Sem Venda | `>=30` *(ou Vazio)* | Permite operadores como `>30`, `>=60`, `<15`, `<=10`, `=45` ou valor exato. |
+| **`LT3`** | Texto | Filtro de Dias Sem Entrada | `>=30` *(ou Vazio)* | Permite operadores como `>=30`, `>60`, `<15`, `<=10`, `=45` ou valor exato sobre a coluna `DIAS_SEM_ENT`. |
 | **`LT4`** | Texto | Status de Compra (A / I) | `A` | Digite `A` para Ativos, `I` para auditar Inativos com estoque residual, ou `A,I` (ou vazio) para ambos. |
 
 ---
