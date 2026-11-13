@@ -166,10 +166,23 @@ Ao atualizar estoques de pontas de gôndola via planilha:
 
 ---
 
-# Padrões da Integração com o Mentor IA Local (Ollama)
+# Padrões da Integração com o Mentor IA Local (Ollama) e Orquestração Híbrida
 
+## 1. Arquitetura Híbrida Obrigatória (IA Online Planeja e Revisa -> IA Local Executa -> IA Online Ensina)
+Para maximizar a velocidade de raciocínio e reduzir a despesa com tokens online em tarefas do workspace:
+1. **Divisão Inteligente de Trabalho:**
+   - **IA Online (Antigravity):** Atua como Arquiteta e Revisora Sênior. Interpreta o pedido do usuário, consulta rapidamente o dicionário/regras e define o plano técnico exato (tabelas, joins, regras de negócio).
+   - **IA Local (Ollama via `orquestracao/scripts/executor_ollama.py`):** Atua como Executora Operacional a custo zero de tokens. Recebe o briefing já mastigado pela IA Online (`python orquestracao/scripts/executor_ollama.py executar --categoria <sql|var_f7|python|codigo_rapido|dados> --prompt "..." --saida "..."`) e gera o código, query SQL, documentação `Var - F7` ou resumo.
+2. **Revisão e Ciclo de Aprendizado Contínuo (Ensino Anti-Reincidência):**
+   - A IA Online **sempre revisa** o arquivo gerado pelo Ollama antes de responder ao usuário.
+   - Caso encontre qualquer erro ou desvio de padrão no que o Ollama gerou, a IA Online:
+     1. Corrige o arquivo imediatamente para garantir entrega 100% perfeita ao usuário.
+     2. Executa obrigatoriamente `python orquestracao/scripts/executor_ollama.py ensinar --categoria <cat> --erro "..." --regra "..." --errado "..." --correto "..."` para gravar a lição em `orquestracao/memoria_aprendizado_ollama.json` e `orquestracao/LICOES_OLLAMA.md`.
+   - Todas as lições gravadas são injetadas automaticamente no `system_prompt` do Ollama nas execuções seguintes, tornando o modelo local progressivamente mais preciso nas regras do Consinco e do projeto.
+
+## 2. Padrões da Zona SQL com o Mentor IA Local (Ollama)
 Na Zona SQL e ferramentas de apoio com IA:
-1. **Conexão Local:** Utilizar endpoint `http://127.0.0.1:11434` com modelos locais (`hermes3:latest`, `gemma4:latest`).
+1. **Conexão Local:** Utilizar endpoint `http://127.0.0.1:11434` com modelos locais (`hermes3:latest`, `gemma4:latest`, `qwen2.5-coder:1.5b`).
 2. **Parâmetros de Inferência Ágil:** Configurar `num_ctx: 2048`, `num_predict: 400`, `temperature: 0.2` e `timeout: 120` para evitar estouro de tempo em respostas complexas.
 3. **Depuração de Erros 1-Clique:** Quando o banco retornar erros `ORA-*` (ex: `ORA-00904`, `ORA-00936`, `ORA-00979`, `ORA-01790`), enviar o SQL e a mensagem para o método `explain_and_fix_error` gerando a explicação didática e o código corrigido sem comentários `--`.
 

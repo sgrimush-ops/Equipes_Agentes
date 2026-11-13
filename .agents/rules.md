@@ -117,4 +117,9 @@ Este módulo possui regras estruturais fixas para garantir a integridade das mé
 - **Inviolabilidade de Ordens Negativas ("NÃO FAÇA"):** Se o usuário determinar que algo NÃO deve ser feito, NÃO deve ser enviado ou NÃO deve ser modificado, essa ordem tem prioridade absoluta sobre qualquer nível de autonomia. O agente está terminantemente proibido de transgredir restrições negativas.
 - **Proibição de Deploys Remotos de Software:** O APP_Bak reside e é mantido diretamente no servidor de produção (`192.168.50.211`). Desta máquina local, NUNCA disparar scripts de deploy de código (`PUBLICAR_NO_SERVIDOR.py`, empacotamento ZIP, chamadas ao endpoint `/api/admin/deploy`). A única comunicação autorizada para o servidor do aplicativo a partir desta máquina é o envio estrito de dados brutos (`query.parquet`) via `/api/admin/upload-query`.
 
+## 13. Orquestração Híbrida Obrigatória (IA Online + IA Local Ollama com Ciclo de Aprendizado)
+- **Planejamento Online e Execução Local (Economia de Tokens):** A IA Online (Antigravity) atua como Arquiteta e Revisora Sênior: define rapidamente a lógica/tabelas/regras e delega o trabalho braçal de geração (queries SQL, documentações `Var - F7`, scripts Python, resumos) para o Ollama local (`http://127.0.0.1:11434`) via `python orquestracao/scripts/executor_ollama.py executar --categoria <sql|var_f7|python|codigo_rapido|dados> --prompt "..." --saida "..."`.
+- **Revisão e Ensino Anti-Reincidência:** A IA Online revisa todo arquivo gerado pelo Ollama. Sempre que identificar e corrigir qualquer erro no material gerado pela IA local, é obrigatório executar `python orquestracao/scripts/executor_ollama.py ensinar --categoria <cat> --erro "..." --regra "..." --errado "..." --correto "..."` para gravar a regra permanentemente em `orquestracao/memoria_aprendizado_ollama.json` e `orquestracao/LICOES_OLLAMA.md`, garantindo que o Ollama nunca repita o erro.
+
+
 

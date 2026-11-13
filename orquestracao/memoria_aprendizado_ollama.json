@@ -1,0 +1,42 @@
+{
+  "total_execucoes": 1,
+  "total_licoes": 4,
+  "licoes": [
+    {
+      "id": 1,
+      "data": "2026-11-13 17:50:00",
+      "categoria": "sql",
+      "erro_observado": "Uso de comentários '--' no código SQL que quebram o parser de linha única do Totvs Consinco.",
+      "regra_aprendida": "Proibição absoluta de '--' em qualquer ponto do arquivo .sql. O único comentário permitido é o hint /*+ MATERIALIZE */.",
+      "exemplo_errado": "-- Filtro de loja\nWHERE NROEMPRESA = 1",
+      "exemplo_correto": "WHERE NROEMPRESA = 1"
+    },
+    {
+      "id": 2,
+      "data": "2026-11-13 17:50:00",
+      "categoria": "sql",
+      "erro_observado": "Query começando diretamente com WITH causa o erro 'A instrução SQL informada, não é uma consulta' no Consinco.",
+      "regra_aprendida": "Sempre envelopar queries que usam CTE (WITH) dentro de um SELECT * FROM ( WITH CTE AS (SELECT /*+ MATERIALIZE */ ...) SELECT ... ).",
+      "exemplo_errado": "WITH BASE AS (SELECT SEQPRODUTO FROM MAP_PRODUTO) SELECT * FROM BASE",
+      "exemplo_correto": "SELECT * FROM (\n    WITH BASE AS (\n        SELECT /*+ MATERIALIZE */ SEQPRODUTO FROM CONSINCO.MAP_PRODUTO\n    )\n    SELECT * FROM BASE\n)"
+    },
+    {
+      "id": 3,
+      "data": "2026-11-13 17:50:00",
+      "categoria": "var_f7",
+      "erro_observado": "SQL da Lista (LS1/LS2) maior que 145 caracteres ou usando SYS.ODCIVARCHAR2LIST (que trunca em 3 letras no Delphi).",
+      "regra_aprendida": "Manter SQL da lista abaixo de 145 caracteres em linha única e usar DECODE(LEVEL,...) FROM DUAL CONNECT BY LEVEL<=N para opções fixas.",
+      "exemplo_errado": "SELECT COLUMN_VALUE FROM TABLE(SYS.ODCIVARCHAR2LIST('TODOS', 'ATIVOS'))",
+      "exemplo_correto": "SELECT DECODE(LEVEL,1,'TODOS',2,'ATIVOS') FROM DUAL CONNECT BY LEVEL<=2"
+    },
+    {
+      "id": 4,
+      "data": "2026-11-13 17:53:29",
+      "categoria": "sql",
+      "erro_observado": "Usou 'AS' para alias de subconsulta/tabela (FROM (...) AS CTE_VENDAS) e ponto-e-vírgula (;) no final, gerando ORA-00933 e ORA-00911 no Oracle/Consinco.",
+      "regra_aprendida": "No Oracle nunca use 'AS' antes de alias de tabela ou subconsulta (apenas em colunas) e nunca coloque ';' no final da query da Consulta Criação.",
+      "exemplo_errado": "FROM (...) AS CTE_VENDAS;",
+      "exemplo_correto": "FROM (...) CTE_VENDAS"
+    }
+  ]
+}
