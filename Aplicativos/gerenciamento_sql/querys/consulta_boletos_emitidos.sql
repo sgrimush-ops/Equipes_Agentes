@@ -1,0 +1,91 @@
+SELECT *
+FROM (
+    WITH BOLETOS_EMITIDOS AS (
+        SELECT /*+ MATERIALIZE */
+            TF.NROEMPRESA AS LOJA_EMITENTE,
+            NVL(TF.SEQPAGADOR, TF.SEQPESSOA) AS CODIGO_FORNECEDOR,
+            P.NOMERAZAO AS FORNECEDOR,
+            TF.NRODOCUMENTO AS NUMERO_DO_DOC,
+            TF.DTAEMISSAO,
+            TO_CHAR(TF.DTAEMISSAO, 'DD/MM/YYYY') AS DATA_DE_EMISSAO,
+            TO_CHAR(TF.DTAVENCIMENTO, 'DD/MM/YYYY') AS DATA_DE_VENCIMENTO,
+            TF.NROPARCELA AS PARCELA,
+            NVL(TF.VLRORIGINAL, 0) AS VALOR_NUM
+        FROM MRL_TITULOFIN TF
+        INNER JOIN MRL_FORMAPAGTO FP
+            ON FP.NROFORMAPAGTO = TF.NROFORMAPAGTO
+        INNER JOIN MRL_PARAMCOBRANCA PC
+            ON PC.NROEMPRESA = NVL(TF.NROEMPRESACOBR, TF.NROEMPRESA)
+           AND PC.NROBANCO = TF.NROBANCO
+           AND PC.NROCARTEIRACOBR = TF.NROCARTEIRACOBR
+           AND PC.SEQCTACORRENTE = TF.SEQCTACORRENTE
+        INNER JOIN GE_PESSOA P
+            ON P.SEQPESSOA = NVL(TF.SEQPAGADOR, TF.SEQPESSOA)
+        WHERE NVL(PC.INDEMITEBOLETO, 'S') = 'S'
+          AND FP.ESPECIEFORMAPAGTO = 'B'
+          AND TF.OBRIGDIREITO = 'D'
+          AND NVL(TF.SERIEDOC, '0') != 'OE'
+          AND NVL(TF.STATUSTITULOFIN, 'V') != 'C'
+          AND NVL(TF.INDEXPORTACAO, 'N') != 'C'
+          AND TF.TITULOEMITIDO LIKE 'S%'
+          AND TF.DTAEMISSAO >= TRUNC(:DT1)
+          AND TF.DTAEMISSAO < TRUNC(:DT2) + 1
+          AND (
+              NVL(TO_NUMBER(:NR1), 0) = 0
+              OR NVL(TF.SEQPAGADOR, TF.SEQPESSOA) = TO_NUMBER(:NR1)
+          )
+          AND (
+              NVL(TRIM(:LT1), '0') IN ('0', 'TODOS', 'TODAS', '')
+              OR INSTR(',' || UPPER(REPLACE(:LT1, ' ', '')) || ',', ',' || TO_CHAR(TF.NROEMPRESA) || ',') > 0
+          )
+          AND (
+              NVL(TRIM(:LT2), '0') IN ('0', 'TODOS', 'TODAS', '')
+              OR INSTR(',' || UPPER(REPLACE(:LT2, ' ', '')) || ',', ',' || TO_CHAR(TF.NRODOCUMENTO) || ',') > 0
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM MFL_DOCTOFISCAL DF
+              WHERE DF.NUMERODF = TF.NRODOCUMENTO
+                AND DF.NROEMPRESA = TF.NROEMPRESA
+                AND DF.SERIEDF = 'UN'
+                AND DF.NROSERIEECF = 'NF'
+                AND DF.STATUSDF = 'C'
+          )
+    )
+    SELECT
+        LOJA_EMITENTE,
+        FORNECEDOR,
+        NUMERO_DO_DOC,
+        DATA_DE_EMISSAO,
+        PARCELA,
+        'R$ ' || TO_CHAR(ROUND(VALOR_NUM, 2), 'FM999G999G990D00') AS VALOR_DO_BOLETO
+    FROM (
+        SELECT
+            1 AS ORDEM_BLOCO,
+            B.LOJA_EMITENTE,
+            B.CODIGO_FORNECEDOR || ' - ' || B.FORNECEDOR AS FORNECEDOR,
+            B.NUMERO_DO_DOC,
+            B.DTAEMISSAO,
+            B.DATA_DE_EMISSAO,
+            TO_CHAR(B.PARCELA) AS PARCELA,
+            B.VALOR_NUM
+        FROM BOLETOS_EMITIDOS B
+        UNION ALL
+        SELECT
+            2 AS ORDEM_BLOCO,
+            999 AS LOJA_EMITENTE,
+            'TOTAL GERAL ->' AS FORNECEDOR,
+            0 AS NUMERO_DO_DOC,
+            TO_DATE('31/12/2099', 'DD/MM/YYYY') AS DTAEMISSAO,
+            '--/--/----' AS DATA_DE_EMISSAO,
+            '--' AS PARCELA,
+            NVL(SUM(B.VALOR_NUM), 0) AS VALOR_NUM
+        FROM BOLETOS_EMITIDOS B
+    )
+    ORDER BY
+        ORDEM_BLOCO ASC,
+        LOJA_EMITENTE ASC,
+        DTAEMISSAO ASC,
+        NUMERO_DO_DOC ASC,
+        PARCELA ASC
+)

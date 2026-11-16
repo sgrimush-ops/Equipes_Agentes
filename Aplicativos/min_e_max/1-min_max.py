@@ -131,6 +131,15 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
 
     venda_media = venda_periodo / dias_relatorio
 
+    # Identificar classificação ABC do produto (Regra 18: A, B ou C)
+    rank_val = row.get('RANK', None)
+    rank_produto = (
+        str(rank_val).strip().upper()
+        if pd.notna(rank_val) and str(rank_val).strip().upper() in ('A', 'B', 'C')
+        else ''
+    )
+    is_rank_c = (rank_produto == 'C')
+
     # Parâmetros especiais por loja (se configurado no JSON de lojas especiais)
     regras_loja = {}
     if lojas_especiais_lookup:
@@ -143,18 +152,33 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     pct_diferenca = float(regras_loja.get('pct_diferenca_alvo', 0.35))
     fator_diff = pct_diferenca / max(0.01, (1.0 - pct_diferenca))
 
-    # 1. Obter estoque mínimo de segurança com base nas vendas (Regra 7: X dias de venda dependendo do departamento)
+    # 1. Obter estoque mínimo de segurança com base nas vendas (Regra 7 / Regra 18)
     dept = str(row.get('DEPARTAMENTO', '')).strip().upper()
     dias_seguranca_padrao = 5
     if dias_seguranca_lookup:
         dias_seguranca_padrao = dias_seguranca_lookup.get(dept, 5)
 
-    # Aplica redução de dias para lojas em tratamento especial (ex: lojas 4 e 14 em reforma)
-    dias_seguranca = max(min_dias_seg_floor, dias_seguranca_padrao - reducao_dias_seg)
+    if is_rank_c:
+        # Regra 18: Produtos Ranking C têm dias de segurança fixados em 1 dia (sobrepondo as outras regras)
+        dias_seguranca = 1
+    else:
+        # Aplica redução de dias para lojas em tratamento especial (ex: lojas 4 e 14 em reforma)
+        dias_seguranca = max(min_dias_seg_floor, dias_seguranca_padrao - reducao_dias_seg)
     minimo_dias = dias_seguranca * venda_media
 
-    # 2. Definir o piso mínimo do produto (Regras 4 e 10 / Regra Loja Especial)
-    if embalagem == 1:
+    # 2. Definir o piso mínimo do produto (Regras 4, 10, 14 e Regra 18 para Ranking C)
+    if is_rank_c:
+        # Regra 18: Produtos Ranking C têm piso de 3 unidades apenas para itens unitários (emb == 1)
+        # e respeitam o mínimo de 25% da embalagem quando a embalagem de transferência for > 1
+        min_piso_unitario = 3.0
+        max_piso_unitario = 6
+        if embalagem == 1:
+            min_floor = 3.0
+            regra_minimo = 'RANK_C_PISO_3_UNITARIO'
+        else:
+            min_floor = 0.25 * embalagem
+            regra_minimo = 'RANK_C_PISO_25_EMBALAGEM'
+    elif embalagem == 1:
         min_floor = min_piso_unitario
         regra_minimo = f'UNITARIO_PISO_{int(min_piso_unitario)}'
     else:
@@ -194,6 +218,10 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
             if caps:
                 capacity = int(round((sum(caps) / len(caps)) * 1.25))
                 usa_semelhanca = True
+
+    # Regra 18: Para produtos Ranking C, considerar 80% da capacidade de gôndola (sobrepondo as outras regras)
+    if is_rank_c and capacity is not None and capacity > 0:
+        capacity = max(1, int(math.ceil(capacity * 0.80)))
 
     pe_min = int(row.get('MINIMO_PONTO_EXTRA', 0))
     pe_max = int(row.get('MAXIMO_PONTO_EXTRA', 0))
@@ -309,8 +337,8 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
                 max_novo = min_novo + K * embalagem
             regra_maximo += '_ESTOQUE_SEGURANCA'
 
-    # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima apenas quando embalagem > 1)
-    if embalagem > 1:
+    # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima apenas quando embalagem > 1 e não for Ranking C)
+    if embalagem > 1 and not is_rank_c:
         if embalagem % 2 == 0:
             if min_novo % 2 != 0:
                 min_novo += 1
@@ -747,8 +775,14 @@ def processar_calculos():
         except Exception as e:
             print(f"Erro ao carregar lojas_especiais.json: {e}")
 
-    # Carregar rankeador_abc_produtos.parquet para identificar visibilidade A, B, C na coluna RANK
+    # Carregar rankeador_abc_produtos.parquet para identificar visibilidade A, B, C na coluna RANK antes do cálculo (Regra 18)
     rank_lookup = carregar_rank_abc_lookup()
+    df['RANK'] = (
+        pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce')
+        .fillna(-1)
+        .astype(int)
+        .map(rank_lookup)
+    )
     
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
@@ -778,16 +812,20 @@ def processar_calculos():
 
     df['DIAS_ESTOQUE'] = df.apply(_calc_dias_estoque, axis=1)
     
-    # 4. Aplicar Filtro de Diferença Mínima (>= 5 unidades no mínimo)
+    # 4. Aplicar Filtro de Diferença Mínima (>= 5 unidades no mínimo, ou sobreposição da Regra 18 para Ranking C)
     print("Filtrando alterações irrelevantes (< 5 unidades de diferença no mínimo)...")
     df['MINIMO'] = _to_numeric(df['MINIMO']).fillna(0).astype(int)
     df['MAXIMO'] = _to_numeric(df['MAXIMO']).fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MINIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MINIMO']).fillna(0).astype(int)
     df['QUANTIDADE_ESTOQUE_MAXIMO'] = _to_numeric(df['QUANTIDADE_ESTOQUE_MAXIMO']).fillna(0).astype(int)
 
-    # Piso de exclusão dinâmica por loja e embalagem
+    # Piso de exclusão dinâmica por loja, embalagem e Ranking C (Regra 18)
     def _get_min_floor_row(row):
         emb = int(row['EMBL_TRANSFERENCIA_NUM'])
+        if str(row.get('RANK', '')).strip().upper() == 'C':
+            if emb == 1:
+                return 3.0
+            return float(math.ceil(0.25 * emb))
         c_emp = str(int(float(str(row['CODIGO_EMPRESA']).strip())))
         regras_l = lojas_especiais_lookup.get(c_emp, {})
         if emb == 1:
@@ -796,18 +834,30 @@ def processar_calculos():
 
     min_floor_series = df.apply(_get_min_floor_row, axis=1)
     diff_min = (df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs()
+    is_rank_c_series = df['RANK'].fillna('').astype(str).str.strip().str.upper() == 'C'
+    mudou_rank_c = is_rank_c_series & (
+        (df['MINIMO'] != df['QUANTIDADE_ESTOQUE_MINIMO'])
+        | (df['MAXIMO'] != df['QUANTIDADE_ESTOQUE_MAXIMO'])
+    )
 
     # Condição de manutenção da linha:
     # - Diferença do mínimo >= 5 unidades
     # - Ou mínimo atual zerado
     # - Ou mínimo atual violando o piso obrigatório da loja/embalagem
-    manter = (diff_min >= 5) | (df['QUANTIDADE_ESTOQUE_MINIMO'] == 0) | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor_series)
+    # - Ou produto Ranking C com alteração calculada pela Regra 18 (sobrepondo a Regra 12)
+    manter = (
+        (diff_min >= 5)
+        | (df['QUANTIDADE_ESTOQUE_MINIMO'] == 0)
+        | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor_series)
+        | mudou_rank_c
+    )
     df = df[manter].copy()
 
-    # Re-aplicar regras de paridade e proporcionalidade no resultado final
+    # Re-aplicar regras de paridade e proporcionalidade no resultado final (preservando piso de 3 do Ranking C)
     print("Re-aplicando regras de paridade e proporcionalidade no resultado final...")
-    is_even_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 == 0)
-    is_odd_emb = ~is_even_emb
+    is_rank_c_final = df['RANK'].fillna('').astype(str).str.strip().str.upper() == 'C'
+    is_even_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 == 0) & (~is_rank_c_final)
+    is_odd_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 != 0) & (~is_rank_c_final)
 
     # 1. Paridade do Mínimo
     df.loc[is_even_emb & (df['MINIMO'] % 2 != 0), 'MINIMO'] += 1
