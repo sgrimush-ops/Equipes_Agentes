@@ -104,3 +104,17 @@ SELECT * FROM (
 - [ ] A tabela pesada (`MRL_CUSTODIA` / `MLF_NOTAFISCAL` / `MLF_NFITEM`) está cruzando diretamente com os `SEQPRODUTO` afunilados?
 - [ ] As CTEs utilizam o hint `/*+ MATERIALIZE */`?
 - [ ] O código final não contém comentários `--` ou `/* */` que possam quebrar no SGI?
+
+---
+
+## 5. Ranking ABC Particionado por Departamento (`PARTITION BY DEPARTAMENTO`), Expurgo Pré-Geração e Nível 2 na Árvore Mercadológica
+Em consultas de **Curva ABC por Departamento** (`ranking_de_vendas_periodo.sql`), onde o objetivo é classificar separadamente os itens `A` (até 50%), `B` (50% a 90%) e `C` (> 90%) dentro de cada departamento comercial (ex: Bebidas, Mercearia, Perfumaria e Limpeza, Pet):
+
+1. **Afunilamento no Topo da Pirâmide (`CTE_CATEGORIAS` + `CTE_PRODUTOS_VALIDOS` antes de `MRL_CUSTODIA`):**
+   - Nunca inicie a query lendo `MLFV_BASENFE` + `MFLV_BASEDFITEM` nem varrendo `MRL_CUSTODIA` aberta para todos os itens do banco.
+   - Posicione `CTE_CATEGORIAS` e `CTE_PRODUTOS_VALIDOS` no topo da query, filtrando `FD.FINALIDADEFAMILIA = 'R'` e excluindo no `HAVING` da árvore mercadológica tanto os departamentos de **Não Venda** (`ALMOXARIFADO`, `SERVICOS`, `INATIVAR`, `A CLASSIFICAR`, `IMOBILIZADO`, `USO E CONSUMO`) quanto os de **Perecíveis** (`PERECIVEIS` no Nível 1 e `FRUTAS E VERDURAS`, `PADARIA BAKLIZI`, `PADARIA INDUSTRIAL`, `ACOUGUE`, `FIAMBRERIA` no Nível 2).
+   - Em seguida, `CTE_VENDAS` lê **`MRL_CUSTODIA`** (`SUM(NVL(C.VLRTOTALVDA, 0))` por `DTAENTRADASAIDA`) fazendo `INNER JOIN` apenas com os produtos válidos pré-filtrados.
+2. **Inclusão Obrigatória do Nível 2 (`NIVELHIERARQUIA IN (1, 2, 3, 4, 5)`):**
+   - Sempre inclua o nível `2` no filtro `Y.NIVELHIERARQUIA IN (1, 2, 3, 4, 5)` e como fallback no `COALESCE` de `SUBGRUPO` (`Nível 4 -> 3 -> 5 -> 2 -> 'SEM SUBGRUPO'`). Isso evita que famílias classificadas apenas até o Nível 2 (ex: *Não Alimento -> Bazar / Livraria*) caiam como `'SEM SUBGRUPO'` e permite expurgar seções de perecíveis cadastradas no Nível 2.
+3. **Particionamento Analítico por Departamento:**
+   - Utilize `PARTITION BY P.DEPARTAMENTO` tanto na soma acumulada (`SUM(P.VALOR_VENDIDO) OVER (PARTITION BY P.DEPARTAMENTO ORDER BY P.VALOR_VENDIDO DESC, P.SEQCODIGO ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`) quanto no denominador total (`SUM(P.VALOR_VENDIDO) OVER (PARTITION BY P.DEPARTAMENTO)`), ordenando ao final por `ORDER BY DEPARTAMENTO ASC, VALOR_VENDIDO DESC, SEQCODIGO ASC`.

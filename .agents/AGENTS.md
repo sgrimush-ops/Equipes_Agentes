@@ -118,6 +118,12 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
     - **Isolamento de Número Inteiro por Vírgula:** Utilize `TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|'))` combinado com fronteiras `(^|[^0-9])(...)([^0-9]|$)` no `REGEXP_LIKE` (para `OBSERVACAO`) e `INSTR` (para `N.NUMERONF`), permitindo buscar múltiplas NFs separadas por vírgula sem falsos positivos em valores monetários ou números parciais.
     - **Investigação Fornecedor vs. Transportadora:** Quando o usuário investigar se uma mercadoria foi devolvida contra o fornecedor ou contra a transportadora, oriente a usar `:NR1 = 0` e `:LS1 = ' TODAS AS REDES'` com os números das NFs em `:LT1`, pois devoluções contra a transportadora são emitidas no `SEQPESSOA` da transportadora.
 
+26. **Curva ABC Particionada por Departamento (`PARTITION BY DEPARTAMENTO`), Expurgo no Topo da Pirâmide e Nível 2 na Hierarquia Mercadológica:**
+    Em consultas de Ranking/Curva ABC de Vendas por Departamento (`ranking_de_vendas_periodo.sql`):
+    - **Afunilamento Prévio + `MRL_CUSTODIA`:** Posicione `CTE_CATEGORIAS` e `CTE_PRODUTOS_VALIDOS` no topo da pirâmide (antes de `CTE_VENDAS`), restringindo a `FD.FINALIDADEFAMILIA = 'R'` e expurgando no `HAVING` departamentos de Não Venda (`ALMOXARIFADO`, `SERVICOS`, `INATIVAR`, `A CLASSIFICAR`, `IMOBILIZADO`, `USO E CONSUMO`) e Perecíveis (`PERECIVEIS` no Nível 1 e `FRUTAS E VERDURAS`, `PADARIA BAKLIZI`, `PADARIA INDUSTRIAL`, `ACOUGUE`, `FIAMBRERIA` no Nível 2). A apuração de vendas deve usar `MRL_CUSTODIA` (`SUM(NVL(VLRTOTALVDA, 0))` por `DTAENTRADASAIDA`) cruzada com `CTE_PRODUTOS_VALIDOS`.
+    - **Inclusão Obrigatória do Nível 2 (`NIVELHIERARQUIA IN (1, 2, 3, 4, 5)`):** Sempre inclua o nível `2` em `MAP_CATEGORIA` e no `COALESCE` de `SUBGRUPO` (`Nível 4 -> 3 -> 5 -> 2 -> 'SEM SUBGRUPO'`), evitando que famílias categorizadas apenas até o Nível 2 (ex: Bazar/Livraria) saiam sem subgrupo e permitindo o expurgo de seções perecíveis de Nível 2.
+    - **Particionamento por Departamento:** Aplique `PARTITION BY P.DEPARTAMENTO` nas janelas analíticas de `SOMA_ACUMULADA` e `SOMA_TOTAL` para que cada departamento tenha sua própria curva A (até 50%), B (50% a 90%) e C (> 90%).
+
 ---
 
 # Regras para Automação de Interface Gráfica (GUI), OCR e PyInstaller no ERP Consinco

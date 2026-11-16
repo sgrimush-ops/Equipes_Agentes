@@ -68,3 +68,8 @@ WHERE Y.STATUSCOMPRA = 'A'
                )
       )
     ```
+
+## 6. Inclusão Obrigatória do Nível 2 (`NIVELHIERARQUIA IN (1, 2, 3, 4, 5)`) em Extração de Subgrupo e Expurgo de Perecíveis
+*   **Regra:** Ao montar uma `CTE_CATEGORIAS` que extrai `DEPARTAMENTO` (Nível 1) e `SUBGRUPO` via `COALESCE`, **nunca omita o nível `2`** (`Y.NIVELHIERARQUIA IN (1, 2, 3, 4, 5)`).
+*   **Motivo 1 (Fallback de Subgrupo):** Categorias como `BAZAR` e `LIVRARIA` (abaixo de `NAO ALIMENTO`) frequentemente possuem vínculo apenas até o Nível 2. Incluir `MAX(CASE WHEN Y.NIVELHIERARQUIA = 2 THEN Y.CATEGORIA END)` como fallback no `COALESCE` (após os níveis 4, 3 e 5) impede que esses produtos saiam como `'SEM SUBGRUPO'`.
+*   **Motivo 2 (Expurgo de Perecíveis no Nível 2):** Além de bloquear `PERECIVEIS` no Nível 1, ter o Nível 2 agrupado na CTE permite bloquear diretamente no `HAVING` as seções perecíveis `('FRUTAS E VERDURAS', 'PADARIA BAKLIZI', 'PADARIA INDUSTRIAL', 'ACOUGUE', 'FIAMBRERIA')`.

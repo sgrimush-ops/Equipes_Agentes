@@ -8,24 +8,33 @@ import pandas as pd
 
 # Função auxiliar para carregar o Rank ABC de produtos
 def carregar_rank_abc_lookup():
-    rank_path = Path(__file__).parent / 'rankeador_abc_produtos.parquet'
+    base_dir = Path(__file__).resolve().parent
+    rank_path = base_dir / 'rankeador_abc_produtos.parquet'
     rank_lookup = {}
     if rank_path.exists():
         try:
             df_rank = pd.read_parquet(rank_path)
-            df_rank.columns = df_rank.columns.astype(str).str.strip()
-            col_seq = 'SEQCODIGO' if 'SEQCODIGO' in df_rank.columns else ('CODIGO_PRODUTO' if 'CODIGO_PRODUTO' in df_rank.columns else None)
+            df_rank.columns = df_rank.columns.astype(str).str.strip().str.upper()
+            col_seq = (
+                'SEQCODIGO'
+                if 'SEQCODIGO' in df_rank.columns
+                else ('CODIGO_PRODUTO' if 'CODIGO_PRODUTO' in df_rank.columns else None)
+            )
             if col_seq and 'RANK' in df_rank.columns:
-                seq_series = pd.to_numeric(df_rank[col_seq], errors='coerce').fillna(-1).astype(int)
+                seq_series = (
+                    pd.to_numeric(df_rank[col_seq].astype(str).str.strip(), errors='coerce')
+                    .fillna(-1)
+                    .astype(int)
+                )
                 rank_series = df_rank['RANK'].astype(str).str.strip().str.upper()
                 for seq_val, r_val in zip(seq_series, rank_series):
                     if seq_val > 0 and r_val in ('A', 'B', 'C'):
                         rank_lookup[seq_val] = r_val
-            print(f"Sucesso: {len(rank_lookup)} produtos mapeados com visibilidade ABC de '{rank_path.name}'.")
+            print(f"Sucesso: {len(rank_lookup)} produtos mapeados com visibilidade ABC de '{rank_path}'.")
         except Exception as e:
             print(f"Erro ao carregar '{rank_path.name}': {e}")
     else:
-        print(f"[AVISO] Arquivo '{rank_path.name}' não encontrado. Coluna RANK ficará vazia.")
+        print(f"[AVISO] Arquivo '{rank_path.name}' não encontrado em '{base_dir}'. Coluna RANK ficará vazia.")
     return rank_lookup
 
 # Função para converter arquivo intermediário para Excel
