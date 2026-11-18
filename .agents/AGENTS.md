@@ -120,11 +120,17 @@ Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), 
     - **Isolamento de Número Inteiro por Vírgula:** Utilize `TRIM('|' FROM REGEXP_REPLACE(:LT1, '[^0-9]+', '|'))` combinado com fronteiras `(^|[^0-9])(...)([^0-9]|$)` no `REGEXP_LIKE` (para `OBSERVACAO`) e `INSTR` (para `N.NUMERONF`), permitindo buscar múltiplas NFs separadas por vírgula sem falsos positivos em valores monetários ou números parciais.
     - **Investigação Fornecedor vs. Transportadora:** Quando o usuário investigar se uma mercadoria foi devolvida contra o fornecedor ou contra a transportadora, oriente a usar `:NR1 = 0` e `:LS1 = ' TODAS AS REDES'` com os números das NFs em `:LT1`, pois devoluções contra a transportadora são emitidas no `SEQPESSOA` da transportadora.
 
-26. **Curva ABC Particionada por Departamento (`PARTITION BY DEPARTAMENTO`), Expurgo no Topo da Pirâmide e Nível 2 na Hierarquia Mercadológica:**
-    Em consultas de Ranking/Curva ABC de Vendas por Departamento (`ranking_de_vendas_periodo.sql`):
-    - **Afunilamento Prévio + `MRL_CUSTODIA`:** Posicione `CTE_CATEGORIAS` e `CTE_PRODUTOS_VALIDOS` no topo da pirâmide (antes de `CTE_VENDAS`), restringindo a `FD.FINALIDADEFAMILIA = 'R'` e expurgando no `HAVING` departamentos de Não Venda (`ALMOXARIFADO`, `SERVICOS`, `INATIVAR`, `A CLASSIFICAR`, `IMOBILIZADO`, `USO E CONSUMO`) e Perecíveis (`PERECIVEIS` no Nível 1 e `FRUTAS E VERDURAS`, `PADARIA BAKLIZI`, `PADARIA INDUSTRIAL`, `ACOUGUE`, `FIAMBRERIA` no Nível 2). A apuração de vendas deve usar `MRL_CUSTODIA` (`SUM(NVL(VLRTOTALVDA, 0))` por `DTAENTRADASAIDA`) cruzada com `CTE_PRODUTOS_VALIDOS`.
-    - **Inclusão Obrigatória do Nível 2 (`NIVELHIERARQUIA IN (1, 2, 3, 4, 5)`):** Sempre inclua o nível `2` em `MAP_CATEGORIA` e no `COALESCE` de `SUBGRUPO` (`Nível 4 -> 3 -> 5 -> 2 -> 'SEM SUBGRUPO'`), evitando que famílias categorizadas apenas até o Nível 2 (ex: Bazar/Livraria) saiam sem subgrupo e permitindo o expurgo de seções perecíveis de Nível 2.
-    - **Particionamento por Departamento:** Aplique `PARTITION BY P.DEPARTAMENTO` nas janelas analíticas de `SOMA_ACUMULADA` e `SOMA_TOTAL` para que cada departamento tenha sua própria curva A (até 50%), B (50% a 90%) e C (> 90%).
+26. **Curva ABC Subdividida em 6 Faixas (`A+`, `A-`, `B+`, `B-`, `C+`, `C-`) Particionada por Departamento (`PARTITION BY DEPARTAMENTO`) e Integrada à Query de Mínimo e Máximo (`consulta_min_max_geral.sql`):**
+    A antiga query isolada `ranking_de_vendas_periodo.sql` foi descontinuada e sua inteligência de Curva ABC foi unificada diretamente na `consulta_min_max_geral.sql` (utilizando apenas o bind `:NR1` para os dias de pesquisa, sem `:NR2`):
+    - **Afunilamento no Topo da Pirâmide (`FAMILIAS_VALIDAS` e `PRODUTOS_BASE`):** Posicione as famílias válidas (`BEBIDAS`, `MERCEARIA`, `PERFUMARIA E LIMPEZA`, `PRODUTOS PET`, `PERECIVEIS` exceto Nível 2 `FRUTAS E VERDURAS`, `PADARIA BAKLIZI`, `PADARIA INDUSTRIAL`, além de itens com `LEITE` ou `CARVAO`) e a restrição `EXISTS (SELECT 1 FROM MRL_PRODUTOEMPRESA PE WHERE PE.SEQPRODUTO = A.SEQPRODUTO AND PE.STATUSCOMPRA = 'A' ...)` logo na CTE inicial `PRODUTOS_BASE`. Todas as CTEs satélites (`PEND_COMPRA`, `PEND_TRANSF`, `TRANSITO`, `VENDAS`, `PONTO_EXTRA` e `FORN_PRINCIPAL`) devem fazer `INNER JOIN` com `PRODUTOS_BASE` / `FAMILIAS_VALIDAS` para jamais processar produtos inativos ou fora do mix.
+    - **Scan Único em `MRL_CUSTODIA` e CTE Única para o Ranking (`RANKING_ABC`):** Na CTE `VENDAS`, extraia simultaneamente a quantidade por loja (`SUM(C.QTDVDA) AS QTD`) e o faturamento financeiro (`SUM(C.VLRTOTALVDA) AS VLR_VENDA`) nos últimos `NVL(:NR1, 90)` dias. Calcule a Curva ABC em uma única CTE `RANKING_ABC` consumindo diretamente `VENDAS` (evitando múltiplas CTEs `MATERIALIZE` em cascata na `TEMP` e sem `LEFT JOIN` desnecessário com itens zerados antes do `HAVING SUM(V.VLR_VENDA) > 0`).
+    - **Subdivisão em 6 Faixas (`A+`, `A-`, `B+`, `B-`, `C+`, `C-`) por Departamento:** Aplique `PARTITION BY V.DEPARTAMENTO` nas janelas analíticas de `SOMA_ACUMULADA` e `SOMA_TOTAL`, classificando:
+      - `'A+'`: primeiros 25% do faturamento acumulado do departamento (`<= 0.250001` ou `RN_DEPTO = 1` para blindar o Top 1 do departamento);
+      - `'A-'`: de 25% a 50% do faturamento (`<= 0.500001`), fechando os 50% do bloco A;
+      - `'B+'`: de 50% a 70% do faturamento (`<= 0.700001`), primeiros 20% do bloco B;
+      - `'B-'`: de 70% a 90% do faturamento (`<= 0.900001`), últimos 20% do bloco B;
+      - `'C+'`: de 90% a 95% do faturamento (`<= 0.950001`), primeiros 5% do bloco C;
+      - `'C-'`: de 95% a 100% do faturamento (`> 0.950001`) e todos os produtos com venda `R$ 0,00` no período (`NVL(RK.RANK, 'C-') AS RANK`), posicionando a coluna `RANK` imediatamente ao lado de `DESCRICAO_PRODUTO`.
 
 ---
 
@@ -308,3 +314,14 @@ Na Zona SQL e ferramentas de apoio com IA:
 
 3. **Imunidade a Caracteres Ocultos de Controle e Sequências ANSI:**
    - Ao persistir ou editar arquivos de diretrizes (`AGENTS.md` e `SKILL.md`), remova previamente quaisquer caracteres de controle invisíveis (`\x00` a `\x1F`, como `\x08` [backspace] ou `\x0c` [form feed]) e códigos de escape de cores de terminal. O conteúdo deve ser texto simples e legível.
+
+---
+
+# Regras de Negócio e Cálculo de Estoque Mínimo e Máximo (`Aplicativos/min_e_max`)
+
+1. **Paridade Obrigatória do Estoque Mínimo conforme a Embalagem de Transferência:**
+   Em todos os cálculos e ajustes de estoque mínimo e máximo (`1-min_max.py`, `regras_min_max.md`, `lojas_especiais.json`), para **todas as curvas ABC (Rankings A, B e C)** e todos os tamanhos de embalagem (`>= 1`):
+   - **Embalagem Par (`EMBL_TRANSFERENCIA % 2 == 0`):** O estoque mínimo deve ser obrigatoriamente um número **PAR** (`MINIMO % 2 == 0`). Se o cálculo inicial (por dias de venda, capacidade ou piso de 60%/40%) resultar em um número ímpar, soma-se `+1` para arredondar para o próximo número par.
+   - **Embalagem Ímpar (`EMBL_TRANSFERENCIA % 2 != 0`, incluindo embalagem unitária `1`):** O estoque mínimo deve ser obrigatoriamente um número **ÍMPAR** (`MINIMO % 2 != 0`). Se o cálculo inicial resultar em um número par, soma-se `+1` para arredondar para o próximo número ímpar. Por isso, qualquer piso mínimo unitário configurado (como em `lojas_especiais.json` ou Ranking C) deve ser ímpar (ex: `3` ou `5`, nunca `2`).
+   - **Reajuste Proporcional do Máximo e Exceção de Expurgo:** Após o ajuste de paridade do mínimo, o estoque máximo deve ser recalculado para que a diferença (`MAXIMO - MINIMO`) permaneça um múltiplo inteiro exato da embalagem de transferência. Além disso, produtos cujo mínimo atual no sistema viole a paridade da embalagem não devem ser descartados pelo corte de diferença mínima de 5 unidades.
+

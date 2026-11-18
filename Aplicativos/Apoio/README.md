@@ -9,7 +9,7 @@ Interface gráfica em Python (Tkinter) inspirada nos padrões visuais do **GAM (
 | # | Ação | Arquivo Alvo / Operação | Comportamento Especial & Interatividade Gráfica |
 |---|---|---|---|
 | **1º** | **Executar Data Query** | `Aplicativos\import_querys\1-data_query.py` | Executa a extração/conversão de dados em segundo plano com log em tempo real. |
-| **2º** | **Executar Mínimo e Máximo** | `Aplicativos\min_e_max\1-min_max.py` | **100% Gráfico:** Abre tela modal solicitando o **Escopo (Todas as Lojas ou Loja Específica)** e o **Filtro de Exportação (Total, Aumentos, Reduções, Ambos)**. Ao término, **abre automaticamente** a **planilha de digitar** (`digitar.xlsx`) e o resultado `ajustepp.xlsx` no Excel. |
+| **2º** | **Executar Mínimo e Máximo** | `Aplicativos\min_e_max\1-min_max.py` | **100% Gráfico:** Abre tela modal solicitando o **Escopo (Todas as Lojas ou Loja Específica)** e o **Filtro de Exportação (Total, Aumentos, Reduções, Ambos)**. Ao término, **abre automaticamente** o resultado `ajustepp.xlsx` no Excel. |
 | **3º** | **Abrir Planilha de Capacidade** | `Aplicativos\min_e_max\capacidade.xlsx` | Abre a planilha diretamente no Excel nativo do Windows para consulta ou ajuste. |
 | **4º** | **Abrir GAM & Fechar Apoio** | `Aplicativos\GAM\gam.py` | Executa o aplicativo principal do GAM em processo desacoplado e encerra o Painel de Apoio. |
 

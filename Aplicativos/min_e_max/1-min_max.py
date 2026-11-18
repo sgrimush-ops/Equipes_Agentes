@@ -28,7 +28,7 @@ def carregar_rank_abc_lookup():
                 )
                 rank_series = df_rank['RANK'].astype(str).str.strip().str.upper()
                 for seq_val, r_val in zip(seq_series, rank_series):
-                    if seq_val > 0 and r_val in ('A', 'B', 'C'):
+                    if seq_val > 0 and r_val in ('A+', 'A-', 'B+', 'B-', 'C+', 'C-', 'A', 'B', 'C'):
                         rank_lookup[seq_val] = r_val
             print(f"Sucesso: {len(rank_lookup)} produtos mapeados com visibilidade ABC de '{rank_path}'.")
         except Exception as e:
@@ -82,7 +82,13 @@ def converter_para_csv(arquivo_parquet=None):
 
     if 'CODIGO_PRODUTO' in df.columns:
         rank_lookup = carregar_rank_abc_lookup()
-        df['RANK'] = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int).map(rank_lookup)
+        rank_series_orig = (
+            df['RANK'].astype(str).str.strip().str.upper()
+            if 'RANK' in df.columns
+            else pd.Series('', index=df.index)
+        )
+        rank_mapped = pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int).map(rank_lookup)
+        df['RANK'] = rank_series_orig.where(rank_series_orig.isin(['A+', 'A-', 'B+', 'B-', 'C+', 'C-', 'A', 'B', 'C']), rank_mapped).fillna('C-')
     
     arquivo_saida = Path('ajustepp.xlsx')
     try:
@@ -131,14 +137,14 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
 
     venda_media = venda_periodo / dias_relatorio
 
-    # Identificar classificação ABC do produto (Regra 18: A, B ou C)
+    # Identificar classificação ABC do produto (Regra 18: A+, A-, B+, B-, C+, C-)
     rank_val = row.get('RANK', None)
     rank_produto = (
         str(rank_val).strip().upper()
-        if pd.notna(rank_val) and str(rank_val).strip().upper() in ('A', 'B', 'C')
-        else ''
+        if pd.notna(rank_val) and str(rank_val).strip().upper() in ('A+', 'A-', 'B+', 'B-', 'C+', 'C-', 'A', 'B', 'C')
+        else 'C-'
     )
-    is_rank_c = (rank_produto == 'C')
+    is_rank_c = rank_produto.startswith('C')
 
     # Parâmetros especiais por loja (se configurado no JSON de lojas especiais)
     regras_loja = {}
@@ -159,8 +165,8 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
         dias_seguranca_padrao = dias_seguranca_lookup.get(dept, 5)
 
     if is_rank_c:
-        # Regra 18: Produtos Ranking C têm dias de segurança fixados em 1 dia (sobrepondo as outras regras)
-        dias_seguranca = 1
+        # Regra 18: Produtos Ranking C têm dias de segurança fixados em 2 dias (sobrepondo as outras regras)
+        dias_seguranca = 2
     else:
         # Aplica redução de dias para lojas em tratamento especial (ex: lojas 4 e 14 em reforma)
         dias_seguranca = max(min_dias_seg_floor, dias_seguranca_padrao - reducao_dias_seg)
@@ -169,15 +175,15 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
     # 2. Definir o piso mínimo do produto (Regras 4, 10, 14 e Regra 18 para Ranking C)
     if is_rank_c:
         # Regra 18: Produtos Ranking C têm piso de 3 unidades apenas para itens unitários (emb == 1)
-        # e respeitam o mínimo de 25% da embalagem quando a embalagem de transferência for > 1
+        # e respeitam o mínimo de 40% da embalagem quando a embalagem de transferência for > 1
         min_piso_unitario = 3.0
         max_piso_unitario = 6
         if embalagem == 1:
             min_floor = 3.0
             regra_minimo = 'RANK_C_PISO_3_UNITARIO'
         else:
-            min_floor = 0.25 * embalagem
-            regra_minimo = 'RANK_C_PISO_25_EMBALAGEM'
+            min_floor = 0.40 * embalagem
+            regra_minimo = 'RANK_C_PISO_40_EMBALAGEM'
     elif embalagem == 1:
         min_floor = min_piso_unitario
         regra_minimo = f'UNITARIO_PISO_{int(min_piso_unitario)}'
@@ -337,16 +343,17 @@ def calcular_min_max(row, dias_relatorio, capacidade_lookup, dias_seguranca_look
                 max_novo = min_novo + K * embalagem
             regra_maximo += '_ESTOQUE_SEGURANCA'
 
-    # 4. Regras de paridade da embalagem (arredondamento do mínimo para cima apenas quando embalagem > 1 e não for Ranking C)
-    if embalagem > 1 and not is_rank_c:
-        if embalagem % 2 == 0:
-            if min_novo % 2 != 0:
-                min_novo += 1
-                regra_minimo += '_PAR'
-        else:
-            if min_novo % 2 == 0:
-                min_novo += 1
-                regra_minimo += '_IMPAR'
+    # 4. Regras de paridade da embalagem:
+    # - Embalagem par -> mínimo obrigatoriamente par (se for ímpar, soma 1)
+    # - Embalagem ímpar -> mínimo obrigatoriamente ímpar (se for par, soma 1)
+    if embalagem % 2 == 0:
+        if min_novo % 2 != 0:
+            min_novo += 1
+            regra_minimo += '_PAR'
+    else:
+        if min_novo % 2 == 0:
+            min_novo += 1
+            regra_minimo += '_IMPAR'
 
     # Se o mínimo subiu por conta de paridade ou arredondamento, garantir que o máximo é atualizado
     # para que a diferença continue respeitando a embalagem de transferência
@@ -508,21 +515,35 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
     work['DIFERENCA_MIN_MAX'] = work['MAXIMO'] - work['MINIMO']
 
     # Identifica itens onde a diferença (MAX - MIN) não é múltipla da embalagem
+    # ou a paridade do mínimo não condiz com a paridade da embalagem
+    emb_par_check = (work['EMBL_TRANSFERENCIA'] % 2 == 0)
+    min_impar_check = (work['MINIMO'] % 2 != 0)
+    paridade_incorreta = (work['MINIMO'] > 0) & ((emb_par_check & min_impar_check) | ((~emb_par_check) & (~min_impar_check)))
+
     nao_multiplo = (
-        (work['EMBL_TRANSFERENCIA'] > 1)
-        & (work['DIFERENCA_MIN_MAX'] > 0)
-        & (work['DIFERENCA_MIN_MAX'] % work['EMBL_TRANSFERENCIA'] != 0)
+        (
+            (work['EMBL_TRANSFERENCIA'] > 1)
+            & (work['DIFERENCA_MIN_MAX'] > 0)
+            & (work['DIFERENCA_MIN_MAX'] % work['EMBL_TRANSFERENCIA'] != 0)
+        )
+        | paridade_incorreta
     )
 
     resultado = work[nao_multiplo].copy()
     if resultado.empty:
         return pd.DataFrame()
 
-    # Calcula o máximo corrigido (próximo múltiplo válido da embalagem acima do mínimo)
+    # Calcula o mínimo e o máximo corrigidos (respeitando paridade da embalagem e próximo múltiplo válido da embalagem acima do mínimo)
+    emb_par = (resultado['EMBL_TRANSFERENCIA'] % 2 == 0)
+    min_impar = (resultado['MINIMO'] % 2 != 0)
+    precisa_ajuste_paridade = (emb_par & min_impar) | ((~emb_par) & (~min_impar))
+    resultado['MINIMO_CORRETO'] = (resultado['MINIMO'] + precisa_ajuste_paridade.astype(int)).astype(int)
+    resultado['DIFERENCA_CORRIGIDA'] = (resultado['MAXIMO'] - resultado['MINIMO_CORRETO']).clip(lower=1)
+
     resultado['MAXIMO_CORRETO'] = (
-        resultado['MINIMO']
+        resultado['MINIMO_CORRETO']
         + (
-            resultado['DIFERENCA_MIN_MAX']
+            resultado['DIFERENCA_CORRIGIDA']
             / resultado['EMBL_TRANSFERENCIA'].replace(0, 1)
         ).apply(math.ceil)
         * resultado['EMBL_TRANSFERENCIA']
@@ -541,7 +562,7 @@ def obter_itens_diferenca_embalagem(df, dias_relatorio=90):
         'QUANTIDADE_DISPONIVEL': qtd_disp_series,
         'VENDA_MEDIA': 0.0,
         'DIAS_ESTOQUE': 0.0,
-        'MINIMO': resultado['MINIMO'].astype(int),
+        'MINIMO': resultado['MINIMO_CORRETO'].astype(int),
         'MAXIMO': resultado['MAXIMO_CORRETO'].astype(int),
         'DIAS_RELATORIO_VENDA': dias_relatorio,
         'QUANTIDADE_ESTOQUE_MINIMO': resultado['MINIMO'].astype(int),
@@ -775,14 +796,23 @@ def processar_calculos():
         except Exception as e:
             print(f"Erro ao carregar lojas_especiais.json: {e}")
 
-    # Carregar rankeador_abc_produtos.parquet para identificar visibilidade A, B, C na coluna RANK antes do cálculo (Regra 18)
+    # Priorizar coluna RANK vinda diretamente da query SQL (consulta_min_max_geral.sql) e usar rankeador_abc_produtos.parquet apenas como fallback (Regra 18)
     rank_lookup = carregar_rank_abc_lookup()
-    df['RANK'] = (
+    rank_from_query = (
+        df['RANK'].astype(str).str.strip().str.upper()
+        if 'RANK' in df.columns
+        else pd.Series('', index=df.index)
+    )
+    rank_from_parquet = (
         pd.to_numeric(df['CODIGO_PRODUTO'], errors='coerce')
         .fillna(-1)
         .astype(int)
         .map(rank_lookup)
     )
+    df['RANK'] = rank_from_query.where(
+        rank_from_query.isin(['A+', 'A-', 'B+', 'B-', 'C+', 'C-', 'A', 'B', 'C']),
+        rank_from_parquet
+    ).fillna('C-')
     
     # 2. Computar mínimos e máximos por linha
     print("Rodando cálculos matemáticos matriz...")
@@ -822,10 +852,10 @@ def processar_calculos():
     # Piso de exclusão dinâmica por loja, embalagem e Ranking C (Regra 18)
     def _get_min_floor_row(row):
         emb = int(row['EMBL_TRANSFERENCIA_NUM'])
-        if str(row.get('RANK', '')).strip().upper() == 'C':
+        if str(row.get('RANK', '')).strip().upper().startswith('C'):
             if emb == 1:
                 return 3.0
-            return float(math.ceil(0.25 * emb))
+            return float(math.ceil(0.40 * emb))
         c_emp = str(int(float(str(row['CODIGO_EMPRESA']).strip())))
         regras_l = lojas_especiais_lookup.get(c_emp, {})
         if emb == 1:
@@ -834,7 +864,7 @@ def processar_calculos():
 
     min_floor_series = df.apply(_get_min_floor_row, axis=1)
     diff_min = (df['MINIMO'] - df['QUANTIDADE_ESTOQUE_MINIMO']).abs()
-    is_rank_c_series = df['RANK'].fillna('').astype(str).str.strip().str.upper() == 'C'
+    is_rank_c_series = df['RANK'].fillna('').astype(str).str.strip().str.upper().str.startswith('C')
     mudou_rank_c = is_rank_c_series & (
         (df['MINIMO'] != df['QUANTIDADE_ESTOQUE_MINIMO'])
         | (df['MAXIMO'] != df['QUANTIDADE_ESTOQUE_MAXIMO'])
@@ -844,20 +874,25 @@ def processar_calculos():
     # - Diferença do mínimo >= 5 unidades
     # - Ou mínimo atual zerado
     # - Ou mínimo atual violando o piso obrigatório da loja/embalagem
+    # - Ou mínimo atual violando a paridade da embalagem (embalagem par -> mínimo par; embalagem ímpar -> mínimo ímpar)
     # - Ou produto Ranking C com alteração calculada pela Regra 18 (sobrepondo a Regra 12)
+    emb_par_orig = (df['EMBL_TRANSFERENCIA_NUM'] % 2 == 0)
+    min_orig_impar = (df['QUANTIDADE_ESTOQUE_MINIMO'] % 2 != 0)
+    violou_paridade_orig = (emb_par_orig & min_orig_impar) | ((~emb_par_orig) & (~min_orig_impar))
+
     manter = (
         (diff_min >= 5)
         | (df['QUANTIDADE_ESTOQUE_MINIMO'] == 0)
         | (df['QUANTIDADE_ESTOQUE_MINIMO'] < min_floor_series)
+        | violou_paridade_orig
         | mudou_rank_c
     )
     df = df[manter].copy()
 
-    # Re-aplicar regras de paridade e proporcionalidade no resultado final (preservando piso de 3 do Ranking C)
+    # Re-aplicar regras de paridade e proporcionalidade no resultado final (em todos os produtos, inclusive Ranking C)
     print("Re-aplicando regras de paridade e proporcionalidade no resultado final...")
-    is_rank_c_final = df['RANK'].fillna('').astype(str).str.strip().str.upper() == 'C'
-    is_even_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 == 0) & (~is_rank_c_final)
-    is_odd_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 != 0) & (~is_rank_c_final)
+    is_even_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 == 0)
+    is_odd_emb = (df['EMBL_TRANSFERENCIA_NUM'] % 2 != 0)
 
     # 1. Paridade do Mínimo
     df.loc[is_even_emb & (df['MINIMO'] % 2 != 0), 'MINIMO'] += 1
@@ -1003,13 +1038,27 @@ def processar_calculos():
     else:
         print("=> Nenhum item com divergência de embalagem pendente encontrado na base.")
 
-    # Adiciona a coluna RANK (visibilidade A, B, C a partir de rankeador_abc_produtos.parquet)
+    # Adiciona a coluna RANK (priorizando a curva A, B, C nativa da query / df_resultado, com fallback para rank_lookup)
     if 'CODIGO_PRODUTO' in df_export.columns:
+        if 'RANK' in df_resultado.columns:
+            rank_prod_map = (
+                df_resultado[['CODIGO_PRODUTO', 'RANK']]
+                .dropna(subset=['CODIGO_PRODUTO'])
+                .assign(
+                    CODIGO_PRODUTO=lambda x: pd.to_numeric(x['CODIGO_PRODUTO'], errors='coerce').fillna(-1).astype(int),
+                    RANK=lambda x: x['RANK'].astype(str).str.strip().str.upper()
+                )
+            )
+            rank_prod_map = rank_prod_map[rank_prod_map['RANK'].isin(['A+', 'A-', 'B+', 'B-', 'C+', 'C-', 'A', 'B', 'C'])].drop_duplicates(subset=['CODIGO_PRODUTO'])
+            for p_cod, r_val in zip(rank_prod_map['CODIGO_PRODUTO'], rank_prod_map['RANK']):
+                if p_cod > 0:
+                    rank_lookup[p_cod] = r_val
         df_export['RANK'] = (
             pd.to_numeric(df_export['CODIGO_PRODUTO'], errors='coerce')
             .fillna(-1)
             .astype(int)
             .map(rank_lookup)
+            .fillna('C-')
         )
         # Posiciona RANK logo após DESCRICAO_PRODUTO (ou ao final se DESCRICAO_PRODUTO não existir)
         cols_atuais = [c for c in df_export.columns if c != 'RANK']

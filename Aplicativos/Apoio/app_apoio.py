@@ -57,10 +57,6 @@ class PainelApoioApp:
         self.path_ajustepp_gam = self.aplicativos_dir / "GAM" / "bd_entrada" / "ajustepp.xlsx"
         self.path_ajustepp_minmax = self.aplicativos_dir / "min_e_max" / "ajustepp.xlsx"
 
-        # Caminhos da planilha de digitar (GAM/bd_saida)
-        self.path_digitar = self.aplicativos_dir / "GAM" / "bd_saida" / "digitar.xlsx"
-        self.path_digitar_csv = self.aplicativos_dir / "GAM" / "bd_saida" / "digitar.csv"
-
         # Controle de concorrência e processo
         self.current_process = None
         self.is_running = False
@@ -194,7 +190,7 @@ class PainelApoioApp:
 
         lbl_minmax_desc = tk.Label(
             card_minmax,
-            text="Solicita escopo e filtros graficamente, calcula e abre automaticamente a planilha de digitar e o resultado.",
+            text="Solicita escopo e filtros graficamente, calcula e abre automaticamente o resultado 'ajustepp.xlsx'.",
             font=("Segoe UI", 8),
             fg="#555555",
             bg="#f0f0f0",
@@ -447,7 +443,6 @@ class PainelApoioApp:
             ("1-data_query.py", self.path_data_query),
             ("1-min_max.py", self.path_min_max),
             ("capacidade.xlsx", self.path_capacidade),
-            ("digitar.xlsx", self.path_digitar),
             ("gam.py", self.path_gam)
         ]:
             if not path.exists():
@@ -870,36 +865,9 @@ class PainelApoioApp:
     def abrir_planilhas_pos_min_max(self):
         """
         Ao finalizar a execução do 1-min_max.py:
-        1. Abre a planilha de digitar (digitar.xlsx / digitar.csv no GAM/bd_saida)
-        2. Abre a planilha de resultado de ajuste (ajustepp.xlsx)
+        Abre apenas a planilha de resultado de ajuste (ajustepp.xlsx).
         """
-        self.log("Finalização do cálculo detectada. Abrindo planilhas do processo...", "INFO")
-
-        # 1. Abrir a Planilha de Digitar (GAM/bd_saida/digitar.xlsx)
-        candidatos_digitar = [
-            self.path_digitar,
-            self.path_digitar_csv,
-            self.aplicativos_dir / "bd_saida" / "digitar.xlsx",
-        ]
-        abriu_digitar = False
-        for p_dig in candidatos_digitar:
-            if p_dig.exists():
-                try:
-                    self.log(f"Abrindo automaticamente a planilha de digitar: {p_dig.name}...", "INFO")
-                    os.startfile(str(p_dig))
-                    self.log(f"[SUCESSO] Planilha de digitar '{p_dig.name}' aberta com sucesso no Excel!", "SUCCESS")
-                    abriu_digitar = True
-                    break
-                except Exception as e:
-                    self.log(f"[ERRO] Falha ao abrir planilha de digitar '{p_dig.name}': {e}", "ERROR")
-
-        if not abriu_digitar:
-            self.log("[AVISO] Planilha 'digitar.xlsx' não localizada em 'GAM/bd_saida'.", "WARNING")
-
-        # Pequeno intervalo para o Windows/Excel estabilizar antes de abrir o segundo arquivo
-        time.sleep(0.5)
-
-        # 2. Abrir o resultado de ajustepp.xlsx
+        self.log("Finalização do cálculo detectada. Abrindo resultado 'ajustepp.xlsx'...", "INFO")
         self.abrir_resultado_ajustepp()
 
     def abrir_resultado_ajustepp(self):
