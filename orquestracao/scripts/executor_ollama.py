@@ -41,10 +41,12 @@ DIR_CONCLUIDAS = BASE_DIR / "tarefas" / "concluidas"
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 
 # Roteamento inteligente de modelos instalados localmente por categoria
+# Otimizado para CPU sem GPU dedicada: qwen2.5-coder:1.5b (~12 tok/s) para digitação de código/SQL
+# e hermes3:latest para documentação/texto em PT-BR (gemma4:latest disponível via --modelo).
 MODELOS_POR_CATEGORIA = {
-    "sql": "gemma4:latest",
+    "sql": "qwen2.5-coder:1.5b",
     "var_f7": "hermes3:latest",
-    "python": "gemma4:latest",
+    "python": "qwen2.5-coder:1.5b",
     "codigo_rapido": "qwen2.5-coder:1.5b",
     "dados": "hermes3:latest",
     "geral": "hermes3:latest",
@@ -212,9 +214,9 @@ def chamar_ollama(
     categoria: str = "geral",
     modelo: Optional[str] = None,
     temperatura: float = 0.15,
-    num_ctx: int = 4096,
-    num_predict: int = 2048,
-    timeout: int = 180
+    num_ctx: int = 3072,
+    num_predict: int = 1536,
+    timeout: int = 300
 ) -> Dict[str, Any]:
     """Envia a tarefa planejada pela IA Online para execução no Ollama local."""
     cat = categoria.lower()
@@ -228,6 +230,7 @@ def chamar_ollama(
             {"role": "user", "content": prompt}
         ],
         "stream": False,
+        "keep_alive": "10m",
         "options": {
             "temperature": temperatura,
             "num_ctx": num_ctx,

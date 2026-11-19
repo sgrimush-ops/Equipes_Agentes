@@ -1,3 +1,25 @@
+# REGRA #0 — Orquestração Híbrida Obrigatória (IA Online + IA Local Ollama)
+
+Para economizar tokens online e utilizar a IA Local (Ollama em `http://127.0.0.1:11434`), **sem que o usuário precise lembrar ou repetir esta instrução**, todo agente neste workspace deve seguir obrigatoriamente este fluxo:
+
+1. **Delegação Obrigatória de Tarefas de Digitação / Geração para o Ollama Local:**
+   Sempre que a tarefa envolver **gerar/digitar código ou texto do zero ou em bloco extenso** (novas queries SQL, scripts Python, documentações `Var - F7`, templates, resumos ou tratamento de texto/dados), a IA Online **NÃO** deve digitar o rascunho inteiro diretamente na nuvem.
+   - **IA Online (Arquiteta e Revisora):** Analisa o pedido, consulta o dicionário/regras e monta um **briefing técnico enxuto** (tabelas, joins, filtros, estrutura).
+   - **IA Local (Digitadora/Executora via `executor_ollama.py`):** Executa a geração pesada a custo zero de tokens:
+     ```powershell
+     python orquestracao/scripts/executor_ollama.py executar --categoria <sql|var_f7|python|codigo_rapido|dados|geral> --prompt "Briefing técnico..." --saida "caminho/arquivo"
+     ```
+   - **Exceção de Bom Senso (CPU sem GPU):** Edições cirúrgicas pequenas (`edit_file` pontual em arquivo já existente), leituras, diagnósticos ou respostas curtas de chat ficam na IA Online para não desperdiçar tempo de CPU local.
+
+2. **Revisão Obrigatória e Ciclo de Ensino Anti-Reincidência:**
+   - A IA Online **sempre lê e revisa** o arquivo gerado pelo Ollama (`read_file`) antes de entregar ao usuário.
+   - Se o Ollama cometer qualquer erro de sintaxe, regra Consinco ou padrão do projeto, a IA Online **corrige o arquivo** e **ensina obrigatoriamente** a IA Local:
+     ```powershell
+     python orquestracao/scripts/executor_ollama.py ensinar --categoria <cat> --erro "..." --regra "..." --errado "..." --correto "..."
+     ```
+
+---
+
 # Regras de Performance e Padrões para SQL Consinco / Oracle
 
 Ao criar ou refatorar scripts SQL focados no ERP Totvs Consinco (Banco Oracle), os agentes devem obrigatoriamente seguir estas regras de performance para evitar timeout no processamento e travas do validador interno do SGI/Consinco:

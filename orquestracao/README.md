@@ -30,7 +30,7 @@ Este diretório implementa a arquitetura de **Execução Híbrida para Economia 
 
 ## 📁 Estrutura de Arquivos da Orquestração
 
-* `scripts/executor_ollama.py`: Motor híbrido que conecta a IA Online ao Ollama local (`http://127.0.0.1:11434`), roteia para o modelo ideal (`gemma4:latest`, `hermes3:latest`, `qwen2.5-coder:1.5b`) e gerencia a memória de aprendizado contínuo.
+* `scripts/executor_ollama.py`: Motor híbrido que conecta a IA Online ao Ollama local (`http://127.0.0.1:11434`), roteia para o modelo ideal otimizado para CPU sem GPU (`qwen2.5-coder:1.5b` ~12 tok/s para `sql`/`python`/`codigo_rapido`; `hermes3:latest` para `var_f7`/`dados`/`geral`; `gemma4:latest` opcional via `--modelo`) com `keep_alive: "10m"`, e gerencia a memória de aprendizado contínuo.
 * `memoria_aprendizado_ollama.json`: Banco de dados estruturado com todas as correções e regras ensinadas pela IA Online à IA Local.
 * `LICOES_OLLAMA.md`: Painel legível (gerado automaticamente) com o histórico de lições aprendidas pelo Ollama e estatísticas de execuções locais.
 * `scripts/despachante_hermes.py`: Utilitário para criação e gerenciamento de tarefas na fila Markdown.

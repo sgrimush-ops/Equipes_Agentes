@@ -25,12 +25,13 @@ Sempre que o usuário solicitar a criação de consultas SQL, documentações `V
     --prompt "Briefing técnico definido pela IA Online..." `
     --saida "caminho/do/arquivo_gerado.sql"
   ```
-- Categorias suportadas (com roteamento automático de modelo local):
-  - `sql` -> usa `gemma4:latest` (com sanitização anti-comentários `--`)
+- Categorias suportadas (com roteamento automático otimizado para CPU sem GPU):
+  - `sql` -> usa `qwen2.5-coder:1.5b` (rápido em CPU, ~12 tok/s, com sanitização anti-comentários `--`)
   - `var_f7` -> usa `hermes3:latest` (documentação de variáveis de tela Consinco)
-  - `python` -> usa `gemma4:latest`
+  - `python` -> usa `qwen2.5-coder:1.5b` (rápido em CPU para digitação de scripts)
   - `codigo_rapido` -> usa `qwen2.5-coder:1.5b`
   - `dados` / `geral` -> usa `hermes3:latest`
+  - *(Opcional: use `--modelo gemma4:latest` apenas quando precisar explicitamente do modelo 9B)*
 
 ### Passo 3 — Revisão Rigorosa pela IA Online
 - A IA Online lê o arquivo gerado pelo Ollama (`read_file`) e valida contra todas as regras do `.agents/AGENTS.md` e `.agents/rules.md`.
