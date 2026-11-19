@@ -1,0 +1,218 @@
+SELECT *
+FROM (
+    WITH CTE_PRODUTOS AS (
+        SELECT /*+ MATERIALIZE */
+            P.SEQPRODUTO,
+            MAX(C.CATEGORIA) AS DEPARTAMENTO
+        FROM MAP_PRODUTO P
+        INNER JOIN MAP_FAMDIVISAO FD
+            ON FD.SEQFAMILIA = P.SEQFAMILIA
+           AND FD.NRODIVISAO = 1
+           AND FD.FINALIDADEFAMILIA = 'R'
+        INNER JOIN MAP_FAMDIVCATEG FDC
+            ON FDC.SEQFAMILIA = P.SEQFAMILIA
+           AND FDC.NRODIVISAO = 1
+           AND FDC.STATUS = 'A'
+        INNER JOIN MAP_CATEGORIA C
+            ON C.SEQCATEGORIA = FDC.SEQCATEGORIA
+           AND C.NRODIVISAO = 1
+           AND C.TIPCATEGORIA = 'M'
+           AND C.NIVELHIERARQUIA = 1
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM MAP_FAMDIVCATEG XF
+            INNER JOIN MAP_CATEGORIA YF
+                ON XF.SEQCATEGORIA = YF.SEQCATEGORIA
+            WHERE XF.SEQFAMILIA = P.SEQFAMILIA
+              AND XF.NRODIVISAO = 1
+              AND XF.STATUS = 'A'
+              AND YF.NRODIVISAO = 1
+              AND YF.TIPCATEGORIA = 'M'
+              AND YF.NIVELHIERARQUIA = 1
+              AND UPPER(YF.CATEGORIA) = 'ALMOXARIFADO'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM MAP_FAMDIVCATEG XF2
+                  INNER JOIN MAP_CATEGORIA YF2
+                      ON XF2.SEQCATEGORIA = YF2.SEQCATEGORIA
+                  WHERE XF2.SEQFAMILIA = P.SEQFAMILIA
+                    AND XF2.NRODIVISAO = 1
+                    AND XF2.STATUS = 'A'
+                    AND YF2.NRODIVISAO = 1
+                    AND YF2.TIPCATEGORIA = 'M'
+                    AND YF2.NIVELHIERARQUIA = 1
+                    AND UPPER(YF2.CATEGORIA) <> 'ALMOXARIFADO'
+              )
+        )
+        GROUP BY P.SEQPRODUTO
+    ),
+    CTE_MESES AS (
+        SELECT /*+ MATERIALIZE */
+            ADD_MONTHS(TRUNC(:DT1, 'MM'), LEVEL - 1) AS MES_REF,
+            LEAST(LAST_DAY(ADD_MONTHS(TRUNC(:DT1, 'MM'), LEVEL - 1)), TRUNC(:DT2)) - ADD_MONTHS(TRUNC(:DT1, 'MM'), LEVEL - 1) + 1 AS DIAS_MES
+        FROM DUAL
+        CONNECT BY ADD_MONTHS(TRUNC(:DT1, 'MM'), LEVEL - 1) <= TRUNC(:DT2, 'MM')
+    ),
+    CTE_CUSTO_BUCKET AS (
+        SELECT /*+ MATERIALIZE */
+            C.NROEMPRESA,
+            C.SEQPRODUTO,
+            P.DEPARTAMENTO,
+            C.DTAENTRADASAIDA,
+            CASE
+                WHEN C.DTAENTRADASAIDA < TRUNC(:DT1) THEN ADD_MONTHS(TRUNC(:DT1, 'MM'), -1)
+                ELSE TRUNC(C.DTAENTRADASAIDA, 'MM')
+            END AS MES_BUCKET,
+            NVL(C.QTDESTQINICIAL, 0) + NVL(C.QTDENTRADA, 0) - NVL(C.QTDSAIDA, 0) AS QTD_FINAL_DIA,
+            NVL(C.CMDIACUSLIQUIDOEMP, 0) AS CUSTO_MEDIO_DIA,
+            NVL(C.VLRCUSLIQUIDOVDA, 0) - NVL(C.VLRCUSLIQUIDODEVOL, 0) AS CMV_LIQ_DIA,
+            NVL(C.VLRTOTALVDA, 0) - NVL(C.VLRTOTALDEVOL, 0) AS VENDA_LIQ_DIA,
+            NVL(C.VLRTOTALCOMPRA, 0) AS VLR_COMPRA_DIA,
+            NVL(C.QTDVDA, 0) AS QTD_VDA_DIA
+        FROM MRL_CUSTODIA C
+        INNER JOIN CTE_PRODUTOS P
+            ON P.SEQPRODUTO = C.SEQPRODUTO
+        WHERE C.DTAENTRADASAIDA <= TRUNC(:DT2)
+          AND (
+              NVL(TRIM(:LT1), '0') IN ('0', '')
+              OR INSTR(',' || UPPER(REPLACE(TRIM(:LT1), ' ', '')) || ',', ',' || TO_CHAR(C.NROEMPRESA) || ',') > 0
+          )
+    ),
+    CTE_MOV_MENSAL AS (
+        SELECT /*+ MATERIALIZE */
+            NROEMPRESA,
+            SEQPRODUTO,
+            DEPARTAMENTO,
+            MES_BUCKET,
+            MAX(QTD_FINAL_DIA) KEEP (DENSE_RANK LAST ORDER BY DTAENTRADASAIDA) AS QTD_FINAL_MOV,
+            MAX(CUSTO_MEDIO_DIA) KEEP (DENSE_RANK LAST ORDER BY DTAENTRADASAIDA) AS CUSTO_MEDIO_MOV,
+            SUM(CMV_LIQ_DIA) AS CMV_LIQ,
+            SUM(VENDA_LIQ_DIA) AS VENDA_LIQ,
+            SUM(VLR_COMPRA_DIA) AS VLR_COMPRA,
+            SUM(QTD_VDA_DIA) AS QTD_VDA
+        FROM CTE_CUSTO_BUCKET
+        GROUP BY
+            NROEMPRESA,
+            SEQPRODUTO,
+            DEPARTAMENTO,
+            MES_BUCKET
+    ),
+    CTE_PARES_ATIVOS AS (
+        SELECT /*+ MATERIALIZE */
+            NROEMPRESA,
+            SEQPRODUTO,
+            DEPARTAMENTO,
+            MAX(CASE WHEN MES_BUCKET < TRUNC(:DT1, 'MM') THEN QTD_FINAL_MOV END) AS QTD_ANTES,
+            MAX(CASE WHEN MES_BUCKET < TRUNC(:DT1, 'MM') THEN CUSTO_MEDIO_MOV END) AS CUSTO_ANTES,
+            ROUND(
+                NVL(MAX(CASE WHEN MES_BUCKET < TRUNC(:DT1, 'MM') THEN QTD_FINAL_MOV END), 0) *
+                NVL(MAX(CASE WHEN MES_BUCKET < TRUNC(:DT1, 'MM') THEN CUSTO_MEDIO_MOV END), 0),
+                2
+            ) AS VLR_ESTQ_ANTES
+        FROM CTE_MOV_MENSAL
+        GROUP BY NROEMPRESA, SEQPRODUTO, DEPARTAMENTO
+        HAVING MAX(CASE WHEN MES_BUCKET >= TRUNC(:DT1, 'MM') THEN 1 ELSE 0 END) = 1
+            OR NVL(MAX(CASE WHEN MES_BUCKET < TRUNC(:DT1, 'MM') THEN QTD_FINAL_MOV END), 0) <> 0
+    ),
+    CTE_SERIE_PRODUTO AS (
+        SELECT /*+ MATERIALIZE */
+            PA.NROEMPRESA,
+            PA.SEQPRODUTO,
+            PA.DEPARTAMENTO,
+            M.MES_REF,
+            M.DIAS_MES,
+            PA.VLR_ESTQ_ANTES,
+            COALESCE(
+                LAST_VALUE(MM.QTD_FINAL_MOV IGNORE NULLS) OVER (
+                    PARTITION BY PA.NROEMPRESA, PA.SEQPRODUTO
+                    ORDER BY M.MES_REF
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ),
+                PA.QTD_ANTES,
+                0
+            ) AS QTD_FINAL_CORR,
+            COALESCE(
+                LAST_VALUE(MM.CUSTO_MEDIO_MOV IGNORE NULLS) OVER (
+                    PARTITION BY PA.NROEMPRESA, PA.SEQPRODUTO
+                    ORDER BY M.MES_REF
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ),
+                PA.CUSTO_ANTES,
+                0
+            ) AS CUSTO_CORR,
+            NVL(MM.CMV_LIQ, 0) AS CMV_LIQ,
+            NVL(MM.VENDA_LIQ, 0) AS VENDA_LIQ,
+            NVL(MM.VLR_COMPRA, 0) AS VLR_COMPRA,
+            NVL(MM.QTD_VDA, 0) AS QTD_VDA
+        FROM CTE_PARES_ATIVOS PA
+        CROSS JOIN CTE_MESES M
+        LEFT JOIN CTE_MOV_MENSAL MM
+            ON MM.NROEMPRESA = PA.NROEMPRESA
+           AND MM.SEQPRODUTO = PA.SEQPRODUTO
+           AND MM.MES_BUCKET = M.MES_REF
+    ),
+    CTE_SERIE_VLR AS (
+        SELECT /*+ MATERIALIZE */
+            NROEMPRESA,
+            SEQPRODUTO,
+            DEPARTAMENTO,
+            MES_REF,
+            DIAS_MES,
+            VLR_ESTQ_ANTES,
+            ROUND(QTD_FINAL_CORR * CUSTO_CORR, 2) AS VLR_ESTQ_FINAL,
+            CMV_LIQ,
+            VENDA_LIQ,
+            VLR_COMPRA,
+            QTD_VDA
+        FROM CTE_SERIE_PRODUTO
+    ),
+    CTE_SERIE_COMPLETA AS (
+        SELECT /*+ MATERIALIZE */
+            NROEMPRESA,
+            SEQPRODUTO,
+            DEPARTAMENTO,
+            MES_REF,
+            DIAS_MES,
+            LAG(VLR_ESTQ_FINAL, 1, VLR_ESTQ_ANTES) OVER (
+                PARTITION BY NROEMPRESA, SEQPRODUTO
+                ORDER BY MES_REF
+            ) AS VLR_ESTQ_INICIAL,
+            VLR_ESTQ_FINAL,
+            CMV_LIQ,
+            VENDA_LIQ,
+            VLR_COMPRA,
+            QTD_VDA
+        FROM CTE_SERIE_VLR
+    )
+    SELECT
+        NROEMPRESA,
+        TO_CHAR(MES_REF, 'YYYY-MM') AS COMPETENCIA,
+        DEPARTAMENTO,
+        ROUND(SUM(VLR_ESTQ_INICIAL), 2) AS ESTQ_INICIAL_VLR,
+        ROUND(SUM(VLR_ESTQ_FINAL), 2) AS ESTQ_FINAL_VLR,
+        ROUND((SUM(VLR_ESTQ_INICIAL) + SUM(VLR_ESTQ_FINAL)) / 2, 2) AS ESTQ_MEDIO_VLR,
+        ROUND(SUM(CASE WHEN QTD_VDA = 0 THEN VLR_ESTQ_FINAL ELSE 0 END), 2) AS ESTQ_SEM_GIRO_VLR,
+        ROUND(SUM(VLR_COMPRA), 2) AS VLR_COMPRA,
+        ROUND(SUM(VENDA_LIQ), 2) AS VENDA_LIQUIDA,
+        ROUND(SUM(CMV_LIQ), 2) AS CMV_LIQUIDO,
+        ROUND(SUM(VENDA_LIQ - CMV_LIQ), 2) AS MARGEM_BRUTA_VLR,
+        CASE
+            WHEN (SUM(VLR_ESTQ_INICIAL) + SUM(VLR_ESTQ_FINAL)) / 2 > 0
+            THEN ROUND(SUM(CMV_LIQ) / ((SUM(VLR_ESTQ_INICIAL) + SUM(VLR_ESTQ_FINAL)) / 2), 4)
+            ELSE 0
+        END AS GIRO_ESTOQUE,
+        CASE
+            WHEN SUM(CMV_LIQ) > 0
+            THEN ROUND((((SUM(VLR_ESTQ_INICIAL) + SUM(VLR_ESTQ_FINAL)) / 2) / SUM(CMV_LIQ)) * MAX(DIAS_MES), 1)
+            ELSE 0
+        END AS MEDIA_PERMANENCIA_DIAS
+    FROM CTE_SERIE_COMPLETA
+    GROUP BY
+        NROEMPRESA,
+        MES_REF,
+        DEPARTAMENTO
+    ORDER BY
+        NROEMPRESA,
+        MES_REF,
+        DEPARTAMENTO
+)

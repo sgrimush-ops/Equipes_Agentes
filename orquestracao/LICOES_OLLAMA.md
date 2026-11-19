@@ -1,8 +1,8 @@
 # 🧠 Memória de Aprendizado Contínuo — IA Local (Ollama)
 
-- **Total de Tarefas Executadas pelo Ollama**: `3`
-- **Total de Lições Ensinadas pela IA Online**: `7`
-- **Última Atualização**: `19/11/2026 08:25:56`
+- **Total de Tarefas Executadas pelo Ollama**: `5`
+- **Total de Lições Ensinadas pela IA Online**: `9`
+- **Última Atualização**: `19/11/2026 15:31:20`
 
 > Este arquivo é sincronizado automaticamente pelo `executor_ollama.py`. Toda lição registrada aqui é injetada no prompt de sistema do Ollama para evitar que erros corrigidos pela IA Online se repitam.
 
@@ -55,3 +55,15 @@ WHERE NROEMPRESA = 1`
 - **Regra Definitiva Aprendida**: **Para rodar cmdlets PowerShell via Python usando apenas biblioteca padrao, invocar sempre ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script] e parsear JSON via ConvertTo-Json -Compress.**
 - ❌ **Como NÃO fazer**: `subprocess.run('Get-CimInstance Win32_PnPSignedDriver')`
 - ✅ **Como FAZER**: `subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'Get-CimInstance Win32_PnPSignedDriver | ConvertTo-Json -Compress'])`
+
+### 📌 Lição #8 — Categoria: `SQL` (2026-11-19 14:51:38)
+- **Erro Identificado na Revisão**: Loop infinito repetindo SELECT ... FROM ( sem construir as CTEs da MRL_CUSTODIA
+- **Regra Definitiva Aprendida**: **Sempre escrever o bloco WITH completo com todas as CTEs materializadas e finalizar com o SELECT agrupado, nunca repetir SELECT ... FROM ( em cascata**
+- ❌ **Como NÃO fazer**: `SELECT ... FROM ( SELECT ... FROM ( ...`
+- ✅ **Como FAZER**: `SELECT * FROM ( WITH CTE_PRODUTOS AS (...), CTE_MESES AS (...) SELECT ... FROM CTE_SERIE_COMPLETA GROUP BY ... )`
+
+### 📌 Lição #9 — Categoria: `PYTHON` (2026-11-19 15:31:20)
+- **Erro Identificado na Revisão**: Loop infinito repetindo imports selenium no inicio de consolidar.py
+- **Regra Definitiva Aprendida**: **Gerar apenas imports necessarios (pandas, numpy, plotly, pathlib, calendar) e escrever todas as funcoes completas sem repetir imports**
+- ❌ **Como NÃO fazer**: `from selenium.webdriver.common.by import By (repetido 50x)`
+- ✅ **Como FAZER**: `import calendar, pandas as pd, plotly.graph_objects as go ... def compilar_visao(...):`

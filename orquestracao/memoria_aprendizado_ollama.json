@@ -1,6 +1,6 @@
 {
-  "total_execucoes": 3,
-  "total_licoes": 7,
+  "total_execucoes": 5,
+  "total_licoes": 9,
   "licoes": [
     {
       "id": 1,
@@ -64,6 +64,24 @@
       "regra_aprendida": "Para rodar cmdlets PowerShell via Python usando apenas biblioteca padrao, invocar sempre ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script] e parsear JSON via ConvertTo-Json -Compress.",
       "exemplo_errado": "subprocess.run('Get-CimInstance Win32_PnPSignedDriver')",
       "exemplo_correto": "subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'Get-CimInstance Win32_PnPSignedDriver | ConvertTo-Json -Compress'])"
+    },
+    {
+      "id": 8,
+      "data": "2026-11-19 14:51:38",
+      "categoria": "sql",
+      "erro_observado": "Loop infinito repetindo SELECT ... FROM ( sem construir as CTEs da MRL_CUSTODIA",
+      "regra_aprendida": "Sempre escrever o bloco WITH completo com todas as CTEs materializadas e finalizar com o SELECT agrupado, nunca repetir SELECT ... FROM ( em cascata",
+      "exemplo_errado": "SELECT ... FROM ( SELECT ... FROM ( ...",
+      "exemplo_correto": "SELECT * FROM ( WITH CTE_PRODUTOS AS (...), CTE_MESES AS (...) SELECT ... FROM CTE_SERIE_COMPLETA GROUP BY ... )"
+    },
+    {
+      "id": 9,
+      "data": "2026-11-19 15:31:20",
+      "categoria": "python",
+      "erro_observado": "Loop infinito repetindo imports selenium no inicio de consolidar.py",
+      "regra_aprendida": "Gerar apenas imports necessarios (pandas, numpy, plotly, pathlib, calendar) e escrever todas as funcoes completas sem repetir imports",
+      "exemplo_errado": "from selenium.webdriver.common.by import By (repetido 50x)",
+      "exemplo_correto": "import calendar, pandas as pd, plotly.graph_objects as go ... def compilar_visao(...):"
     }
   ]
 }
