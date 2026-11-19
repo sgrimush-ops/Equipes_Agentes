@@ -1,8 +1,8 @@
 # 🧠 Memória de Aprendizado Contínuo — IA Local (Ollama)
 
-- **Total de Tarefas Executadas pelo Ollama**: `2`
-- **Total de Lições Ensinadas pela IA Online**: `6`
-- **Última Atualização**: `19/11/2026 08:13:35`
+- **Total de Tarefas Executadas pelo Ollama**: `3`
+- **Total de Lições Ensinadas pela IA Online**: `7`
+- **Última Atualização**: `19/11/2026 08:25:56`
 
 > Este arquivo é sincronizado automaticamente pelo `executor_ollama.py`. Toda lição registrada aqui é injetada no prompt de sistema do Ollama para evitar que erros corrigidos pela IA Online se repitam.
 
@@ -49,3 +49,9 @@ WHERE NROEMPRESA = 1`
 - **Regra Definitiva Aprendida**: **1) Para blindar LISTAGG contra ORA-01489 (limite de 4000 bytes do VARCHAR2 no Oracle) em NFs com muitos itens, numere os itens com ROW_NUMBER() OVER (PARTITION BY NROEMPRESA, SEQNF, TIPNOTAFISCAL ORDER BY SEQPRODUTO) AS RN_ITEM em ITENS_BASE e limite o LISTAGG (CASE WHEN RN_ITEM <= 45 THEN SUBSTR(DESCCOMPLETA, 1, 55) END), mantendo SUM(VLRITEM) sobre 100% dos itens. 2) Apure VALOR_DESCONTO_ACORDO_NF apenas quando houver reducao real entre VALOR_TOTAL_COM_IMPOSTOS e VALOR_DO_BOLETO ou VALOR_LIQUIDO_NF (N.VLRTOTAL), ignorando valores meramente informativos em VLRDESCCONTRATODEV quando VALOR_TOTAL_COM_IMPOSTOS = VALOR_LIQUIDO_NF = VALOR_DO_BOLETO.**
 - ❌ **Como NÃO fazer**: `LISTAGG(P.DESCCOMPLETA, ' / ') sem limite de itens e soma cega de VLRDESCCONTRATODEV`
 - ✅ **Como FAZER**: `LISTAGG(CASE WHEN B.RN_ITEM <= 45 THEN SUBSTR(B.DESCCOMPLETA, 1, 55) END, ' / ') e desconto apurado pela diferenca real (VALOR_TOTAL_COM_IMPOSTOS_NUM - VALOR_BOLETO_NUM / VALOR_LIQUIDO_NF_NUM)`
+
+### 📌 Lição #7 — Categoria: `PYTHON` (2026-11-19 08:25:56)
+- **Erro Identificado na Revisão**: Execucao de cmdlets PowerShell diretamente no subprocess.run sem invocar powershell.exe e importacao de win32com.client quando pedido apenas biblioteca padrao
+- **Regra Definitiva Aprendida**: **Para rodar cmdlets PowerShell via Python usando apenas biblioteca padrao, invocar sempre ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script] e parsear JSON via ConvertTo-Json -Compress.**
+- ❌ **Como NÃO fazer**: `subprocess.run('Get-CimInstance Win32_PnPSignedDriver')`
+- ✅ **Como FAZER**: `subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'Get-CimInstance Win32_PnPSignedDriver | ConvertTo-Json -Compress'])`

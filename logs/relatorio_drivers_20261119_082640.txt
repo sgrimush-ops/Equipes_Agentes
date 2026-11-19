@@ -1,0 +1,38 @@
+========================================================================
+VERIFICAÇÃO DE DRIVERS E ATUALIZAÇÕES DO PC - 19/11/2026 08:26:40
+========================================================================
+
+[1] DISPOSITIVOS COM ERRO NO GERENCIADOR DE DISPOSITIVOS
+  [OK] Nenhum dispositivo com código de erro encontrado.
+
+[2] ATUALIZAÇÕES DE DRIVERS PENDENTES NO WINDOWS UPDATE
+  [!] 1 atualização(ões) de driver disponível(is):
+    - Microsoft Corporation AudioProcessingObject Driver Update (1.0.4.55794) | Fabricante: Microsoft Corporation | Data: 2026-10-16
+
+[3] RESUMO DE DRIVERS INSTALADOS (WIN32_PNPSIGNEDDRIVER)
+  Total de drivers listados: 136
+  Drivers com data <= 2023 (mais de 3 anos): 123
+  Top 15 drivers mais antigos:
+    - 1968-07-17 | v10.1.31.2 | Intel(R) SPI (flash) Controller - 06A4 (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) LPC Controller (Q470) - 0687 (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) PCI Express Root Port #13 - 06B4 (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) PCI Express Root Port #9 - 06B0 (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) PCI Express Root Port #5 - 06BC (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) PCI Express Root Port #1 - 06B8 (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) PCI Express Root Port #21 - 06AC (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) PCI Express Root Port #17 - 06C0 (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) Shared SRAM - 06EF (INTEL)
+    - 1968-07-17 | v10.1.31.2 | Intel(R) Thermal Subsystem - 06F9 (INTEL)
+    - 2006-06-20 | v10.0.26100.1 | Local Print Queue (Microsoft)
+    - 2006-06-20 | v10.0.26100.1 | Local Print Queue (Microsoft)
+    - 2006-06-20 | v10.0.26100.1 | Local Print Queue (Microsoft)
+    - 2006-06-20 | v10.0.26100.1 | Local Print Queue (Microsoft)
+    - 2006-06-20 | v10.0.26100.1 | Local Print Queue ()
+
+[4] VERIFICAÇÃO DE PACOTES VIA WINGET (winget upgrade)
+Nome               ID                 Versão        Disponível    Origem
+------------------------------------------------------------------------
+Antigravity 2.31.2 Google.Antigravity 2.31.2        2.33.0        winget
+Google Chrome      Google.Chrome.EXE  157.0.8103.79 158.0.8127.37 winget
+Google Cloud SDK   Google.CloudSDK    Unknown       594.0.0       winget
+3 atualizações disponíveis.
