@@ -1,6 +1,6 @@
 {
-  "total_execucoes": 5,
-  "total_licoes": 9,
+  "total_execucoes": 8,
+  "total_licoes": 12,
   "licoes": [
     {
       "id": 1,
@@ -82,6 +82,33 @@
       "regra_aprendida": "Gerar apenas imports necessarios (pandas, numpy, plotly, pathlib, calendar) e escrever todas as funcoes completas sem repetir imports",
       "exemplo_errado": "from selenium.webdriver.common.by import By (repetido 50x)",
       "exemplo_correto": "import calendar, pandas as pd, plotly.graph_objects as go ... def compilar_visao(...):"
+    },
+    {
+      "id": 10,
+      "data": "2026-11-21 12:09:43",
+      "categoria": "python",
+      "erro_observado": "Gerou cercas markdown `python no arquivo .py e entrou em loop infinito de elif content_type repetido sem fechar a funcao",
+      "regra_aprendida": "Nunca incluir cercas markdown `python em arquivos .py; usar tuplas/conjuntos para verificar extensoes ou MIME types em vez de repetir elif",
+      "exemplo_errado": "`python ... elif content_type == '...': ... elif content_type == '...':",
+      "exemplo_correto": "EXTENSOES = ('.xls', '.xlsx', '.ods'); if fname.lower().endswith(EXTENSOES): ..."
+    },
+    {
+      "id": 11,
+      "data": "2026-11-21 12:12:22",
+      "categoria": "python",
+      "erro_observado": "Repetiu indefinidamente blocos elif 'E' in segmento / elif 'O' in segmento sem implementar o parser",
+      "regra_aprendida": "Usar expressoes regulares (re.search / re.findall) para extrair datas e valores de strings em vez de dividir manualmente com if/elif",
+      "exemplo_errado": "if 'E' in segmento: ... elif 'O' in segmento:",
+      "exemplo_correto": "re.findall(r'(\\\\d{1,2})[./](\\\\d{1,2})[./](\\\\d{2,4})', texto)"
+    },
+    {
+      "id": 12,
+      "data": "2026-11-21 12:14:32",
+      "categoria": "python",
+      "erro_observado": "Usou DataFrame.append() que foi removido no pandas 2.x e referenciou scripts/CSS externos inexistentes no HTML",
+      "regra_aprendida": "No pandas 2.x acumular dicionarios em lista e construir pd.DataFrame(lista) no final; em relatorios HTML estaticos embutir CSS e JS inline no proprio arquivo",
+      "exemplo_errado": "df = df.append({...}, ignore_index=True)",
+      "exemplo_correto": "registros.append({...}); df = pd.DataFrame(registros)"
     }
   ]
 }

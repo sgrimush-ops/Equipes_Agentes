@@ -1,8 +1,8 @@
 # 🧠 Memória de Aprendizado Contínuo — IA Local (Ollama)
 
-- **Total de Tarefas Executadas pelo Ollama**: `5`
-- **Total de Lições Ensinadas pela IA Online**: `9`
-- **Última Atualização**: `19/11/2026 15:31:20`
+- **Total de Tarefas Executadas pelo Ollama**: `8`
+- **Total de Lições Ensinadas pela IA Online**: `12`
+- **Última Atualização**: `21/11/2026 12:14:32`
 
 > Este arquivo é sincronizado automaticamente pelo `executor_ollama.py`. Toda lição registrada aqui é injetada no prompt de sistema do Ollama para evitar que erros corrigidos pela IA Online se repitam.
 
@@ -67,3 +67,21 @@ WHERE NROEMPRESA = 1`
 - **Regra Definitiva Aprendida**: **Gerar apenas imports necessarios (pandas, numpy, plotly, pathlib, calendar) e escrever todas as funcoes completas sem repetir imports**
 - ❌ **Como NÃO fazer**: `from selenium.webdriver.common.by import By (repetido 50x)`
 - ✅ **Como FAZER**: `import calendar, pandas as pd, plotly.graph_objects as go ... def compilar_visao(...):`
+
+### 📌 Lição #10 — Categoria: `PYTHON` (2026-11-21 12:09:43)
+- **Erro Identificado na Revisão**: Gerou cercas markdown `python no arquivo .py e entrou em loop infinito de elif content_type repetido sem fechar a funcao
+- **Regra Definitiva Aprendida**: **Nunca incluir cercas markdown `python em arquivos .py; usar tuplas/conjuntos para verificar extensoes ou MIME types em vez de repetir elif**
+- ❌ **Como NÃO fazer**: ``python ... elif content_type == '...': ... elif content_type == '...':`
+- ✅ **Como FAZER**: `EXTENSOES = ('.xls', '.xlsx', '.ods'); if fname.lower().endswith(EXTENSOES): ...`
+
+### 📌 Lição #11 — Categoria: `PYTHON` (2026-11-21 12:12:22)
+- **Erro Identificado na Revisão**: Repetiu indefinidamente blocos elif 'E' in segmento / elif 'O' in segmento sem implementar o parser
+- **Regra Definitiva Aprendida**: **Usar expressoes regulares (re.search / re.findall) para extrair datas e valores de strings em vez de dividir manualmente com if/elif**
+- ❌ **Como NÃO fazer**: `if 'E' in segmento: ... elif 'O' in segmento:`
+- ✅ **Como FAZER**: `re.findall(r'(\\d{1,2})[./](\\d{1,2})[./](\\d{2,4})', texto)`
+
+### 📌 Lição #12 — Categoria: `PYTHON` (2026-11-21 12:14:32)
+- **Erro Identificado na Revisão**: Usou DataFrame.append() que foi removido no pandas 2.x e referenciou scripts/CSS externos inexistentes no HTML
+- **Regra Definitiva Aprendida**: **No pandas 2.x acumular dicionarios em lista e construir pd.DataFrame(lista) no final; em relatorios HTML estaticos embutir CSS e JS inline no proprio arquivo**
+- ❌ **Como NÃO fazer**: `df = df.append({...}, ignore_index=True)`
+- ✅ **Como FAZER**: `registros.append({...}); df = pd.DataFrame(registros)`
